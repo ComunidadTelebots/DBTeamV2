@@ -102,6 +102,18 @@ function configure() {
 }
 
 function start_bot() {
+    # If BOT_TOKEN is set, run either the webhook adapter or the polling adapter
+    if [[ -n "$BOT_TOKEN" ]]; then
+        if [[ -n "$WEBHOOK" ]]; then
+            echo "BOT_TOKEN and WEBHOOK detected — starting Bot API webhook adapter (bot/webhook_adapter.lua)"
+            lua bot/webhook_adapter.lua
+            exit
+        else
+            echo "BOT_TOKEN detected — starting Bot API polling adapter (bot/bot_api_adapter.lua)"
+            lua bot/bot_api_adapter.lua
+            exit
+        fi
+    fi
     if [[ $1 == "--"* ]]; then
         ./bin/telegram-cli --${1:2}
         exit

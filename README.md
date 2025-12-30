@@ -76,3 +76,48 @@ Notas
 -----
 - LibreTranslate públicos pueden tener límites; considera desplegar tu propia instancia de LibreTranslate o usar DeepL para mayor robustez.
 - Archivos generados por traducción sobrescriben/crean `lang/<target>_lang.lua`.
+
+Bot API adapter
+---------------
+
+Además del cliente TDLib/telegram-cli, este proyecto incluye un adaptador mínimo para la Telegram Bot API (`bot/bot_api_adapter.lua`). Es útil para pruebas rápidas con un Bot token (no requiere TDLib ni sesión telefónica).
+
+- Para usarlo, exporta `BOT_TOKEN` y ejecuta `launch.sh` (el script arranca el adaptador automáticamente si detecta `BOT_TOKEN`):
+
+```bash
+export BOT_TOKEN=123456:ABC-DEF...
+./launch.sh
+```
+
+- También puedes ejecutar el adaptador directamente:
+
+```bash
+BOT_TOKEN=123456:ABC-DEF... lua bot/bot_api_adapter.lua
+```
+
+- Notas sobre el adaptador:
+	- Implementa long-polling con `getUpdates` y convierte cada `message` en la estructura interna usada por el bot, llamando `tdcli_update_callback`.
+	- Reemplaza `tdcli_function` por una versión adaptada que soporta al menos `SendMessage`, `DeleteMessage` y `SearchPublicChat` a través de la Bot API. No cubre todas las llamadas de TDLib; si tus plugins usan otras funciones deberás ampliar el mapeo.
+	- El adaptador es para pruebas y desarrollo; para producción se recomienda TDLib o un diseño con webhooks.
+
+Webhook (API Bot web)
+---------------------
+
+También se incluye un adaptador webhook en Lua (`bot/webhook_adapter.lua`) que expone un servidor HTTP simple para recibir webhooks de Telegram y convertirlos en actualizaciones internas del bot. Uso recomendado para entornos donde puedas exponer HTTPS (por ejemplo mediante `ngrok` o un proxy con certificado).
+
+- Para usar el webhook adapter exporta `BOT_TOKEN` y `WEBHOOK=1` y (opcional) `WEBHOOK_PORT` antes de ejecutar `launch.sh`:
+
+```bash
+export BOT_TOKEN=123456:ABC-DEF...
+export WEBHOOK=1
+export WEBHOOK_PORT=8443  # opcional, por defecto 8080
+./launch.sh
+```
+
+- Telegram exige HTTPS para webhooks. Si desarrollas localmente usa `ngrok` o similar para exponer `http://localhost:PORT` como `https://...` y luego registra el webhook con `setWebhook`:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$BOT_TOKEN/setWebhook" -d "url=https://<your-ngrok-url>/" 
+```
+
+- El adaptador HTTP incluido es intencionalmente simple (desarrollos/test). Para producción se recomienda recibir webhooks detrás de un proxy HTTPS o usar un servidor más robusto.
