@@ -23,6 +23,19 @@
       <option value="groq">groq</option>
     </select>
 
+    <label for="chat_id">Chat ID (para enviar mensajes):</label>
+    <input id="chat_id" type="text" placeholder="123456789" />
+
+    <label for="sendAs">Enviar como:</label>
+    <select id="sendAs">
+      <option value="ai">(LLM / IA)</option>
+      <option value="bot">Bot API (usar BOT_TOKEN)</option>
+      <option value="user">Usuario (cuenta que ejecuta el bot)</option>
+    </select>
+
+    <label for="apiBase">API base (web API para enviar/listar):</label>
+    <input id="apiBase" type="text" value="http://localhost:8081" />
+
     <label for="prompt">Prompt:</label>
     <textarea id="prompt" rows="6" placeholder="Escribe el prompt aquí..."></textarea>
 

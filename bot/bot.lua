@@ -11,6 +11,7 @@ package.cpath = package.cpath .. ';.luarocks/lib/lua/5.2/?.so'
 
 redis = require("redis")
 redis = redis.connect('127.0.0.1', 6379)
+local json = require('libs.JSON')
 
 
 require('utils')
@@ -150,6 +151,18 @@ function tdcli_update_callback(data)
     local d = data.disable_notification_
     local chat = chats[msgb.chat_id_]
 
+    -- Process queued user-sends from web UI (web:outbox)
+    pcall(function()
+        for i=1,10 do
+            local item = redis:lpop('web:outbox')
+            if not item then break end
+            local ok, obj = pcall(function() return json.decode(item) end)
+            if ok and obj and obj.chat_id and obj.text then
+                send_msg(obj.chat_id, obj.text, 'md')
+            end
+        end
+    end)
+
     if ((not d) and chat) then
         if msgb.content_.ID == "MessageText" then
             do_notify(chat.title_, msgb.content_.text_)
@@ -159,6 +172,13 @@ function tdcli_update_callback(data)
     end
     if (data.ID == "UpdateNewMessage") then
         msg = oldtg(data)
+        -- store a lightweight copy of recent messages for web UI
+        pcall(function()
+            local entry = { chat_id = msg.to.id, from_id = msg.from.id, text = msg.text or "", date = msg.date, id = msg.id }
+            local encoded = json:encode(entry)
+            redis:lpush('web:messages', encoded)
+            redis:ltrim('web:messages', 0, 99)
+        end)
         tdcli_function ({
             ID = "GetUser",
             user_id_ = data.message_.sender_user_id_
