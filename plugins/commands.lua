@@ -48,15 +48,33 @@ do
             else
                 return '🚫 '..lang_text(msg.to.id, 'require_mod')
             end
+        elseif matches[1] == 'translate' then
+            if not permissions(msg.from.id, msg.to.id, "mod_commands") then
+                return '🚫 '..lang_text(msg.to.id, 'require_mod')
+            end
+            local source = matches[2]
+            local target = matches[3]
+            local translator = require('lang.translator')
+            local provider = os.getenv('TRANSLATE_PROVIDER') or 'libre'
+            local api_key = os.getenv('TRANSLATE_API_KEY') or nil
+            local in_path = 'lang/english_lang.lua'
+            local out_path = 'lang/'..target..'_lang.lua'
+            local ok, err = translator.translate_file(in_path, out_path, { provider = provider, api_key = api_key, source = source, target = target })
+            if ok then
+                return '`> `'..'Translation completed: '..out_path
+            else
+                return '`> `Translation failed: '..tostring(err)
+            end
         end
-        
+
         return '`' .. text .. '`'
     end
 
     return {
         patterns = {
             "^[!/#](commands)$",
-            "^[!/#](commands) (.+)"
+            "^[!/#](commands) (.+)",
+            "^[!/#](translate) ([%w_%-]+) ([%w_%-]+)"
         }, 
         run = run 
     }
