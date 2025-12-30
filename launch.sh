@@ -65,7 +65,7 @@ function do_file() {
     for i in ${!config_lines[@]}; do
         lines+=${config_lines[$i]}"\n"
     done
-	if [[ ! -d ~/.telegram-cli ]]; then mkdir ~/.telegram-cli; fi
+    if [[ ! -d ~/.telegram-cli ]]; then mkdir ~/.telegram-cli; fi
     echo -e $lines > ~/.telegram-cli/${1}
 }
 
@@ -129,9 +129,9 @@ function show_logo_slowly() {
     declare -A logo
     seconds="0.008"
     logo[1]="____  ____ ______"
-    logo[2]="|    \|  _ )_   _|___ ____   __  __"
-    logo[3]="| |_  )  _ \ | |/ .__|  _ \_|  \/  |"
-    logo[4]="|____/|____/ |_|\____/\_____|_/\/\_|  v2"
+    logo[2]="|    \\|  _ )_   _|___ ____   __  __"
+    logo[3]="| |_  )  _ \\ | |/ .__|  _ \\_|  \/  |"
+    logo[4]="|____/|____/ |_|\\____/\\_____|_/\\/\\_|  v2"
     printf "\033[38;5;208m\t"
     for i in ${!logo[@]}; do
         for x in `seq 0 ${#logo[$i]}`; do
@@ -147,9 +147,9 @@ function show_logo() {
     #Adding some color. By @iicc1 :D
     echo -e "\033[38;5;208m"
     echo -e "\t____  ____ ______"
-    echo -e "\t|    \|  _ )_   _|___ ____   __  __"
-    echo -e "\t| |_  )  _ \ | |/ .__|  _ \_|  \/  |"
-    echo -e "\t|____/|____/ |_|\____/\_____|_/\/\_|  v2"
+    echo -e "\t|    \\|  _ )_   _|___ ____   __  __"
+    echo -e "\t| |_  )  _ \\ | |/ .__|  _ \\_|  \/  |"
+    echo -e "\t|____/|____/ |_|\\____/\\_____|_/\\/\\_|  v2"
     echo -e "\n\e[36m"
 }
 
@@ -198,6 +198,12 @@ case $1 in
 esac
 if [[ $1 == "-"* ]]; then
     show_logo
+    start_bot $1
+    exit
+fi
+show_logo
+start_bot
+exit
     start_bot $1
     exit
 fi
