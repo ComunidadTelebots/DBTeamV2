@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DBTeam - IA (PoC)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Interfaz IA — Prueba de concepto</h1>
+
+    <label for="endpoint">Endpoint (POST JSON -> {prompt, provider}):</label>
+    <input id="endpoint" type="text" value="http://127.0.0.1:8000/generate" />
+
+    <label for="provider">Proveedor (opcional):</label>
+    <select id="provider">
+      <option value="">(usar por defecto)</option>
+      <option value="openai">openai</option>
+      <option value="huggingface">huggingface</option>
+      <option value="azure">azure</option>
+      <option value="local">local</option>
+      <option value="groq">groq</option>
+    </select>
+
+    <label for="prompt">Prompt:</label>
+    <textarea id="prompt" rows="6" placeholder="Escribe el prompt aquí..."></textarea>
+
+    <div class="controls">
+      <button id="submit">Enviar</button>
+      <button id="clear">Limpiar</button>
+    </div>
+
+    <section id="result">
+      <h2>Respuesta</h2>
+      <pre id="response">(esperando)</pre>
+    </section>
+
+    <footer>
+      <small>Nota: el servidor destino debe aceptar POST JSON y soportar CORS para llamadas directas desde el navegador.</small>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

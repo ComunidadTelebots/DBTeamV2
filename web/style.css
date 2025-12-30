@@ -1,0 +1,13 @@
+:root{--bg:#0f1720;--panel:#0b1220;--accent:#7c3aed;--muted:#94a3b8;--card:#071024}
+*{box-sizing:border-box;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif}
+body{margin:0;background:linear-gradient(180deg,var(--bg),#07101a);color:#e6eef8}
+.container{max-width:900px;margin:32px auto;padding:24px;background:rgba(6,10,18,0.6);border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+h1{margin:0 0 12px 0;font-size:20px}
+label{display:block;margin-top:14px;color:var(--muted);font-size:13px}
+input[type=text],select,textarea{width:100%;padding:10px;margin-top:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:rgba(255,255,255,0.02);color:inherit}
+.controls{margin-top:12px}
+button{background:var(--accent);color:white;padding:10px 14px;border-radius:8px;border:none;cursor:pointer;margin-right:8px}
+button#clear{background:transparent;border:1px solid rgba(255,255,255,0.06)}
+#result{margin-top:18px}
+pre{white-space:pre-wrap;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;border:1px solid rgba(255,255,255,0.02);color:#dbeafe}
+footer{margin-top:18px;color:var(--muted);font-size:12px}
