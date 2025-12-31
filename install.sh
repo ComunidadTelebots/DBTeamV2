@@ -100,10 +100,8 @@ install_fedora() {
     print_message "Installing dependencies for Fedora..."
     
     # Fedora uses different package names than Debian
-    $SUDO dnf install -y git redis lua tmux make gcc openssl-devel glib2-devel libconfig-devel jansson-devel unzip libnotify-devel readline-devel
-    
-    # Try to install lua-devel and lua-lgi if available
-    $SUDO dnf install -y lua-devel || print_warning "lua-devel not found in repositories"
+    # Install all packages including lua-devel in one command
+    $SUDO dnf install -y git redis lua lua-devel tmux make gcc openssl-devel glib2-devel libconfig-devel jansson-devel unzip libnotify-devel readline-devel
     
     print_message "System dependencies installed successfully!"
 }
