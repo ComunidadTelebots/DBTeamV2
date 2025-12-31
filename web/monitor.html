@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Monitor — DBTeam Live</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="/logo.svg">
+</head>
+<body>
+  <main class="container">
+    <h1>Monitor en vivo</h1>
+    <p style="color:var(--muted)">Muestra los mensajes/actividades recientes en los bots. Conecta a la API base indicada.</p>
+
+    <label for="apiBaseMon">API base (ej. http://localhost:8081):</label>
+    <input id="apiBaseMon" type="text" value="http://localhost:8081" />
+
+    <label for="apiKeyMon">API Key (opcional):</label>
+    <input id="apiKeyMon" type="text" placeholder="Token de sesión o API key" />
+
+    <div class="controls">
+      <button id="start">Iniciar monitor</button>
+      <button id="stop" class="secondary">Detener</button>
+    </div>
+
+    <section id="pagesSection">
+      <h2>Páginas disponibles</h2>
+      <div id="pagesList" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    </section>
+
+    <section id="live">
+      <h2>Actividad reciente</h2>
+      <div id="stream" style="max-height:60vh;overflow:auto;padding:8px;background:rgba(255,255,255,0.01);border-radius:8px;border:1px solid rgba(255,255,255,0.02)"></div>
+    </section>
+
+    <footer>
+      <small class="hint">El monitor hace polling cada 2s al endpoint <code>/messages</code>. Requiere que el backend esté accesible y que la API Key tenga permisos.</small>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+  <script src="monitor.js"></script>
+
+  <!-- Bubble side panel (shared) -->
+  <aside class="bubble-panel" id="bubblePanel" aria-hidden="true">
+    <button class="bubble-toggle" id="bubbleToggle" aria-label="Abrir panel">
+      <img src="logo.svg" alt="logo" class="bubble-logo"/>
+    </button>
+    <div class="bubble-body" id="bubbleBody">
+      <div class="bubble-header">
+        <div class="bubble-title">DBTeam</div>
+        <button id="bubbleClose" class="bubble-close" aria-label="Cerrar">✕</button>
+      </div>
+      <nav class="bubble-nav">
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="#" id="linkSettings">Ajustes</a>
+        <a href="#" id="linkAI">IA (endpoint)</a>
+        <a href="#" id="linkDevices">Dispositivos</a>
+        <a href="#" id="linkBackup">Backup/Restore</a>
+      </nav>
+      <div id="bubbleResources" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.02)"></div>
+      <div class="bubble-footer">
+        <button id="logoutBtn" class="secondary">Salir</button>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

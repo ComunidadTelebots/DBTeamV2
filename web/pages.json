@@ -1,0 +1,6 @@
+[
+  { "href": "index.html", "label": "Inicio" },
+  { "href": "chat.html", "label": "Chat" },
+  { "href": "monitor.html", "label": "Monitor" },
+  { "href": "wsl_install.html", "label": "WSL install" }
+]

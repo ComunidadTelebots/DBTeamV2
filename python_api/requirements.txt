@@ -6,3 +6,5 @@ requests==2.31.0
 python-dotenv==1.0.0
 python-telegram-bot==20.5
 uvloop==0.17.0
+transformers>=4.34.0
+torch>=2.2.0

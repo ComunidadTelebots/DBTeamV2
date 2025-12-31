@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
+from typing import Optional, Any
 from fastapi.responses import JSONResponse
 import os
+from pathlib import Path
 import redis
 import json
 import hashlib
@@ -70,6 +72,22 @@ def check_auth(request: Request) -> bool:
                     return False
     return False
 
+
+def get_session_from_request(request: Request) -> Optional[dict]:
+    # Return session dict if Authorization Bearer token corresponds to a stored session
+    auth = request.headers.get('authorization')
+    if auth and auth.lower().startswith('bearer '):
+        token = auth.split(None, 1)[1]
+        v = r.get(f'web:session:{token}')
+        if v:
+            dec = decrypt_value(v.decode()) if isinstance(v, bytes) else decrypt_value(v)
+            if dec:
+                try:
+                    return json.loads(dec)
+                except Exception:
+                    return None
+    return None
+
 @app.middleware('http')
 async def cors_and_auth(request: Request, call_next):
     # simple CORS handling for preflight
@@ -83,7 +101,7 @@ async def cors_and_auth(request: Request, call_next):
     return response
 
 @app.get('/messages')
-def get_messages(limit: int = 20, request: Request = None):
+def get_messages(request: Request, limit: int = 20):
     if not check_auth(request):
         raise HTTPException(status_code=401, detail='unauthorized')
     items = r.lrange('web:messages', 0, limit-1) or []
@@ -96,7 +114,7 @@ def get_messages(limit: int = 20, request: Request = None):
     return out
 
 @app.get('/devices')
-def get_devices(request: Request = None):
+def get_devices(request: Request):
     if not check_auth(request):
         raise HTTPException(status_code=401, detail='unauthorized')
     items = r.lrange('web:devices', 0, -1) or []
@@ -110,7 +128,7 @@ def get_devices(request: Request = None):
     return out
 
 @app.post('/devices/add')
-def add_device(payload: dict, request: Request = None):
+def add_device(payload: dict, request: Request):
     if not check_auth(request):
         raise HTTPException(status_code=401, detail='unauthorized')
     if not payload or not payload.get('id') or not payload.get('token'):
@@ -121,7 +139,7 @@ def add_device(payload: dict, request: Request = None):
     return { 'status': 'added' }
 
 @app.post('/send')
-def send_message(payload: dict, request: Request = None):
+def send_message(payload: dict, request: Request):
     if not check_auth(request):
         raise HTTPException(status_code=401, detail='unauthorized')
     if not payload or not payload.get('chat_id') or not payload.get('text'):
@@ -151,7 +169,7 @@ def send_message(payload: dict, request: Request = None):
     return resp.json()
 
 @app.post('/send_user')
-def send_user(payload: dict, request: Request = None):
+def send_user(payload: dict, request: Request):
     if not check_auth(request):
         raise HTTPException(status_code=401, detail='unauthorized')
     if not payload or not payload.get('chat_id') or not payload.get('text'):
@@ -161,6 +179,61 @@ def send_user(payload: dict, request: Request = None):
         outobj['device_id'] = payload.get('device_id')
     r.rpush('web:outbox', json.dumps(outobj))
     return { 'status': 'queued' }
+
+
+@app.post('/ai')
+def ai_generate(payload: dict, request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('prompt'):
+        raise HTTPException(status_code=400, detail='invalid payload, require prompt')
+    provider = payload.get('provider', 'local')
+    model = payload.get('model', 'gpt2')
+
+    if provider == 'local':
+        try:
+            from transformers import pipeline
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f'transformers not installed: {e}')
+        try:
+            gen = pipeline('text-generation', model=model)
+            params = {
+                'max_length': int(payload.get('max_length', 128)),
+                'do_sample': bool(payload.get('do_sample', True)),
+                'top_k': int(payload.get('top_k', 50)),
+                'num_return_sequences': int(payload.get('num_return_sequences', 1)),
+            }
+            res = gen(payload.get('prompt'), **params)
+            return { 'provider': 'local', 'model': model, 'result': res }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    elif provider == 'huggingface':
+        hf_key = os.getenv('HUGGINGFACE_API_KEY', '')
+        if not hf_key:
+            raise HTTPException(status_code=500, detail='HUGGINGFACE_API_KEY not set')
+        hf_model = model
+        url = f'https://api-inference.huggingface.co/models/{hf_model}'
+        headers = {'Authorization': f'Bearer {hf_key}'}
+        body = { 'inputs': payload.get('prompt'), 'parameters': payload.get('parameters', {}) }
+        resp = requests.post(url, headers=headers, json=body)
+        if not resp.ok:
+            raise HTTPException(status_code=500, detail=resp.text)
+        return resp.json()
+
+    elif provider == 'openai':
+        openai_key = os.getenv('OPENAI_API_KEY', '')
+        if not openai_key:
+            raise HTTPException(status_code=500, detail='OPENAI_API_KEY not set')
+        data = { 'model': model, 'prompt': payload.get('prompt'), 'max_tokens': int(payload.get('max_tokens', 150)) }
+        headers = { 'Authorization': f'Bearer {openai_key}', 'Content-Type': 'application/json' }
+        resp = requests.post('https://api.openai.com/v1/completions', headers=headers, json=data)
+        if not resp.ok:
+            raise HTTPException(status_code=500, detail=resp.text)
+        return resp.json()
+
+    else:
+        raise HTTPException(status_code=400, detail='unknown provider')
 
 @app.post('/auth')
 def auth(payload: dict):
@@ -182,3 +255,101 @@ def auth(payload: dict):
     enc = encrypt_value(sess_raw)
     r.setex(f'web:session:{token}', 3600, enc)
     return { 'token': token, 'ttl': 3600 }
+
+
+@app.get('/settings/backup')
+def settings_backup(request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    # fetch stored settings from redis key 'web:settings'
+    v = r.get('web:settings')
+    if not v:
+        return {}
+    try:
+        return json.loads(v)
+    except Exception:
+        return {}
+
+
+@app.post('/settings/restore')
+def settings_restore(payload: dict, request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail='invalid payload, expect JSON object')
+    # store whole settings object in redis
+    try:
+        r.set('web:settings', json.dumps(payload))
+        return { 'status': 'ok' }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/settings/favicon')
+def upload_favicon(payload: dict, request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    # payload should include either user_id or use session
+    user = get_session_from_request(request)
+    user_id = None
+    if user and user.get('id'):
+        user_id = str(user.get('id'))
+    else:
+        user_id = str(payload.get('user_id')) if payload.get('user_id') else None
+    if not user_id:
+        raise HTTPException(status_code=400, detail='user id not provided')
+    favicon_b64 = payload.get('favicon')
+    if not favicon_b64:
+        raise HTTPException(status_code=400, detail='favicon (base64) required')
+    try:
+        # validate base64
+        _ = base64.b64decode(favicon_b64)
+        r.set(f'web:settings:favicon:{user_id}', favicon_b64)
+        return { 'status': 'ok' }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail='invalid base64')
+
+
+@app.get('/settings/favicon/{user_id}')
+def get_favicon(user_id: str):
+    v = r.get(f'web:settings:favicon:{user_id}')
+    if not v:
+        raise HTTPException(status_code=404, detail='not found')
+    try:
+        b = base64.b64decode(v if isinstance(v, bytes) else v)
+        return JSONResponse(content=b, media_type='image/png')
+    except Exception:
+        raise HTTPException(status_code=500, detail='cannot decode favicon')
+
+
+@app.get('/pages.json')
+def pages_list():
+    """Return a JSON list of available web pages. If `web/pages.json` exists, return it.
+    Otherwise scan the `web/` directory for HTML files and return href/label pairs.
+    """
+    # locate repository root from this file: ../../
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+    except Exception:
+        repo_root = Path('.')
+    web_dir = repo_root / 'web'
+    pages_json = web_dir / 'pages.json'
+    if pages_json.exists():
+        try:
+            return json.loads(pages_json.read_text(encoding='utf-8'))
+        except Exception:
+            pass
+
+    out = []
+    try:
+        if web_dir.exists() and web_dir.is_dir():
+            for p in sorted(web_dir.glob('*.html')):
+                href = p.name
+                name = p.stem.replace('_', ' ').replace('-', ' ')
+                label = name.title()
+                if label.lower() == 'index':
+                    label = 'Inicio'
+                out.append({'href': href, 'label': label})
+    except Exception:
+        pass
+    return out

@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Uvicorn: python_api",
+      "type": "python",
+      "request": "launch",
+      "module": "uvicorn",
+      "args": ["python_api.app.main:app", "--host", "0.0.0.0", "--port", "8081", "--reload"],
+      "envFile": "${workspaceFolder}/python_api/.env",
+      "console": "integratedTerminal"
+    }
+  ]
+}
