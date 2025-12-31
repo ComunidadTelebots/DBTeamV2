@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>DBTeamV2 — Instalación en WSL</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:2rem;background:#f7f9fc;color:#0b1226}
+    .card{background:#fff;border-radius:8px;padding:20px;max-width:780px;margin:0 auto;box-shadow:0 6px 20px rgba(10,20,40,.06)}
+    pre{background:#0b1226;color:#e6f0ff;padding:12px;border-radius:6px;overflow:auto}
+    button{background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
+    a{color:#2563eb}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Instalación en WSL (Ubuntu)</h1>
+    <p>Este asistente proporciona un script descargable para preparar WSL/Ubuntu y lanzar los servicios requeridos (Redis, API y bot).</p>
+
+    <h2>Paso 1 — Descargar el script</h2>
+    <p>Haz clic para descargar el script de instalación:</p>
+    <p><a href="/scripts/setup_wsl.sh" download>Descargar <strong>setup_wsl.sh</strong></a></p>
+
+    <h2>Paso 2 — Ejecutar en WSL</h2>
+    <p>Abre una terminal WSL (Ubuntu) y ejecuta:</p>
+    <pre id="cmd">curl -sS --show-error -L "http://localhost:5500/scripts/setup_wsl.sh" -o setup_wsl.sh && chmod +x setup_wsl.sh && sudo ./setup_wsl.sh</pre>
+    <p>
+      Si prefieres copiar el comando manualmente:<br>
+      <button id="copyBtn">Copiar comando</button>
+    </p>
+
+    <h2>Notas</h2>
+    <ul>
+      <li>El script instala dependencias comunes: Python3, Redis, Docker (opcional) y crea un entorno virtual para `python_api`.</li>
+      <li>Revisa el contenido del script antes de ejecutarlo. <a href="/scripts/setup_wsl.sh">Ver script</a>.</li>
+      <li>El servidor web que sirve esta página debe ejecutarse en Windows y exponer el repo (ej. `live-server` o `python -m http.server 5500` desde la carpeta raíz del repo).</li>
+    </ul>
+
+    <h2>Ayuda</h2>
+    <p>Si quieres que prepare un paquete ZIP o que te guíe por la ejecución, hazme saber.</p>
+  </div>
+
+  <script>
+    document.getElementById('copyBtn').addEventListener('click', function(){
+      const cmd = document.getElementById('cmd').textContent;
+      navigator.clipboard.writeText(cmd).then(()=>{ this.textContent = 'Copiado'; setTimeout(()=> this.textContent='Copiar comando',1500)}).catch(()=>{ alert('No se pudo copiar. Selecciona y copia manualmente.'); });
+    });
+  </script>
+</body>
+</html>
