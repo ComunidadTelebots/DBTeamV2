@@ -77,12 +77,20 @@ install_debian_ubuntu() {
 install_arch() {
     print_message "Installing dependencies for Arch Linux..."
     
-    if ! command -v yaourt &> /dev/null; then
-        print_warning "Installing yaourt..."
-        $SUDO pacman -S --noconfirm yaourt
-    fi
+    # Note: Arch package names may differ. Using pacman directly for basic packages.
+    print_warning "Note: Some Debian package names may not exist in Arch. Installing available packages..."
     
-    $SUDO yaourt -S --noconfirm git redis-server libconfig8-dev libjansson-dev lua5.2 liblua5.2-dev lua-lgi glib-2.0 libnotify-dev libssl-dev libssl1.0.0 tmux
+    # Install basic packages with pacman (those that exist)
+    $SUDO pacman -S --noconfirm --needed git redis lua52 tmux make gcc openssl glib2 libconfig jansson unzip
+    
+    # Install lua-lgi from AUR if yay is available
+    if command -v yay &> /dev/null; then
+        yay -S --noconfirm --needed lua-lgi
+    elif command -v yaourt &> /dev/null; then
+        yaourt -S --noconfirm lua-lgi
+    else
+        print_warning "AUR helper (yay/yaourt) not found. You may need to manually install lua-lgi from AUR."
+    fi
     
     print_message "System dependencies installed successfully!"
 }
@@ -91,7 +99,11 @@ install_arch() {
 install_fedora() {
     print_message "Installing dependencies for Fedora..."
     
-    $SUDO dnf install -y git redis-server libconfig8-dev libjansson-dev lua5.2 liblua5.2-dev lua-lgi glib-2.0 libnotify-dev libssl-dev libssl1.0.0 tmux
+    # Fedora uses different package names than Debian
+    $SUDO dnf install -y git redis lua tmux make gcc openssl-devel glib2-devel libconfig-devel jansson-devel unzip libnotify-devel readline-devel
+    
+    # Try to install lua-devel and lua-lgi if available
+    $SUDO dnf install -y lua-devel || print_warning "lua-devel not found in repositories"
     
     print_message "System dependencies installed successfully!"
 }
