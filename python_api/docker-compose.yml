@@ -1,3 +1,58 @@
+version: "3.8"
+
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./:/app
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python bot/bot.py
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    environment:
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - redis
+      - api
+    volumes:
+      - ./:/app
+
+  web:
+    image: python:3.11-slim
+    working_dir: /app/web
+    volumes:
+      - ../web:/app/web:ro
+    command: bash -c "python -m http.server 5500"
+    ports:
+      - "5500:5500"
+    restart: unless-stopped
+
+volumes:
+  redis_data:
 version: '3.8'
 services:
   redis:
