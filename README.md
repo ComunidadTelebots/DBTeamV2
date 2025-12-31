@@ -30,6 +30,33 @@ The difference among the old [DBTeamV1](https://github.com/Josepdal/DBTeamV1) an
 
 # Installation
 
+## Quick Installation (Recommended)
+
+The easiest way to install DBTeamV2 with all dependencies is using the automated installation script:
+
+```bash
+git clone https://github.com/Josepdal/DBTeamV2.git
+cd DBTeamV2
+chmod +x install.sh
+./install.sh
+```
+
+The script will automatically:
+- Detect your Linux distribution (Debian/Ubuntu, Arch, Fedora)
+- Install all system dependencies
+- Install Lua dependencies via luarocks
+- Download telegram-cli
+- Optionally install Python API dependencies
+
+After installation completes, you can start the bot:
+```bash
+./launch.sh # Will ask you for a phone number & confirmation code.
+```
+
+## Manual Installation
+
+If you prefer to install dependencies manually, follow the instructions for your distribution:
+
 Debian/Ubuntu and derivatives:
 ```bash
 # Tested on Ubuntu 16.04 and Debian 8.7.1 stable. (please use release "stable", isn't working on stretch/testing)
