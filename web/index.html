@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DBTeam - IA (PoC)</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <h1>Interfaz IA — Prueba de concepto</h1>
+
+    <section>
+      <h2>Login Telegram</h2>
+      <div id="tg-login">
+        <!-- Replace data-telegram-login value with your bot username -->
+        <script async src="https://telegram.org/js/telegram-widget.js?15" data-telegram-login="YOUR_BOT_USERNAME" data-size="large" data-userpic="false" data-request-access="write" data-on-auth="onTelegramAuth"></script>
+      </div>
+    </section>
+
+    <label for="endpoint">Endpoint (POST JSON -> {prompt, provider}):</label>
+    <input id="endpoint" type="text" value="http://127.0.0.1:8000/generate" />
+
+    <label for="provider">Proveedor (opcional):</label>
+    <select id="provider">
+      <option value="">(usar por defecto)</option>
+      <option value="openai">openai</option>
+      <option value="huggingface">huggingface</option>
+      <option value="azure">azure</option>
+      <option value="local">local</option>
+      <option value="groq">groq</option>
+    </select>
+
+    <label for="chat_id">Chat ID (para enviar mensajes):</label>
+    <input id="chat_id" type="text" placeholder="123456789" />
+
+    <label for="deviceSelect">Dispositivo (opcional, para multi-dispositivo):</label>
+    <div class="device-row">
+      <select id="deviceSelect">
+        <option value="">(usar BOT_TOKEN por defecto)</option>
+      </select>
+      <button id="refreshDevices" type="button">Actualizar dispositivos</button>
+    </div>
+
+    <label for="sendAs">Enviar como:</label>
+    <select id="sendAs">
+      <option value="ai">(LLM / IA)</option>
+      <option value="bot">Bot API (usar BOT_TOKEN)</option>
+      <option value="user">Usuario (cuenta que ejecuta el bot)</option>
+    </select>
+
+    <label for="apiBase">API base (web API para enviar/listar):</label>
+    <input id="apiBase" type="text" value="http://localhost:8081" />
+
+    <label for="apiKey">API Key (Authorization: Bearer &lt;key&gt;):</label>
+    <input id="apiKey" type="text" placeholder="Introduce API key (opcional)" />
+
+    <label for="prompt">Prompt:</label>
+    <textarea id="prompt" rows="6" placeholder="Escribe el prompt aquí..."></textarea>
+
+    <div class="controls">
+      <button id="submit">Enviar</button>
+      <button id="clear">Limpiar</button>
+    </div>
+
+    <section>
+      <h2>Administrar Dispositivos</h2>
+      <label for="new_device_id">ID del dispositivo:</label>
+      <input id="new_device_id" type="text" placeholder="bot1" />
+      <label for="new_device_name">Nombre (opcional):</label>
+      <input id="new_device_name" type="text" placeholder="Bot principal" />
+      <label for="new_device_token">Token del bot:</label>
+      <input id="new_device_token" type="text" placeholder="123:ABC" />
+      <div class="controls">
+        <button id="addDevice">Añadir dispositivo</button>
+      </div>
+    </section>
+
+    <section id="result">
+      <h2>Respuesta</h2>
+      <pre id="response">(esperando)</pre>
+    </section>
+
+    <footer>
+      <small>Nota: el servidor destino debe aceptar POST JSON y soportar CORS para llamadas directas desde el navegador.</small>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
