@@ -4,16 +4,38 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>DBTeamV2 — Instalación en WSL</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;margin:2rem;background:#f7f9fc;color:#0b1226}
-    .card{background:#fff;border-radius:8px;padding:20px;max-width:780px;margin:0 auto;box-shadow:0 6px 20px rgba(10,20,40,.06)}
-    pre{background:#0b1226;color:#e6f0ff;padding:12px;border-radius:6px;overflow:auto}
-    button{background:#2563eb;color:#fff;border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
-    a{color:#2563eb}
+    body{margin:0;padding:0}
+    .card{background:linear-gradient(180deg,#071024,#04121a);border-radius:8px;padding:20px;max-width:780px;margin:20px auto}
+    pre{background:#041226;color:#dff4ff;padding:12px;border-radius:6px;overflow:auto}
+    button{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
+    a{color:var(--accent)}
   </style>
   <link rel="icon" href="/logo.svg">
 </head>
 <body>
+  <header class="site-header" style="margin-bottom:12px">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
   <div class="card">
     <h1>Instalación en WSL (Ubuntu)</h1>
     <p>Este asistente proporciona un script descargable para preparar WSL/Ubuntu y lanzar los servicios requeridos (Redis, API y bot).</p>

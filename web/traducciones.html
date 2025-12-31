@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Traducciones — DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Traducciones</h1>
+    <p class="hint">Explora y descarga los archivos de traducción generados para la interfaz web.</p>
+
+    <label for="langSelect">Selecciona idioma:</label>
+    <select id="langSelect">
+      <option value="en">English</option>
+      <option value="es">Español</option>
+      <option value="fr">Français</option>
+      <option value="de">Deutsch</option>
+      <option value="it">Italiano</option>
+      <option value="pt">Português</option>
+      <option value="ru">Русский</option>
+      <option value="zh">中文</option>
+      <option value="ja">日本語</option>
+    </select>
+
+    <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
+      <button id="loadBtn">Cargar</button>
+      <button id="downloadBtn" class="secondary">Descargar JSON</button>
+      <label style="display:flex;align-items:center;gap:6px;margin-left:8px">
+        <input type="checkbox" id="editToggle"> Editar
+      </label>
+      <button id="exportBtn" class="secondary" title="Exportar las traducciones editadas">Exportar edits</button>
+    </div>
+
+    <section id="strings" style="margin-top:16px">
+      <h2>Claves y traducciones</h2>
+      <div id="list"></div>
+    </section>
+
+    <section id="suggestions" style="margin-top:24px">
+      <h2>Sugerencias pendientes (admin)</h2>
+      <div id="suggestList">
+        <button id="refreshSuggestions">Refrescar sugerencias</button>
+        <div id="suggestionsTable"></div>
+      </div>
+    </section>
+
+    <footer style="margin-top:24px">
+      <small>Archivos generados automáticamente — revisa `python_bot/lang/generated/` para la fuente.</small>
+    </footer>
+  </main>
+  <script src="traducciones.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

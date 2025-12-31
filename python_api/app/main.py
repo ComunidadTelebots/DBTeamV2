@@ -1,4 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
+from fastapi.staticfiles import StaticFiles
+import subprocess
+import shlex
+import platform
 from typing import Optional, Any
 from fastapi.responses import JSONResponse
 import os
@@ -14,10 +18,98 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 import requests
+import time
+import uuid
+import hmac as _hmaclib
 from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
 
 app = FastAPI()
 r = redis.from_url(REDIS_URL)
+
+# server start time for uptime reporting
+START_TIME = int(time.time())
+
+# Serve the web/ static files from the repository root so the API and UI share origin
+try:
+    repo_root = Path(__file__).resolve().parents[2]
+    web_dir = repo_root / 'web'
+    if web_dir.exists():
+        app.mount('/', StaticFiles(directory=str(web_dir), html=True), name='web')
+except Exception:
+    pass
+
+# Process control: define named processes and commands to start them
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RUN_DIR = REPO_ROOT / 'run'
+RUN_DIR.mkdir(parents=True, exist_ok=True)
+
+PROCESS_DEFS = {
+    'python_bot': {
+        'cmd': ['python', str(REPO_ROOT / 'python_bot' / 'bot.py')],
+        'cwd': str(REPO_ROOT)
+    },
+    'lua_bot': {
+        'cmd': ['lua', str(REPO_ROOT / 'bot' / 'bot.lua')],
+        'cwd': str(REPO_ROOT)
+    }
+}
+
+def pidfile_for(name: str) -> Path:
+    return RUN_DIR / f"{name}.pid"
+
+def logfile_for(name: str) -> Path:
+    return RUN_DIR / f"{name}.log"
+
+def is_pid_running(pid: int) -> bool:
+    try:
+        if platform.system() == 'Windows':
+            # os.kill with 0 works on Windows in Python 3.8+
+            os.kill(pid, 0)
+        else:
+            os.kill(pid, 0)
+        return True
+    except Exception:
+        return False
+
+def read_pid(name: str):
+    p = pidfile_for(name)
+    if not p.exists():
+        return None
+    try:
+        return int(p.read_text(encoding='utf-8').strip())
+    except Exception:
+        return None
+
+def start_process(name: str):
+    if name not in PROCESS_DEFS:
+        raise ValueError('unknown process')
+    prog = PROCESS_DEFS[name]
+    logp = logfile_for(name)
+    pidp = pidfile_for(name)
+    # open log file
+    lf = open(str(logp), 'ab')
+    # spawn detached process
+    if platform.system() == 'Windows':
+        # CREATE_NEW_PROCESS_GROUP to detach
+        creationflags = subprocess.CREATE_NEW_PROCESS_GROUP
+        p = subprocess.Popen(prog['cmd'], cwd=prog.get('cwd'), stdout=lf, stderr=subprocess.STDOUT, creationflags=creationflags)
+    else:
+        p = subprocess.Popen(prog['cmd'], cwd=prog.get('cwd'), stdout=lf, stderr=subprocess.STDOUT, close_fds=True)
+    # write pid
+    try:
+        pidp.write_text(str(p.pid), encoding='utf-8')
+    except Exception:
+        pass
+    return p.pid
+
+def process_status(name: str):
+    pid = read_pid(name)
+    running = False
+    if pid:
+        running = is_pid_running(pid)
+    return { 'name': name, 'pid': pid, 'running': running, 'log': str(logfile_for(name)) }
+
+
 
 def derive_key(secret: str) -> bytes:
     if not secret:
@@ -112,6 +204,109 @@ def get_messages(request: Request, limit: int = 20):
         except Exception:
             continue
     return out
+
+
+@app.post('/translations/suggest')
+def suggest_translation(payload: dict, request: Request):
+    """Accept a translation suggestion. Payload: {lang, key, value, author (opt), comment (opt)}"""
+    if not payload or not payload.get('lang') or not payload.get('key'):
+        raise HTTPException(status_code=400, detail='invalid payload, require lang and key')
+    sid = uuid.uuid4().hex
+    obj = {
+        'id': sid,
+        'lang': payload.get('lang'),
+        'key': payload.get('key'),
+        'value': payload.get('value', ''),
+        'author': payload.get('author') or None,
+        'comment': payload.get('comment') or None,
+        'status': 'pending',
+        'created_at': int(time.time())
+    }
+    r.set(f'web:translation:suggestion:{sid}', json.dumps(obj))
+    r.rpush('web:translation:suggestions', sid)
+    return { 'status': 'ok', 'id': sid }
+
+
+def is_admin_request(request: Request) -> bool:
+    if not check_auth(request):
+        return False
+    sess = get_session_from_request(request)
+    if sess and sess.get('is_admin'):
+        return True
+    xapi = request.headers.get('x-api-key')
+    if xapi and WEB_API_KEY and xapi == WEB_API_KEY:
+        return True
+    return False
+
+
+@app.get('/translations/suggestions')
+def list_suggestions(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    ids = r.lrange('web:translation:suggestions', 0, -1) or []
+    out = []
+    for sid in ids:
+        try:
+            sid_str = sid.decode() if isinstance(sid, bytes) else sid
+            data = r.get(f'web:translation:suggestion:{sid_str}')
+            if data:
+                out.append(json.loads(data))
+        except Exception:
+            continue
+    return out
+
+
+@app.post('/translations/apply')
+def apply_suggestion(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    sid = payload.get('id') if payload else None
+    if not sid:
+        raise HTTPException(status_code=400, detail='id required')
+    data = r.get(f'web:translation:suggestion:{sid}')
+    if not data:
+        raise HTTPException(status_code=404, detail='suggestion not found')
+    sug = json.loads(data)
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+    except Exception:
+        repo_root = Path('.')
+    i18n_dir = repo_root / 'web' / 'i18n'
+    i18n_dir.mkdir(parents=True, exist_ok=True)
+    lang_file = i18n_dir / f"{sug['lang']}.json"
+    cur = {}
+    if lang_file.exists():
+        try:
+            cur = json.loads(lang_file.read_text(encoding='utf-8'))
+        except Exception:
+            cur = {}
+    cur[sug['key']] = sug['value']
+    lang_file.write_text(json.dumps(cur, indent=2, ensure_ascii=False), encoding='utf-8')
+    sug['status'] = 'applied'
+    applied_by = get_session_from_request(request)
+    sug['applied_by'] = applied_by if applied_by else {'api_key': True}
+    sug['applied_at'] = int(time.time())
+    r.set(f'web:translation:suggestion:{sid}', json.dumps(sug))
+    return { 'status': 'applied', 'id': sid }
+
+
+@app.post('/processes/restart')
+def processes_restart(payload: dict, request: Request):
+    """Restart a named process. Payload: { name: 'python_bot' }
+    Requires admin privileges (WEB_API_KEY or admin session).
+    """
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('name'):
+        raise HTTPException(status_code=400, detail='name required')
+    name = payload.get('name')
+    if name not in PROCESS_DEFS:
+        raise HTTPException(status_code=400, detail='unknown process')
+    try:
+        pid = start_process(name)
+        return { 'status': 'started', 'name': name, 'pid': pid }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get('/devices')
 def get_devices(request: Request):
@@ -257,6 +452,94 @@ def auth(payload: dict):
     return { 'token': token, 'ttl': 3600 }
 
 
+@app.post('/auth/login')
+def auth_login(payload: dict):
+    """Simple login endpoint for the web UI.
+    Accepts either { "api_key": "..." } or { "user": "...", "pass": "..." }.
+    If the provided api_key or pass equals `WEB_API_KEY` the request is accepted and
+    a session token is returned. The session includes `is_admin` when authenticated
+    with the API key.
+    """
+    if not payload:
+        raise HTTPException(status_code=400, detail='invalid payload')
+    # api_key path
+    if payload.get('api_key'):
+        if WEB_API_KEY and payload.get('api_key') == WEB_API_KEY:
+            token = secrets.token_hex(32)
+            sess = { 'user': 'api_key_user', 'is_admin': True }
+            enc = encrypt_value(json.dumps(sess))
+            r.setex(f'web:session:{token}', 3600, enc)
+            return { 'token': token, 'ttl': 3600 }
+        else:
+            raise HTTPException(status_code=401, detail='invalid api_key')
+
+    # username/password path — first check stored users in Redis
+    user = payload.get('user')
+    passwd = payload.get('pass')
+    if not user or not passwd:
+        raise HTTPException(status_code=400, detail='user and pass required')
+
+    def _verify_password(stored: str, password: str) -> bool:
+        try:
+            salt_hex, dk_hex = stored.split(':')
+            salt = bytes.fromhex(salt_hex)
+            dk = bytes.fromhex(dk_hex)
+            test = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+            return _hmaclib.compare_digest(test, dk)
+        except Exception:
+            return False
+
+    user_key = f'web:user:{user}'
+    stored = r.get(user_key)
+    if stored:
+        try:
+            obj = json.loads(stored)
+            pw = obj.get('pw')
+            if pw and _verify_password(pw, passwd):
+                token = secrets.token_hex(32)
+                sess = { 'user': user, 'is_admin': bool(obj.get('is_admin')) }
+                enc = encrypt_value(json.dumps(sess))
+                r.setex(f'web:session:{token}', 3600, enc)
+                return { 'token': token, 'ttl': 3600 }
+            else:
+                raise HTTPException(status_code=401, detail='invalid credentials')
+        except Exception:
+            raise HTTPException(status_code=500, detail='error reading user')
+
+    # fallback: use WEB_API_KEY as password backend if set
+    if WEB_API_KEY and passwd == WEB_API_KEY:
+        token = secrets.token_hex(32)
+        sess = { 'user': user, 'is_admin': False }
+        enc = encrypt_value(json.dumps(sess))
+        r.setex(f'web:session:{token}', 3600, enc)
+        return { 'token': token, 'ttl': 3600 }
+    raise HTTPException(status_code=401, detail='invalid credentials')
+
+
+@app.post('/auth/register')
+def auth_register(payload: dict):
+    """Register a new user: payload { user, pass, is_admin (opt) }.
+    Stores a salted PBKDF2-SHA256 hash in Redis under `web:user:<user>`.
+    """
+    if not payload or not payload.get('user') or not payload.get('pass'):
+        raise HTTPException(status_code=400, detail='user and pass required')
+    user = payload.get('user')
+    passwd = payload.get('pass')
+    user_key = f'web:user:{user}'
+    if r.exists(user_key):
+        raise HTTPException(status_code=409, detail='user exists')
+
+    def _hash_password(password: str) -> str:
+        salt = secrets.token_bytes(16)
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        return salt.hex() + ':' + dk.hex()
+
+    hashed = _hash_password(passwd)
+    obj = { 'pw': hashed, 'created_at': int(time.time()), 'is_admin': bool(payload.get('is_admin', False)) }
+    r.set(user_key, json.dumps(obj))
+    return { 'status': 'created', 'user': user }
+
+
 @app.get('/settings/backup')
 def settings_backup(request: Request):
     if not check_auth(request):
@@ -353,3 +636,188 @@ def pages_list():
     except Exception:
         pass
     return out
+
+
+@app.get('/status')
+def status_info(request: Request):
+    """Return basic status information: uptime, current time, redis health and pages."""
+    now = int(time.time())
+    uptime = now - START_TIME
+    redis_status = {'ok': False}
+    try:
+        # ping and some info
+        redis_status['ok'] = bool(r.ping())
+        info = r.info()
+        redis_status['connected_clients'] = info.get('connected_clients')
+        redis_status['used_memory_human'] = info.get('used_memory_human')
+    except Exception as e:
+        redis_status['error'] = str(e)
+
+    pages = []
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        p = repo_root / 'web' / 'pages.json'
+        if p.exists():
+            pages = json.loads(p.read_text(encoding='utf-8'))
+    except Exception:
+        pages = []
+
+    # gather counts (safe: use scan/llen, avoid exposing secret values)
+    counts = {}
+    try:
+        counts['messages'] = r.llen('web:messages')
+    except Exception:
+        counts['messages'] = None
+    try:
+        counts['devices'] = r.llen('web:devices')
+    except Exception:
+        counts['devices'] = None
+    try:
+        counts['translation_suggestions'] = r.llen('web:translation:suggestions')
+    except Exception:
+        counts['translation_suggestions'] = None
+    # count users and sessions via scan_iter (may be approximate but safe)
+    try:
+        users = 0
+        for _ in r.scan_iter(match='web:user:*'):
+            users += 1
+        counts['users'] = users
+    except Exception:
+        counts['users'] = None
+    try:
+        sessions = 0
+        for _ in r.scan_iter(match='web:session:*'):
+            sessions += 1
+        counts['sessions'] = sessions
+    except Exception:
+        counts['sessions'] = None
+
+    # applied translations: count suggestion keys with status == 'applied'
+    try:
+        applied = 0
+        per_lang = {}
+        for sid in r.scan_iter(match='web:translation:suggestion:*'):
+            try:
+                data = r.get(sid)
+                if not data:
+                    continue
+                obj = json.loads(data)
+                if obj.get('status') == 'applied':
+                    applied += 1
+                    lang = obj.get('lang') or 'unknown'
+                    per_lang[lang] = per_lang.get(lang, 0) + 1
+            except Exception:
+                continue
+        counts['translation_suggestions_applied'] = applied
+        counts['translation_suggestions_applied_per_lang'] = per_lang
+    except Exception:
+        counts['translation_suggestions_applied'] = None
+
+    api_info = {
+        'web_api_key_set': bool(WEB_API_KEY),
+        'web_api_origin': WEB_API_ORIGIN or None,
+        'bot_token_set': bool(BOT_TOKEN),
+    }
+
+    supported_endpoints = [
+        {'path': '/status', 'method': 'GET', 'desc': 'Server status, uptime, redis and pages'},
+        {'path': '/auth/register', 'method': 'POST', 'desc': 'Register a new user (user, pass) stored in Redis'},
+        {'path': '/auth/login', 'method': 'POST', 'desc': 'Login using api_key or user/pass, returns session token'},
+        {'path': '/translations/suggest', 'method': 'POST', 'desc': 'Submit a translation suggestion'},
+        {'path': '/translations/suggestions', 'method': 'GET', 'desc': 'List pending translation suggestions (admin)'},
+        {'path': '/translations/apply', 'method': 'POST', 'desc': 'Apply a suggestion to i18n files (admin)'}
+    ]
+
+    explanations = {
+        'time': 'Current server unix timestamp',
+        'uptime': 'Seconds since the server process started',
+        'redis.ok': 'Whether Redis responded to a ping',
+        'redis.connected_clients': 'Number of clients connected to Redis (if available)',
+        'redis.used_memory_human': 'Human-readable Redis memory usage (if available)',
+        'counts': 'Counts of items stored in Redis relevant to the web UI',
+        'api_info': 'Flags that describe configured API-related settings (do not include secret values)',
+        'supported_endpoints': 'Important API endpoints and short descriptions'
+    }
+
+    # i18n file stats: file size and number of keys
+    i18n_stats = {}
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        i18n_dir = repo_root / 'web' / 'i18n'
+        if i18n_dir.exists() and i18n_dir.is_dir():
+            for p in sorted(i18n_dir.glob('*.json')):
+                try:
+                    txt = p.read_text(encoding='utf-8')
+                    js = json.loads(txt)
+                    i18n_stats[p.name] = { 'bytes': p.stat().st_size, 'keys': len(js) }
+                except Exception:
+                    i18n_stats[p.name] = { 'bytes': None, 'keys': None }
+    except Exception:
+        i18n_stats = {}
+
+    # try to determine current commit SHA from .git
+    git_sha = None
+    git_last = None
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        head = (repo_root / '.git' / 'HEAD')
+        if head.exists():
+            htxt = head.read_text(encoding='utf-8').strip()
+            if htxt.startswith('ref:'):
+                ref = htxt.split(None,1)[1].strip()
+                ref_file = repo_root / '.git' / ref
+                if ref_file.exists():
+                    git_sha = ref_file.read_text(encoding='utf-8').strip()
+                else:
+                    # try packed-refs
+                    packed = repo_root / '.git' / 'packed-refs'
+                    if packed.exists():
+                        for line in packed.read_text(encoding='utf-8').splitlines():
+                            if line.startswith('#') or not line.strip():
+                                continue
+                            parts = line.split()
+                            if len(parts) == 2 and parts[1] == ref:
+                                git_sha = parts[0]
+                                break
+            else:
+                # HEAD contains SHA directly
+                git_sha = htxt
+        # try to get last commit author/message from logs if available
+        logs = repo_root / '.git' / 'logs' / 'HEAD'
+        if logs.exists():
+            try:
+                last = logs.read_text(encoding='utf-8').strip().splitlines()[-1]
+                # format: <oldsha> <newsha> <author>\t<message>
+                parts = last.split('\t')
+                msg = parts[1] if len(parts) > 1 else ''
+                pre = parts[0].split()
+                # pre contains oldsha newsha and author+timestamp
+                oldsha = pre[0] if len(pre) > 0 else None
+                newsha = pre[1] if len(pre) > 1 else None
+                author = ' '.join(pre[2:]) if len(pre) > 2 else None
+                git_last = { 'sha': newsha or git_sha, 'author': author, 'message': msg }
+            except Exception:
+                git_last = None
+    except Exception:
+        git_sha = None
+
+    # include new fields in explanations
+    explanations['counts.translation_suggestions_applied'] = 'Number of translation suggestions that have been applied'
+    explanations['i18n_stats'] = 'Per-language i18n JSON file size and number of keys'
+    explanations['git_sha'] = 'Current commit SHA read from .git (if available)'
+
+    return {
+        'status': 'ok',
+        'time': now,
+        'uptime': uptime,
+        'redis': redis_status,
+        'counts': counts,
+        'api_info': api_info,
+        'supported_endpoints': supported_endpoints,
+        'pages': pages,
+        'i18n_stats': i18n_stats,
+        'git_sha': git_sha,
+        'git_last': git_last,
+        'processes': [ process_status(n) for n in PROCESS_DEFS.keys() ],
+        'explanations': explanations
+    }

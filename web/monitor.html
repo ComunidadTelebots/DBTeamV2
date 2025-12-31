@@ -6,9 +6,30 @@
   <title>Monitor — DBTeam Live</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
   <link rel="icon" href="/logo.svg">
 </head>
 <body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
   <main class="container">
     <h1>Monitor en vivo</h1>
     <p style="color:var(--muted)">Muestra los mensajes/actividades recientes en los bots. Conecta a la API base indicada.</p>
@@ -40,6 +61,7 @@
   </main>
   <script src="app.js"></script>
   <script src="monitor.js"></script>
+  <script src="shared.js"></script>
 
   <!-- Bubble side panel (shared) -->
   <aside class="bubble-panel" id="bubblePanel" aria-hidden="true">

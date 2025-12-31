@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Registro</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <h1>Registro de usuario</h1>
+    <form id="registerForm">
+      <label>Usuario<br><input id="user" name="user" required></label><br>
+      <label>Contraseña<br><input id="pass" name="pass" type="password" required></label><br>
+      <button type="submit">Registrarse</button>
+    </form>
+    <p id="msg" style="color:crimson"></p>
+  </main>
+
+  <script src="register.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

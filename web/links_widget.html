@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Enlaces del sitio</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <style> a{display:block;margin:6px 0;color:var(--text);text-decoration:none} a:hover{opacity:0.9}</style>
+</head>
+<body>
+  <main class="container">
+    <h2>Enlaces disponibles</h2>
+    <div id="list">Cargando...</div>
+  </main>
+  <script>
+    async function load(){
+      const el = document.getElementById('list');
+      try{
+        const res = await fetch('/pages.json');
+        if(!res.ok){ el.textContent = 'Error al cargar páginas'; return; }
+        const pages = await res.json();
+        el.innerHTML = '';
+        pages.forEach(p=>{
+          const a = document.createElement('a');
+          a.href = p.href;
+          a.textContent = p.label || p.href;
+          el.appendChild(a);
+        });
+      }catch(e){ el.textContent = 'Error de conexión'; }
+    }
+    load();
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>
