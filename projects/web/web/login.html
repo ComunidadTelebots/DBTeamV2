@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login · DBTeam</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    .login-container{max-width:420px;margin:6rem auto;padding:1.5rem;border:1px solid #ddd;border-radius:8px;background:#fff}
+    .login-row{margin-bottom:0.75rem}
+    .login-row label{display:block;font-weight:600;margin-bottom:0.25rem}
+    .login-row input{width:100%;padding:0.5rem;border:1px solid #ccc;border-radius:4px}
+    .btn{display:inline-block;padding:0.6rem 1rem;background:#0078d4;color:#fff;border-radius:6px;border:none;cursor:pointer}
+    .msg{margin-top:0.75rem;color:#b00}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="login-container">
+      <h1>Iniciar sesión</h1>
+      <p>Accede con tu cuenta o con una API key.</p>
+
+      <div class="login-row">
+        <label for="inputUser">Usuario / Email</label>
+        <input id="inputUser" type="text" autofocus />
+      </div>
+
+      <div class="login-row">
+        <label for="inputPass">Contraseña / API Key</label>
+        <input id="inputPass" type="password" />
+      </div>
+
+      <div class="login-row">
+        <button id="btnLogin" class="btn">Entrar</button>
+        <button id="btnUseKey" class="btn" style="background:#666;margin-left:8px">Usar API Key</button>
+        <button id="btnRegister" class="btn" style="background:#0a8;margin-left:8px">Registrarse</button>
+      </div>
+
+      <div class="login-row" style="margin-top:12px">
+        <div><!-- Telegram login widget -->
+          <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="cintiaandrea_bot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
+        </div>
+      </div>
+
+      <div class="login-row">
+        <label for="apiBaseLogin">API base (ej: http://127.0.0.1:8081):</label>
+        <input id="apiBaseLogin" type="text" value="http://127.0.0.1:8081" />
+      </div>
+      <div class="login-row" id="registerRow" style="display:none">
+        <label><input id="isAdmin" type="checkbox" /> Crear como administrador</label>
+      </div>
+
+      <div id="msg" class="msg" aria-live="polite"></div>
+    </div>
+  </main>
+
+  <script src="login.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

@@ -1,40 +1,5 @@
-function send_msg(chat_id, text, parse)
-    tdcli_function ({
-    	ID="SendMessage",
-    	chat_id_ = chat_id,
-    	reply_to_message_id_ = 0,
-    	disable_notification_ = 0,
-    	from_background_ = 1,
-    	reply_markup_ = nil,
-    	input_message_content_ = {
-    		ID="InputMessageText",
-    		text_ = text,
-    		disable_web_page_preview_ = 1,
-    		clear_draft_ = 0,
-    		parse_mode_ = getParse(parse),
-    		entities_ = {}
-    	}
-    }, dl_cb, nil)
-end
-
-function reply_msg(chat_id, text, msg_id, parse)
-    tdcli_function ({
-    	ID = "SendMessage",
-    	chat_id_ = chat_id,
-    	reply_to_message_id_ = msg_id,
-    	disable_notification_ = 0,
-    	from_background_ = 1,
-    	reply_markup_ = nil,
-    	input_message_content_ = {
-    		ID = "InputMessageText",
-    		text_ = text,
-    		disable_web_page_preview_ = 1,
-    		clear_draft_ = 0,
-    		parse_mode_ = getParse(parse),
-    		entities_ = {}
-    	}
-    }, dl_cb, nil)
-end
+-- Ported to python_bot/legacy/methods_lua.py
+-- See python_bot/legacy for Python equivalents.
 
 function createNewGroupChat(user_ids, title, cb, cmd)
   tdcli_function ({

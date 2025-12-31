@@ -4,3 +4,11 @@ bot/log.txt
 logs/
 bot/data
 .luarocks/
+
+# Local secrets and env
+.env
+.env.local
+secrets/
+*.key
+*.pem
+*.crt

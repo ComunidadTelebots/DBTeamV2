@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Estado del servidor</title>
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+  <div style="background:#fff6e6;border-bottom:1px solid #f0d9b5;padding:8px;text-align:center;">
+    <a href="status.html" style="font-weight:600;color:#333;text-decoration:none;">Ver página de Estado del servidor</a>
+  </div>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+  <main>
+    <h1>Estado del servidor</h1>
+    <section id="api-semaphore" style="display:flex;gap:12px;align-items:center;margin:8px 0 12px;">
+      <div id="semaforo-overall" style="display:flex;align-items:center;gap:8px;">
+        <div id="semaforo-dot" style="width:16px;height:16px;border-radius:50%;background:#ccc;border:1px solid #999"></div>
+        <strong id="semaforo-label">Estado desconocido</strong>
+      </div>
+      <div id="semaforo-details" style="display:flex;gap:12px;align-items:center;font-size:0.95rem;color:#333">
+        <div><span style="font-weight:600">Redis:</span> <span id="semaforo-redis">—</span></div>
+        <div><span style="font-weight:600">TDLib:</span> <span id="semaforo-tdlib">—</span></div>
+        <div><span style="font-weight:600">Procesos:</span> <span id="semaforo-procs">—</span></div>
+        <div><span style="font-weight:600">Bot API:</span> <span id="semaforo-bot">—</span></div>
+      </div>
+    </section>
+    <section id="pages-analysis" style="margin-bottom:1rem;">
+      <h2 style="margin:6px 0">Análisis de páginas</h2>
+      <div id="pages-list" style="display:flex;flex-direction:column;gap:6px;">
+        <div style="color:#666;font-size:0.9rem">Analizando páginas listadas en el servidor...</div>
+      </div>
+    </section>
+    <pre id="out">Cargando...</pre>
+    <section id="processControls" style="margin-top:1rem"></section>
+  </main>
+  <script src="status.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

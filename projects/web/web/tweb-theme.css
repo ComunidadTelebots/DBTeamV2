@@ -1,0 +1,30 @@
+/* tweb-theme.css
+   Overrides and CSS variables to adapt tweb to DBTeam design.
+   Include this file after tweb's main CSS to apply theme.
+*/
+:root{
+  --brand-color: #2b90ff;
+  --brand-contrast: #ffffff;
+  --bg: #0f1720; /* page background */
+  --card: #0b1116;
+  --text: #e6eef6;
+  --muted: #99a6b3;
+  --accent: #f1c40f;
+  --radius: 10px;
+  --font-stack: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+body{ background:var(--bg); color:var(--text); font-family:var(--font-stack); }
+.header-inner .brand span{ color:var(--brand-contrast); }
+/* chat list */
+.chat-item{ border-radius:var(--radius); }
+.chat-title{ color:var(--text); }
+.chat-sub{ color:var(--muted); }
+/* message bubbles */
+.msg-bubble.me{ background: linear-gradient(180deg, #2b90ff, #1e6ed8); color:var(--brand-contrast); }
+.msg-bubble.other{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); }
+.msg-meta{ color:var(--muted); }
+/* attachments */
+.msg-bubble img{ border-radius:8px; }
+/* small helpers */
+.btn{ border-radius:8px; }
+```

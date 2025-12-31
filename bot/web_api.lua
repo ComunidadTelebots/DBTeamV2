@@ -1,36 +1,5 @@
-local socket = require('socket')
-local ltn12_ok, ltn12 = pcall(require, 'ltn12')
-local has_https, https = pcall(require, 'ssl.https')
-local has_socket, socket_http = pcall(require, 'socket.http')
-local json = require('libs.JSON')
-
-local PORT = tonumber(os.getenv('WEB_API_PORT') or '8081')
-local BOT_TOKEN = os.getenv('BOT_TOKEN') or ''
-local API_KEY = os.getenv('WEB_API_KEY') or ''
-local ORIGIN = os.getenv('WEB_API_ORIGIN') or '*'
-local SECRET = os.getenv('WEB_API_SECRET') or ''
-local redis = require('redis')
-redis = redis.connect('127.0.0.1', 6379)
-
-local function send_http_json(url, body, headers)
-  local resp = {}
-  local req = { url = url, method = 'POST', source = ltn12.source.string(body or ''), sink = ltn12.sink.table(resp) }
-  req.headers = headers or {}
-  if not req.headers['Content-Type'] then req.headers['Content-Type'] = 'application/json' end
-  if not req.headers['Content-Length'] then req.headers['Content-Length'] = tostring(#(body or '')) end
-  if has_https then
-    local r, code, h = https.request(req)
-    return table.concat(resp), code, h
-  elseif has_socket then
-    local r, code, h = socket_http.request(req)
-    return table.concat(resp), code, h
-  else
-    return nil, 'no-http'
-  end
-end
-
--- Minimal pure-Lua SHA256 / HMAC implementation (works with Lua 5.2 bit32)
-local bit = bit32
+-- Ported to python_bot/legacy/web_api_lua.py
+-- See python_bot/legacy for Python equivalents.
 local function str2bytes(s)
   local t = {}
   for i=1,#s do t[i]=string.byte(s,i) end
