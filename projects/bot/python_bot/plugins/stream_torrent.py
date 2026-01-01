@@ -34,6 +34,7 @@ def setup(bot):
     bot.register_command('stream_torrent', stream_torrent_cmd, 'Download torrent/magnet and stream parts', plugin='stream_torrent')
     bot.register_command('stream_torrent_file', stream_torrent_file_cmd, 'Reply to a .torrent file to stream it', plugin='stream_torrent')
     bot.register_command('stream_torrent_stream', stream_torrent_stream_cmd, 'Stream while downloading (requires libtorrent)', plugin='stream_torrent')
+    bot.register_command('download_torrent', download_torrent_cmd, 'Download torrent/magnet and upload file parts', plugin='stream_torrent')
     bot.register_command('stream_torrent_stop', stream_torrent_stop_cmd, 'Stop/abort a streaming torrent session', plugin='stream_torrent')
     bot.register_command('cover', cover_cmd, 'Generate a cover for a magnet/infohash', plugin='stream_torrent')
     bot.register_command('allow_send', allow_send_cmd, 'Allow a user to let bot post origin messages in this chat (reply to user or pass user_id)', plugin='stream_torrent')
@@ -56,7 +57,7 @@ async def allow_send_cmd(update: Any, context: Any):
     # get target
     target_id = None
     if update.message.reply_to_message and getattr(update.message.reply_to_message, 'from', None):
-        target_id = update.message.reply_to_message.from.id
+        target_id = getattr(update.message.reply_to_message, 'from').id
     else:
         args = context.args or []
         if args:
@@ -83,7 +84,7 @@ async def disallow_send_cmd(update: Any, context: Any):
         return
     target_id = None
     if update.message.reply_to_message and getattr(update.message.reply_to_message, 'from', None):
-        target_id = update.message.reply_to_message.from.id
+        target_id = getattr(update.message.reply_to_message, 'from').id
     else:
         args = context.args or []
         if args:
@@ -211,6 +212,50 @@ async def stream_torrent_cmd(update: Any, context: Any):
         await update.message.reply_text(f'Error: {e}')
     finally:
         # cleanup
+        try:
+            for f in os.listdir(tmpdir):
+                os.unlink(os.path.join(tmpdir, f))
+            os.rmdir(tmpdir)
+        except Exception:
+            pass
+
+
+async def download_torrent_cmd(update: Any, context: Any):
+    """Download torrent or URL fully and upload file parts to the chat.
+
+    Usage: /download_torrent <magnet_or_torrent_url>
+    This command behaves like `/stream_torrent` but is explicit for full downloads/uploads.
+    """
+    args = context.args or []
+    if not args:
+        await update.message.reply_text('Usage: /download_torrent <magnet_or_torrent_url>')
+        return
+    url = args[0]
+    # reuse conversion helper
+    def _maybe_to_magnet(s: str) -> str:
+        ss = s.strip()
+        import re
+        if re.fullmatch(r"[A-Fa-f0-9]{40}", ss):
+            return f"magnet:?xt=urn:btih:{ss}"
+        if re.fullmatch(r"[A-Z2-7]{32}", ss.upper()):
+            return f"magnet:?xt=urn:btih:{ss}"
+        return ss
+
+    url = _maybe_to_magnet(url)
+    tmpdir = tempfile.mkdtemp()
+    await update.message.reply_text(f'Starting download to {tmpdir}...')
+    try:
+        if lt is not None:
+            path = await _download_with_libtorrent(url, tmpdir)
+        else:
+            path = await _download_with_aria2(url, tmpdir)
+        if not path:
+            await update.message.reply_text('Download failed')
+            return
+        await _send_parts_bot(context, update.effective_chat.id, path, os.path.basename(path))
+    except Exception as e:
+        await update.message.reply_text(f'Error: {e}')
+    finally:
         try:
             for f in os.listdir(tmpdir):
                 os.unlink(os.path.join(tmpdir, f))

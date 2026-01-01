@@ -9,6 +9,21 @@ import asyncio
 import inspect
 import sys
 
+# Ensure a suitable event loop policy on Windows so PTB can create/get the loop
+if sys.platform.startswith('win'):
+    try:
+        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+    except Exception:
+        # If the policy isn't available for some Python builds, ignore
+        pass
+
+# Ensure there's an event loop available (addresses some Windows/python versions)
+try:
+    asyncio.get_event_loop()
+except RuntimeError:
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
 try:
     from telegram import Update
     from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters as Filters
