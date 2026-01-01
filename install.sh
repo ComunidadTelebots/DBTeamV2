@@ -146,7 +146,7 @@ main() {
     echo -e "${BLUE}"
     echo "╔═══════════════════════════════════════════╗"
     echo "║   DBTeamV2 Automated Installation Script  ║"
-    echo "╔═══════════════════════════════════════════╗"
+    echo "╚═══════════════════════════════════════════╝"
     echo -e "${NC}"
     
     # Check sudo
