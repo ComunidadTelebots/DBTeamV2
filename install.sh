@@ -110,8 +110,8 @@ install_fedora() {
 install_python_deps() {
     print_message "Installing Python dependencies for python_api..."
     
-    if [ ! -d "python_api" ]; then
-        print_warning "python_api directory not found. Skipping Python dependencies."
+    if [ ! -d "projects/python_api/python_api" ]; then
+        print_warning "projects/python_api/python_api directory not found. Skipping Python dependencies."
         return
     fi
     
