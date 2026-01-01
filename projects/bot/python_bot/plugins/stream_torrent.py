@@ -39,6 +39,12 @@ def setup(bot):
     bot.register_command('cover', cover_cmd, 'Generate a cover for a magnet/infohash', plugin='stream_torrent')
     bot.register_command('allow_send', allow_send_cmd, 'Allow a user to let bot post origin messages in this chat (reply to user or pass user_id)', plugin='stream_torrent')
     bot.register_command('disallow_send', disallow_send_cmd, 'Remove allow to post origin messages (reply or user_id)', plugin='stream_torrent')
+    # automatically handle uploaded .torrent files: start download when a .torrent is sent
+    try:
+        bot.register_message_handler('document', handle_torrent_document, plugin='stream_torrent')
+    except Exception:
+        # older runtimes may not support message handler registration
+        pass
 
 
 async def allow_send_cmd(update: Any, context: Any):
@@ -411,6 +417,66 @@ async def stream_torrent_file_cmd(update: Any, context: Any):
     finally:
         try:
             os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
+async def handle_torrent_document(update: Any, context: Any):
+    """Handle incoming `.torrent` document uploads and start download automatically.
+
+    If a user sends a `.torrent` file as a document, the bot will download the .torrent,
+    start the torrent download (using libtorrent if available, otherwise aria2c),
+    and upload the resulting file parts to the chat.
+    """
+    if not update.message or not getattr(update.message, 'document', None):
+        return
+    doc = update.message.document
+    fname = getattr(doc, 'file_name', '') or ''
+    if not fname.lower().endswith('.torrent'):
+        return
+
+    # download the uploaded .torrent file
+    tmp = tempfile.NamedTemporaryFile(delete=False)
+    tmp.close()
+    try:
+        f = await context.bot.get_file(doc.file_id)
+        await f.download_to_drive(tmp.name)
+    except Exception as e:
+        try:
+            await update.message.reply_text(f'Failed to download uploaded .torrent: {e}')
+        except Exception:
+            pass
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+        return
+
+    tmpdir = tempfile.mkdtemp()
+    await update.message.reply_text(f'Starting download from uploaded torrent to {tmpdir}...')
+    try:
+        if lt is not None:
+            path = await _download_with_libtorrent(tmp.name, tmpdir)
+        else:
+            path = await _download_with_aria2(tmp.name, tmpdir)
+        if not path:
+            await update.message.reply_text('Download failed')
+            return
+        await _send_parts_bot(context, update.effective_chat.id, path, os.path.basename(path))
+    except Exception as e:
+        try:
+            await update.message.reply_text(f'Error: {e}')
+        except Exception:
+            pass
+    finally:
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+        try:
+            for f in os.listdir(tmpdir):
+                os.unlink(os.path.join(tmpdir, f))
+            os.rmdir(tmpdir)
         except Exception:
             pass
 
