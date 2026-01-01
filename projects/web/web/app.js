@@ -99,3 +99,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
 })
   const faviconInput = document.getElementById('faviconInput')
+
+  // optional: wire favicon input if present
+  try{
+    if(faviconInput){
+      // placeholder handler: preview or upload can be implemented here
+      faviconInput.addEventListener('change', ()=>{})
+    }
+  }catch(e){}
+
+});

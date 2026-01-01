@@ -27,6 +27,7 @@
       <nav class="main-nav" aria-label="Main navigation">
         <a href="index.html">Inicio</a>
         <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
         <a href="monitor.html">Monitor</a>
         <a href="traducciones.html">Traducciones</a>
         <a href="links.html">Enlaces</a>
@@ -48,6 +49,7 @@
     <!-- Recursos desplegable debajo del encabezado de Chat UI -->
     <div class="chat-resources">
       <button id="toggleChatResources" class="secondary" style="margin-bottom:8px">Recursos</button>
+      <button id="btnSettings" class="secondary" style="margin-left:8px;margin-bottom:8px">Ajustes</button>
       <div id="chatResources" style="display:none;padding:8px;background:rgba(255,255,255,0.01);border-radius:8px;border:1px solid rgba(255,255,255,0.02);margin-bottom:12px"></div>
     </div>
 
@@ -93,6 +95,64 @@
     </footer>
   </main>
   <script src="chat.js"></script>
+  <!-- Settings modal -->
+  <div id="settingsPanel" class="full-lock-overlay hidden" aria-hidden="true">
+    <div class="full-lock-box" style="max-width:760px;text-align:left">
+      <h2>Ajustes del bot</h2>
+      <p class="site-brand-sub">Gestiona roles y revisa las funciones implementadas.</p>
+      <div style="margin-top:12px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button id="tabRoles" class="btn">Roles</button>
+          <button id="tabExplain" class="btn ghost">Explicación</button>
+        </div>
+        <div id="rolesContent">
+          <div style="display:flex;gap:12px">
+            <div style="flex:1">
+              <label>Propietario (user id o @username)</label>
+              <input id="ownerInput" style="width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" placeholder="ej. @andrea7221 o 123456789" />
+              <div style="margin-top:8px">
+                <label>Admins (separados por comas)</label>
+                <input id="adminsInput" style="width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" placeholder="admin1,admin2,@user" />
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button id="saveRolesBtn" class="btn">Guardar roles</button>
+                <button id="clearRolesBtn" class="btn ghost">Borrar</button>
+              </div>
+            </div>
+            <div style="flex:1">
+              <label>Funciones implementadas</label>
+              <div id="featuresList" style="margin-top:6px;background:var(--card);padding:8px;border-radius:8px;max-height:260px;overflow:auto"></div>
+              <div style="margin-top:12px">
+                <label>Verificar Bot y sincronizar</label>
+                <form id="verifyTokenForm" style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
+                  <input id="verifyTokenInput" placeholder="Bot token (ej: 123:ABC...)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <input id="verifyDeviceId" placeholder="Device id (opcional)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <input id="verifyDeviceName" placeholder="Nombre (opcional)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <div style="display:flex;gap:8px">
+                    <button type="submit" class="btn">Verificar y sincronizar</button>
+                    <button type="button" id="importDataBtn" class="btn ghost">Importar datos</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="explainContent" style="display:none;margin-top:8px">
+          <h3>Explicación de las funciones</h3>
+          <p class="site-brand-sub">En esta pestaña se muestran las funciones implementadas y al activarla el panel de chat se ocultará para centrar la vista en la documentación/controles.</p>
+          <h4 style="margin-top:12px">Comandos básicos</h4>
+          <div id="commandsList" style="margin-top:6px;background:var(--card);padding:10px;border-radius:8px;max-height:160px;overflow:auto"></div>
+          <div id="explainList" style="margin-top:8px;background:var(--card);padding:10px;border-radius:8px;max-height:260px;overflow:auto"></div>
+          <div style="margin-top:10px">
+            <button id="restoreChatBtn" class="btn ghost">Mostrar panel de chat</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button id="closeSettings" class="btn ghost">Cerrar</button>
+      </div>
+    </div>
+  </div>
   <script src="app.js"></script>
   <script src="shared.js"></script>
 

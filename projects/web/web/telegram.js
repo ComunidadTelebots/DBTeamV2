@@ -474,7 +474,7 @@
       });
     }catch(e){}
   }
-
+    
   if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initUI); else initUI();
 
   // initialize locked state (hidden after connected)

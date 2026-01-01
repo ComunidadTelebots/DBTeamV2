@@ -233,9 +233,195 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(e){ alert('Error: '+e.toString()) }
   })
 
-  clearBtn.addEventListener('click', ()=>{ messagesEl.innerHTML = ''; composeEl.value = '' })
+  if (clearBtn && typeof clearBtn.addEventListener === 'function') {
+    clearBtn.addEventListener('click', ()=>{ messagesEl.innerHTML = ''; composeEl.value = '' })
+  } else {
+    console.warn('clearBtn missing or not an element:', clearBtn)
+  }
 
   // start polling
   (async ()=>{ await fetchDevices(); await refreshChats(); poll(); pollTimer = setInterval(poll, 1500) })()
+
+  // Settings panel handlers
+  try{
+    const btnSettings = document.getElementById('btnSettings');
+    const settingsPanel = document.getElementById('settingsPanel');
+    const closeSettings = document.getElementById('closeSettings');
+    const saveRolesBtn = document.getElementById('saveRolesBtn');
+    const clearRolesBtn = document.getElementById('clearRolesBtn');
+    if(btnSettings && settingsPanel){ btnSettings.addEventListener('click', ()=>{
+        // open modal: remove hidden + aria-hidden, remove inert, focus first tab
+        settingsPanel.classList.remove('hidden');
+        settingsPanel.setAttribute('aria-hidden','false');
+        settingsPanel.removeAttribute('inert');
+        try{ loadSettingsUI(); }catch(_){}
+        try{ const t = document.getElementById('tabRoles'); if(t) t.focus(); }catch(_){}
+      }); }
+    if(closeSettings && settingsPanel){ closeSettings.addEventListener('click', ()=>{
+        // if a descendant is focused, move focus to the opener before hiding
+        try{
+          const active = document.activeElement;
+          if(active && settingsPanel.contains(active)){
+            try{ active.blur(); }catch(_){}
+            try{ btnSettings && btnSettings.focus(); }catch(_){}
+          }
+        }catch(_){}
+        settingsPanel.classList.add('hidden');
+        settingsPanel.setAttribute('aria-hidden','true');
+        // mark inert so assistive tech sees it as non-interactive
+        try{ settingsPanel.setAttribute('inert',''); }catch(_){}
+      }); }
+    if(saveRolesBtn){ saveRolesBtn.addEventListener('click', saveRoles); }
+    if(clearRolesBtn){ clearRolesBtn.addEventListener('click', clearRoles); }
+  }catch(e){}
+
+  // Bot verification and import helpers
+  async function verifyBotToken(token, device_id, name){
+    const base = apiBaseEl.value.trim(); if(!base) throw new Error('API base not set')
+    const url = base.replace(/\/$/, '') + '/bot/verify'
+    const body = { token: token }
+    if(device_id) body.id = device_id
+    if(name) body.name = name
+    const res = await fetch(url, { method:'POST', headers: headers(), body: JSON.stringify(body) })
+    if(!res.ok){ const t = await res.text(); throw new Error('verify failed: '+t) }
+    return await res.json()
+  }
+
+  async function importBotData(){
+    const base = apiBaseEl.value.trim(); if(!base) throw new Error('API base not set')
+    const url = base.replace(/\/$/, '') + '/bot/data'
+    const res = await fetch(url, { headers: headers() })
+    if(!res.ok){ const t = await res.text(); throw new Error('import failed: '+t) }
+    return await res.json()
+  }
+
+  // Wire optional verify form if present in the page
+  try{
+    const verifyForm = document.getElementById('verifyTokenForm')
+    if(verifyForm){
+      verifyForm.addEventListener('submit', async (ev)=>{
+        ev.preventDefault()
+        const tokEl = document.getElementById('verifyTokenInput')
+        const idEl = document.getElementById('verifyDeviceId')
+        const nameEl = document.getElementById('verifyDeviceName')
+        const token = tokEl ? tokEl.value.trim() : ''
+        if(!token){ alert('Introduce el token del bot'); return }
+        try{
+          const sp = createSpinner(); tokEl.parentNode && tokEl.parentNode.appendChild(sp)
+          const v = await verifyBotToken(token, idEl && idEl.value.trim(), nameEl && nameEl.value.trim())
+          alert('Bot verificado y device registrado: ' + (v.device && v.device.id ? v.device.id : 'ok'))
+          // then import data and show counts
+          try{
+            const data = await importBotData()
+            console.log('Imported bot data', data)
+            alert('Importado: ' + (data.infohashes ? data.infohashes.length : 0) + ' infohashes, ' + Object.keys(data.allowed_senders || {}).length + ' chats con allowed_senders')
+          }catch(e){ console.error('import error', e); alert('Import failed: '+e.message) }
+        }catch(e){ alert('Verify error: '+e.message) }
+        try{ tokEl.parentNode && tokEl.parentNode.removeChild(tokEl.parentNode.querySelector('.inline-spinner')) }catch(_){}
+      })
+    }
+      const importBtn = document.getElementById('importDataBtn')
+      if(importBtn){ importBtn.addEventListener('click', async ()=>{
+        try{
+          const data = await importBotData()
+          console.log('Imported bot data', data)
+          alert('Importado: ' + (data.infohashes ? data.infohashes.length : 0) + ' infohashes, ' + Object.keys(data.allowed_senders || {}).length + ' chats con allowed_senders')
+        }catch(e){ alert('Import failed: '+(e.message||e)) }
+      }) }
+  }catch(e){}
+
+  function loadSettingsUI(){
+    try{
+      const owner = localStorage.getItem('bot_owner') || '';
+      const admins = localStorage.getItem('bot_admins') || '';
+      const ownerEl = document.getElementById('ownerInput'); if(ownerEl) ownerEl.value = owner;
+      const adminsEl = document.getElementById('adminsInput'); if(adminsEl) adminsEl.value = admins;
+      const features = [
+        'Creación de estructura de torrents y descarga de covers (scripts/create_torrent_structure.py)',
+        'Extracción de metadatos e infohash desde .torrent (bencode fallback)',
+        'Integración en el bot: procesado de .torrent y almacenamiento de infohash',
+        'Persistencia de infohashes en storage (`projects/bot/python_bot/storage.py`)',
+        'Comandos `/allow_send` y `/disallow_send` y control por chat',
+        'Guardado de Bot token como device en servidor (`/devices/add`)',
+        'Enlaces en la web: botón "Abrir bot" y link a `telegram.html` en navegación',
+        'Enforcement de permisos (envío privado si no autorizado)'
+      ];
+      const list = document.getElementById('featuresList'); if(list){ list.innerHTML = ''; features.forEach(f=>{ const d = document.createElement('div'); d.style.marginBottom='6px'; d.textContent = '• ' + f; list.appendChild(d); }); }
+    }catch(e){}
+  }
+
+  function saveRoles(){
+    try{
+      const owner = (document.getElementById('ownerInput')||{}).value || '';
+      const admins = (document.getElementById('adminsInput')||{}).value || '';
+      localStorage.setItem('bot_owner', owner.trim());
+      localStorage.setItem('bot_admins', admins.trim());
+      alert('Roles guardados en localStorage');
+    }catch(e){ alert('Error guardando roles') }
+  }
+
+  function clearRoles(){
+    try{ localStorage.removeItem('bot_owner'); localStorage.removeItem('bot_admins'); loadSettingsUI(); alert('Roles borrados'); }catch(e){ alert('Error borrando roles') }
+  }
+
+  // Tabs and explain content logic
+  try{
+    const tabRoles = document.getElementById('tabRoles');
+    const tabExplain = document.getElementById('tabExplain');
+    const rolesContent = document.getElementById('rolesContent');
+    const explainContent = document.getElementById('explainContent');
+    const explainList = document.getElementById('explainList');
+    const restoreChatBtn = document.getElementById('restoreChatBtn');
+    const chatWrap = document.querySelector('.chat-wrap');
+    function showRolesTab(){ if(tabRoles) tabRoles.classList.remove('ghost'); if(tabExplain) tabExplain.classList.add('ghost'); if(rolesContent) rolesContent.style.display='block'; if(explainContent) explainContent.style.display='none'; if(chatWrap) chatWrap.style.display='flex'; }
+    function showExplainTab(){ if(tabExplain) tabExplain.classList.remove('ghost'); if(tabRoles) tabRoles.classList.add('ghost'); if(rolesContent) rolesContent.style.display='none'; if(explainContent) explainContent.style.display='block'; if(chatWrap) chatWrap.style.display='none'; }
+    if(tabRoles) tabRoles.addEventListener('click', showRolesTab);
+    if(tabExplain) tabExplain.addEventListener('click', ()=>{
+      try{
+        // Find the modal element at click time to avoid block-scope issues
+        const sp = document.getElementById('settingsPanel');
+        if(sp){
+          if(sp.classList.contains('hidden')){
+            sp.classList.remove('hidden');
+            sp.setAttribute('aria-hidden','false');
+            try{ if(typeof loadSettingsUI !== 'undefined') loadSettingsUI(); }catch(_){}
+          }
+        }
+        loadExplanation();
+        showExplainTab();
+      }catch(e){
+        console.error('Error opening Explicación tab', e)
+        try{ alert('Error al abrir Explicación: '+(e && e.message?e.message:e)) }catch(_){}
+      }
+    });
+    if(restoreChatBtn) restoreChatBtn.addEventListener('click', ()=>{ if(chatWrap) chatWrap.style.display='flex'; showRolesTab(); });
+
+    function loadExplanation(){
+      if(!explainList) return;
+      explainList.innerHTML = '';
+      const cmdsEl = document.getElementById('commandsList');
+      if(cmdsEl){
+        cmdsEl.innerHTML = '';
+        const cmds = [
+          {cmd: '/start', desc: 'Inicia la interacción con el bot y muestra ayuda básica.'},
+          {cmd: '/help', desc: 'Muestra ayuda y una lista de comandos disponibles.'},
+          {cmd: '/allow_send <chat_id>', desc: 'Permite que el origen envíe contenido a este chat.'},
+          {cmd: '/disallow_send <chat_id>', desc: 'Revoca permiso para que el origen envíe al chat.'},
+          {cmd: '/list_infohashes', desc: 'Muestra infohashes registrados por el bot.'},
+          {cmd: '/my_id', desc: 'Devuelve tu user id (útil para configurar roles).'}
+        ];
+        cmds.forEach(c=>{ const row = document.createElement('div'); row.style.marginBottom='8px'; row.innerHTML = `<code style="font-weight:700">${c.cmd}</code><div class="site-brand-sub" style="margin-top:4px">${c.desc}</div>`; cmdsEl.appendChild(row); });
+      }
+      const items = [
+        {title: 'Estructura de torrents', desc: 'Crea carpetas, metadata y descarga cover desde OpenLibrary/TMDb.'},
+        {title: 'Extracción de metadatos', desc: 'Se obtiene infohash y lista de archivos desde el .torrent (bencode fallback).'},
+        {title: 'Integración bot', desc: 'Al recibir .torrent el bot crea la estructura y guarda infohash en storage.'},
+        {title: 'Persistencia', desc: 'Infohashes y permisos se guardan en storage (Redis o fallback en memoria).'},
+        {title: 'Permisos', desc: 'Comandos `/allow_send` y `/disallow_send` controlan quién puede recibir envíos.'},
+        {title: 'Seguridad', desc: 'Tokens de bot pueden guardarse como devices en el servidor (encriptados).'}
+      ];
+      items.forEach(it=>{ const d = document.createElement('div'); d.style.marginBottom='10px'; d.innerHTML = `<strong>${it.title}</strong><div class="site-brand-sub" style="margin-top:4px">${it.desc}</div>`; explainList.appendChild(d); });
+    }
+  }catch(e){}
 
 })

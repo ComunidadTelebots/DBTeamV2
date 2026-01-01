@@ -13,6 +13,7 @@ import math
 import os
 import subprocess
 import tempfile
+import sys
 from typing import Any
 import hashlib
 
@@ -35,6 +36,67 @@ def setup(bot):
     bot.register_command('stream_torrent_stream', stream_torrent_stream_cmd, 'Stream while downloading (requires libtorrent)', plugin='stream_torrent')
     bot.register_command('stream_torrent_stop', stream_torrent_stop_cmd, 'Stop/abort a streaming torrent session', plugin='stream_torrent')
     bot.register_command('cover', cover_cmd, 'Generate a cover for a magnet/infohash', plugin='stream_torrent')
+    bot.register_command('allow_send', allow_send_cmd, 'Allow a user to let bot post origin messages in this chat (reply to user or pass user_id)', plugin='stream_torrent')
+    bot.register_command('disallow_send', disallow_send_cmd, 'Remove allow to post origin messages (reply or user_id)', plugin='stream_torrent')
+
+
+async def allow_send_cmd(update: Any, context: Any):
+    """Allow a user to have the bot post origin/chat-visible messages triggered by their uploads.
+
+    Usage: reply to a user with /allow_send or: /allow_send <user_id>
+    Only `owner` or `admin` roles can grant this.
+    """
+    sender = update.effective_user
+    if not sender:
+        return
+    role = storage.get_role(sender.id)
+    if role not in ('owner', 'admin'):
+        await update.message.reply_text('Permission denied')
+        return
+    # get target
+    target_id = None
+    if update.message.reply_to_message and getattr(update.message.reply_to_message, 'from', None):
+        target_id = update.message.reply_to_message.from.id
+    else:
+        args = context.args or []
+        if args:
+            try:
+                target_id = int(args[0])
+            except Exception:
+                await update.message.reply_text('Specify a numeric user_id or reply to a user')
+                return
+    if not target_id:
+        await update.message.reply_text('No target user')
+        return
+    storage.add_allowed_sender(update.effective_chat.id, target_id)
+    await update.message.reply_text(f'User {target_id} allowed to post origin messages in this chat')
+
+
+async def disallow_send_cmd(update: Any, context: Any):
+    """Revoke allow_send for a user. Usage like /allow_send."""
+    sender = update.effective_user
+    if not sender:
+        return
+    role = storage.get_role(sender.id)
+    if role not in ('owner', 'admin'):
+        await update.message.reply_text('Permission denied')
+        return
+    target_id = None
+    if update.message.reply_to_message and getattr(update.message.reply_to_message, 'from', None):
+        target_id = update.message.reply_to_message.from.id
+    else:
+        args = context.args or []
+        if args:
+            try:
+                target_id = int(args[0])
+            except Exception:
+                await update.message.reply_text('Specify a numeric user_id or reply to a user')
+                return
+    if not target_id:
+        await update.message.reply_text('No target user')
+        return
+    storage.remove_allowed_sender(update.effective_chat.id, target_id)
+    await update.message.reply_text(f'User {target_id} disallowed to post origin messages in this chat')
 
 
 async def _send_parts_bot(context, chat_id: int, filepath: str, orig_name: str, chunk_size: int = 10 * 1024 * 1024):
@@ -202,10 +264,20 @@ async def stream_torrent_file_cmd(update: Any, context: Any):
                         await context.bot.send_photo(chat_id=update.effective_user.id, photo=buf, caption=f'{title} — {size//1024} KB')
                     except Exception:
                         pass
-                    # also send to origin chat
+                    # also send to origin chat only if uploader allowed or is admin/owner
                     try:
-                        buf.seek(0)
-                        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=buf, caption=f'{title} — {size//1024} KB')
+                        sender = getattr(update, 'effective_user', None)
+                        sender_id = getattr(sender, 'id', None)
+                        can_post = False
+                        if sender_id is not None:
+                            role = storage.get_role(sender_id)
+                            if role in ('owner', 'admin'):
+                                can_post = True
+                            elif storage.is_allowed_sender(update.effective_chat.id, sender_id):
+                                can_post = True
+                        if can_post:
+                            buf.seek(0)
+                            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=buf, caption=f'{title} — {size//1024} KB')
                     except Exception:
                         pass
                 except Exception:
@@ -214,6 +286,71 @@ async def stream_torrent_file_cmd(update: Any, context: Any):
                 try:
                     await context.bot.send_message(chat_id=update.effective_user.id, text=f'{title} — {size//1024} KB — SHA256 {hexsha[:20]}...')
                     await context.bot.send_message(chat_id=update.effective_chat.id, text=f'{title} — {size//1024} KB')
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # create torrent folder structure using repository script
+        try:
+            # locate script relative to plugin file
+            script_path = os.path.abspath(os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'scripts', 'create_torrent_structure.py')))
+            if os.path.exists(script_path):
+                cmd = [sys.executable, script_path, '--torrent', tmp.name, '--title', title, '--outdir', os.path.join(os.getcwd(), 'torrents')]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                    if proc.returncode == 0:
+                            out = proc.stdout.strip() or 'Estructura creada.'
+                            # send to origin chat only if allowed
+                            try:
+                                sender = getattr(update, 'effective_user', None)
+                                sender_id = getattr(sender, 'id', None)
+                                can_post = False
+                                if sender_id is not None:
+                                    role = storage.get_role(sender_id)
+                                    if role in ('owner', 'admin'):
+                                        can_post = True
+                                    elif storage.is_allowed_sender(update.effective_chat.id, sender_id):
+                                        can_post = True
+                                if can_post:
+                                    try:
+                                        await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Creada estructura: {out}')
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                            # try to find metadata.json under ./torrents (newest)
+                            try:
+                                outdir = os.path.join(os.getcwd(), 'torrents')
+                                meta_file = None
+                                if os.path.exists(outdir):
+                                    candidates = []
+                                    for root, dirs, files in os.walk(outdir):
+                                        if 'metadata.json' in files:
+                                            candidates.append(os.path.join(root, 'metadata.json'))
+                                    if candidates:
+                                        meta_file = max(candidates, key=lambda p: os.path.getmtime(p))
+                                if meta_file:
+                                    try:
+                                        import json
+                                        with open(meta_file, 'r', encoding='utf-8') as mf:
+                                            md = json.load(mf)
+                                        infohash = md.get('infohash')
+                                        if infohash:
+                                            # store permanently (Redis or in-memory)
+                                            storage.add_infohash(infohash)
+                                            try:
+                                                await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Infohash almacenado: {infohash[:20]}...')
+                                            except Exception:
+                                                pass
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                    else:
+                        try:
+                            await context.bot.send_message(chat_id=update.effective_chat.id, text=f'Error creando estructura: {proc.stderr.strip()[:400]}')
+                        except Exception:
+                            pass
                 except Exception:
                     pass
         except Exception:
@@ -453,7 +590,25 @@ async def cover_cmd(update: Any, context: Any):
             bio = io.BytesIO()
             im.save(bio, format='PNG')
             bio.seek(0)
-            await context.bot.send_photo(chat_id=update.effective_chat.id, photo=bio, caption=f'Cover for {str(title)[:50]}')
+            # check permission: allow if requester is admin/owner or allowed sender
+            try:
+                sender = getattr(update, 'effective_user', None)
+                sender_id = getattr(sender, 'id', None)
+                can_post = False
+                if sender_id is not None:
+                    role = storage.get_role(sender_id)
+                    if role in ('owner', 'admin'):
+                        can_post = True
+                    elif storage.is_allowed_sender(update.effective_chat.id, sender_id):
+                        can_post = True
+                if can_post:
+                    await context.bot.send_photo(chat_id=update.effective_chat.id, photo=bio, caption=f'Cover for {str(title)[:50]}')
+                else:
+                    # send privately to requester if not allowed to post in chat
+                    await context.bot.send_photo(chat_id=update.effective_user.id, photo=bio, caption=f'Cover for {str(title)[:50]}')
+                return
+            except Exception:
+                pass
             return
         except Exception:
             pass

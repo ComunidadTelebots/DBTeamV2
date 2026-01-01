@@ -63,9 +63,9 @@ def build_app(token: str) -> 'telegram.ext.Application':
             if p_low == 'document':
                 f = Filters.Document.ALL
             elif p_low == 'video':
-                f = Filters.Video.ALL
+                f = Filters.VIDEO
             elif p_low == 'audio':
-                f = Filters.Audio.ALL
+                f = Filters.AUDIO
             elif p_low == 'photo':
                 f = Filters.PHOTO
             elif p_low == 'text':

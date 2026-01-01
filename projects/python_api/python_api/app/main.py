@@ -1,5 +1,6 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import subprocess
 import shlex
 import platform
@@ -22,13 +23,98 @@ import time
 import uuid
 import hmac as _hmaclib
 import re
-from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+# Load configuration from a local `config.py` if present; otherwise fall back to env vars
+try:
+    from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+except Exception:
+    BOT_TOKEN = os.getenv('BOT_TOKEN')
+    WEB_API_KEY = os.getenv('WEB_API_KEY')
+    WEB_API_SECRET = os.getenv('WEB_API_SECRET')
+    WEB_API_ORIGIN = os.getenv('WEB_API_ORIGIN')
+    REDIS_URL = os.getenv('REDIS_URL', 'redis://127.0.0.1:6379/0')
 
 app = FastAPI()
 r = redis.from_url(REDIS_URL)
 
+# Configure CORS middleware early. If WEB_API_ORIGIN is set, allow only that origin;
+# otherwise allow common localhost origins used during development.
+if WEB_API_ORIGIN:
+    _origins = [WEB_API_ORIGIN]
+else:
+    _origins = [
+        'http://127.0.0.1:8080',
+        'http://localhost:8080',
+        'http://127.0.0.1:8000',
+        'http://localhost:8000',
+        'https://cas.chat',
+    ]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
+
 # server start time for uptime reporting
 START_TIME = int(time.time())
+
+# Optional: auto-register a bot token on server startup if provided via env var
+AUTO_REGISTER_BOT_TOKEN = os.getenv('AUTO_REGISTER_BOT_TOKEN')
+
+def _register_bot_token_on_startup(token: str):
+    if not token:
+        return None
+    try:
+        resp = requests.get(f'https://api.telegram.org/bot{token}/getMe', timeout=10)
+    except Exception as e:
+        print('auto-register: telegram error', e)
+        return None
+    if not resp.ok:
+        print('auto-register: telegram returned not ok', resp.text)
+        return None
+    try:
+        data = resp.json()
+    except Exception:
+        data = { 'ok': False }
+    result = data.get('result') if isinstance(data, dict) else None
+    bot_id = None
+    bot_name = None
+    if result:
+        bot_id = result.get('id')
+        bot_name = result.get('username') or result.get('first_name')
+    device_id = f'bot:{bot_id}' if bot_id else f'bot:{secrets.token_hex(6)}'
+    device_name = bot_name or device_id
+    enc = encrypt_value(token)
+    obj = { 'id': device_id, 'name': device_name, 'token': enc }
+    try:
+        items = r.lrange('web:devices', 0, -1) or []
+        exists = False
+        for it in items:
+            try:
+                cur = json.loads(it)
+                if cur.get('id') == obj['id']:
+                    exists = True
+                    break
+            except Exception:
+                continue
+        if not exists:
+            r.rpush('web:devices', json.dumps(obj))
+            print('auto-register: device registered', device_id)
+        else:
+            print('auto-register: device already present', device_id)
+    except Exception as e:
+        print('auto-register: failed to persist device', e)
+    return obj
+
+
+@app.on_event('startup')
+def _auto_register_startup_event():
+    if AUTO_REGISTER_BOT_TOKEN:
+        try:
+            _register_bot_token_on_startup(AUTO_REGISTER_BOT_TOKEN)
+        except Exception as e:
+            print('auto-register startup exception:', e)
 
 # Note: static files will be mounted at the end of this module so API routes
 # (including /tdlib) are registered first and not shadowed by StaticFiles.
@@ -214,14 +300,8 @@ def get_session_from_request(request: Request) -> Optional[dict]:
 
 @app.middleware('http')
 async def cors_and_auth(request: Request, call_next):
-    # simple CORS handling for preflight
-    if request.method == 'OPTIONS':
-        return JSONResponse(status_code=200, content='')
+    # Authentication passthrough middleware. Leave CORS handling to CORSMiddleware.
     response = await call_next(request)
-    response.headers['Access-Control-Allow-Origin'] = WEB_API_ORIGIN
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-API-Key'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
     return response
 
 @app.get('/messages')
@@ -366,6 +446,254 @@ def add_device(payload: dict, request: Request):
     obj = { 'id': payload.get('id'), 'name': payload.get('name') or payload.get('id'), 'token': enc }
     r.rpush('web:devices', json.dumps(obj))
     return { 'status': 'added' }
+
+
+@app.delete('/devices/{device_id}')
+def delete_device(device_id: str, request: Request):
+    """Remove a registered device by id from `web:devices` list."""
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    try:
+        items = r.lrange('web:devices', 0, -1) or []
+        kept = []
+        found = False
+        for it in items:
+            try:
+                obj = json.loads(it)
+                if obj.get('id') == device_id:
+                    found = True
+                    continue
+                kept.append(json.dumps(obj))
+            except Exception:
+                # if parse fails, keep original raw
+                kept.append(it if isinstance(it, str) else (it.decode() if isinstance(it, bytes) else str(it)))
+        # replace list atomically
+        try:
+            r.delete('web:devices')
+        except Exception:
+            pass
+        for v in kept:
+            try:
+                r.rpush('web:devices', v)
+            except Exception:
+                continue
+        if not found:
+            raise HTTPException(status_code=404, detail='device not found')
+        return { 'status': 'deleted', 'id': device_id }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/bot/verify')
+def bot_verify(payload: dict, request: Request):
+    """Verify a Telegram Bot token, register it as a device and import local bot data.
+    Payload: { token: '<bot token>', id: '<optional device id>', name: '<optional name>' }
+    Returns registered device info and imported data (infohashes, allowed_senders).
+    """
+    if not payload or not payload.get('token'):
+        raise HTTPException(status_code=400, detail='token required')
+    token = payload.get('token')
+    # verify token with Telegram getMe
+    try:
+        resp = requests.get(f'https://api.telegram.org/bot{token}/getMe', timeout=10)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not resp.ok:
+        raise HTTPException(status_code=400, detail=f'telegram error: {resp.text}')
+    try:
+        data = resp.json()
+    except Exception:
+        data = { 'ok': False }
+    result = data.get('result') if isinstance(data, dict) else None
+    bot_id = None
+    bot_name = None
+    if result:
+        bot_id = result.get('id')
+        bot_name = result.get('username') or result.get('first_name')
+
+    # attempt to fetch a profile photo URL for the bot (best-effort)
+    photo_url = None
+    try:
+        if bot_id:
+            p = requests.get(f'https://api.telegram.org/bot{token}/getUserProfilePhotos', params={'user_id': bot_id, 'limit': 1}, timeout=10)
+            if p.ok:
+                pj = p.json()
+                pres = pj.get('result') if isinstance(pj, dict) else None
+                photos = pres.get('photos') if pres else None
+                if photos and len(photos) > 0 and isinstance(photos[0], list):
+                    sizes = photos[0]
+                    if sizes:
+                        file_id = sizes[-1].get('file_id')
+                        if file_id:
+                            gf = requests.get(f'https://api.telegram.org/bot{token}/getFile', params={'file_id': file_id}, timeout=10)
+                            if gf.ok:
+                                gfj = gf.json()
+                                gfres = gfj.get('result') if isinstance(gfj, dict) else None
+                                file_path = gfres.get('file_path') if gfres else None
+                                if file_path:
+                                    photo_url = f'https://api.telegram.org/file/bot{token}/{file_path}'
+    except Exception:
+        photo_url = None
+
+    # choose device id
+    device_id = payload.get('id') or (f'bot:{bot_id}' if bot_id else f'bot:{secrets.token_hex(6)}')
+    device_name = payload.get('name') or bot_name or device_id
+
+    # store encrypted token as a web device (reuse existing structure)
+    enc = encrypt_value(token)
+    obj = { 'id': device_id, 'name': device_name, 'token': enc }
+    # avoid duplicates
+    try:
+        items = r.lrange('web:devices', 0, -1) or []
+        exists = False
+        for it in items:
+            try:
+                cur = json.loads(it)
+                if cur.get('id') == obj['id']:
+                    exists = True
+                    break
+            except Exception:
+                continue
+        if not exists:
+            r.rpush('web:devices', json.dumps(obj))
+    except Exception:
+        # best-effort: ignore storage errors
+        pass
+
+    # Import bot-local data stored under storage prefix `dbteam:` (infohashes, allowed_senders)
+    infohashes = []
+    try:
+        for ih in (r.smembers('dbteam:infohashes') or set()):
+            try:
+                infohashes.append(ih.decode() if isinstance(ih, bytes) else ih)
+            except Exception:
+                continue
+    except Exception:
+        infohashes = []
+
+    allowed_senders = {}
+    try:
+        for k in r.scan_iter(match='dbteam:allowed_senders:*'):
+            try:
+                keyname = k.decode() if isinstance(k, bytes) else k
+                parts = keyname.split(':')
+                chatid = parts[-1]
+                members = r.smembers(keyname) or set()
+                allowed_senders[str(chatid)] = [int(x) for x in [(m.decode() if isinstance(m, bytes) else m) for m in members]]
+            except Exception:
+                continue
+    except Exception:
+        allowed_senders = {}
+
+    return { 'status': 'ok', 'device': { 'id': device_id, 'name': device_name }, 'infohashes': infohashes, 'allowed_senders': allowed_senders, 'getMe': result, 'photo_url': photo_url }
+
+
+@app.get('/bot/data')
+def bot_data(request: Request):
+    """Return imported bot-local data (infohashes and allowed_senders) for the web UI."""
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    infohashes = []
+    try:
+        for ih in (r.smembers('dbteam:infohashes') or set()):
+            try:
+                infohashes.append(ih.decode() if isinstance(ih, bytes) else ih)
+            except Exception:
+                continue
+    except Exception:
+        infohashes = []
+    allowed_senders = {}
+    try:
+        for k in r.scan_iter(match='dbteam:allowed_senders:*'):
+            try:
+                keyname = k.decode() if isinstance(k, bytes) else k
+                parts = keyname.split(':')
+                chatid = parts[-1]
+                members = r.smembers(keyname) or set()
+                allowed_senders[str(chatid)] = [int(x) for x in [(m.decode() if isinstance(m, bytes) else m) for m in members]]
+            except Exception:
+                continue
+    except Exception:
+        allowed_senders = {}
+    return { 'infohashes': infohashes, 'allowed_senders': allowed_senders }
+
+
+@app.post('/bot/files')
+def bot_files(payload: dict, request: Request):
+    """Best-effort: list files uploaded by the bot by scanning recent getUpdates.
+    Payload: { token: '<bot token>', limit: 50 }
+    Returns: list of { chat_id, date, type, file_id, file_name (opt), file_url }
+    Note: this only sees updates available via getUpdates (webhook bots may not have history here).
+    """
+    if not payload or not payload.get('token'):
+        raise HTTPException(status_code=400, detail='token required')
+    token = payload.get('token')
+    limit = int(payload.get('limit', 50))
+    try:
+        resp = requests.get(f'https://api.telegram.org/bot{token}/getUpdates', params={'limit': limit}, timeout=10)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    if not resp.ok:
+        raise HTTPException(status_code=400, detail=f'telegram error: {resp.text}')
+    try:
+        data = resp.json()
+    except Exception:
+        data = { 'result': [] }
+    updates = data.get('result') if isinstance(data, dict) else []
+    out_files = []
+    for u in updates:
+        for msgkey in ('message', 'edited_message'):
+            msg = u.get(msgkey)
+            if not msg:
+                continue
+            frm = msg.get('from') or {}
+            if not frm.get('is_bot'):
+                continue
+            chat = msg.get('chat') or {}
+            chat_id = chat.get('id')
+            date = msg.get('date')
+            # check common attachment types
+            file_id = None
+            ftype = None
+            fname = None
+            if 'photo' in msg and msg.get('photo'):
+                sizes = msg.get('photo')
+                if isinstance(sizes, list) and sizes:
+                    file_id = sizes[-1].get('file_id')
+                    ftype = 'photo'
+            if not file_id and msg.get('document'):
+                file_id = msg['document'].get('file_id')
+                fname = msg['document'].get('file_name')
+                ftype = 'document'
+            if not file_id and msg.get('video'):
+                file_id = msg['video'].get('file_id')
+                ftype = 'video'
+            if not file_id and msg.get('audio'):
+                file_id = msg['audio'].get('file_id')
+                ftype = 'audio'
+            if not file_id and msg.get('voice'):
+                file_id = msg['voice'].get('file_id')
+                ftype = 'voice'
+            if file_id:
+                # resolve file path
+                try:
+                    gf = requests.get(f'https://api.telegram.org/bot{token}/getFile', params={'file_id': file_id}, timeout=10)
+                    if gf.ok:
+                        gfj = gf.json()
+                        gfres = gfj.get('result') if isinstance(gfj, dict) else None
+                        file_path = gfres.get('file_path') if gfres else None
+                        if file_path:
+                            file_url = f'https://api.telegram.org/file/bot{token}/{file_path}'
+                        else:
+                            file_url = None
+                    else:
+                        file_url = None
+                except Exception:
+                    file_url = None
+                out_files.append({ 'chat_id': chat_id, 'date': date, 'type': ftype, 'file_id': file_id, 'file_name': fname, 'file_url': file_url })
+    return { 'files': out_files }
 
 @app.post('/send')
 def send_message(payload: dict, request: Request):
@@ -775,21 +1103,19 @@ def status_info(request: Request):
     try:
         api_key_sessions = 0
         for k in r.scan_iter(match='web:session:*'):
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                v = r.get(k)
-                if not v:
-                    continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        # sessions created from api_key login use user 'api_key_user'
-                        if obj and obj.get('user') == 'api_key_user':
-                            api_key_sessions += 1
-                    except Exception:
-                        continue
-        # keep as int
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') == 'api_key_user':
+                api_key_sessions += 1
     except Exception:
         api_key_sessions = None
 
@@ -798,28 +1124,28 @@ def status_info(request: Request):
     try:
         api_key_session_ids = []
         for k in r.scan_iter(match='web:session:*'):
+            keyname = k.decode() if isinstance(k, bytes) else k
+            token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                keyname = k.decode() if isinstance(k, bytes) else k
-                token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
-                v = r.get(k)
-                if not v:
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') == 'api_key_user':
+                t = token_part or ''
+                if not t:
                     continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        if obj and obj.get('user') == 'api_key_user':
-                            t = token_part
-                            if not t:
-                                continue
-                            if len(t) <= 10:
-                                masked = t[:2] + '***' + t[-2:]
-                            else:
-                                masked = t[:6] + '***' + t[-4:]
-                            api_key_session_ids.append(masked)
-                    except Exception:
-                        continue
+                if len(t) <= 10:
+                    masked = t[:2] + '***' + t[-2:]
+                else:
+                    masked = t[:6] + '***' + t[-4:]
+                api_key_session_ids.append(masked)
     except Exception:
         api_key_session_ids = None
 
@@ -842,38 +1168,36 @@ def status_info(request: Request):
     try:
         api_key_sessions_with_ttl = []
         for k in r.scan_iter(match='web:session:*'):
+            keyname = k.decode() if isinstance(k, bytes) else k
+            token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                keyname = k.decode() if isinstance(k, bytes) else k
-                token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
-                v = r.get(k)
-                if not v:
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') == 'api_key_user':
+                ttl = None
+                try:
+                    ttl_val = r.ttl(k)
+                    # redis returns -2 if key missing, -1 if no expire
+                    if isinstance(ttl_val, int) and ttl_val >= 0:
+                        ttl = int(ttl_val)
+                except Exception:
+                    ttl = None
+                t = token_part or ''
+                if not t:
                     continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        if obj and obj.get('user') == 'api_key_user':
-                            ttl = None
-                            try:
-                                ttl_val = r.ttl(k)
-                                # redis returns -2 if key missing, -1 if no expire
-                                if isinstance(ttl_val, int) and ttl_val >= 0:
-                                    ttl = int(ttl_val)
-                                else:
-                                    ttl = None
-                            except Exception:
-                                ttl = None
-                            t = token_part
-                            if not t:
-                                continue
-                            if len(t) <= 10:
-                                masked = t[:2] + '***' + t[-2:]
-                            else:
-                                masked = t[:6] + '***' + t[-4:]
-                            api_key_sessions_with_ttl.append({'id': masked, 'ttl_seconds': ttl})
-                    except Exception:
-                        continue
+                if len(t) <= 10:
+                    masked = t[:2] + '***' + t[-2:]
+                else:
+                    masked = t[:6] + '***' + t[-4:]
+                api_key_sessions_with_ttl.append({'id': masked, 'ttl_seconds': ttl})
     except Exception:
         api_key_sessions_with_ttl = None
 

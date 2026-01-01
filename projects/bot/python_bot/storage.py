@@ -160,6 +160,57 @@ class Storage:
             return [int(x) for x in self.redis.smembers(k) or []]
         else:
             return [int(x) for x in (self.fallback.smembers(k) or [])]
+    # Known torrent infohashes
+    def add_infohash(self, infohash: str):
+        k = self._skey('infohashes')
+        if self.redis:
+            self.redis.sadd(k, infohash)
+        else:
+            self.fallback.sadd(k, infohash)
+
+    def has_infohash(self, infohash: str) -> bool:
+        k = self._skey('infohashes')
+        if self.redis:
+            return self.redis.sismember(k, infohash)
+        else:
+            return infohash in (self.fallback.smembers(k) or set())
+
+    def list_infohashes(self):
+        k = self._skey('infohashes')
+        if self.redis:
+            return [x for x in (self.redis.smembers(k) or [])]
+        else:
+            return [x for x in (self.fallback.smembers(k) or set())]
+    # Allowed senders per chat (who can trigger the bot to post to origin chats)
+    def add_allowed_sender(self, chat_id: int, user_id: int):
+        k = self._skey(f'allowed_senders:{chat_id}')
+        if self.redis:
+            self.redis.sadd(k, user_id)
+        else:
+            self.fallback.sadd(k, str(user_id))
+
+    def remove_allowed_sender(self, chat_id: int, user_id: int):
+        k = self._skey(f'allowed_senders:{chat_id}')
+        if self.redis:
+            self.redis.srem(k, user_id)
+        else:
+            s = self.fallback.smembers(k)
+            if str(user_id) in s:
+                s.remove(str(user_id))
+
+    def is_allowed_sender(self, chat_id: int, user_id: int) -> bool:
+        k = self._skey(f'allowed_senders:{chat_id}')
+        if self.redis:
+            return self.redis.sismember(k, user_id)
+        else:
+            return str(user_id) in (self.fallback.smembers(k) or set())
+
+    def list_allowed_senders(self, chat_id: int):
+        k = self._skey(f'allowed_senders:{chat_id}')
+        if self.redis:
+            return [int(x) for x in (self.redis.smembers(k) or [])]
+        else:
+            return [int(x) for x in (self.fallback.smembers(k) or set())]
     # Streaming session helpers (per-chat)
     def start_stream_session(self, chat_id: int, name: Optional[str] = None):
         k = self._skey(f'session:{chat_id}')

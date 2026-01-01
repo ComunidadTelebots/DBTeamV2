@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bot Settings — DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="icon" href="/logo.svg">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="bot_settings.html" class="active">Bot Settings</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Bot Settings</h1>
+    <p class="hint">Verifica token del bot, sincroniza infohashes y configura roles para el bot.</p>
+
+    <section style="margin-top:12px;display:grid;grid-template-columns:1fr 360px;gap:16px;align-items:start">
+      <div>
+        <h2>Verificar Bot</h2>
+        <form id="verifyTokenForm">
+          <label>API base (ej. http://localhost:8000)</label>
+          <input id="apiBase" list="apiBaseList" type="text" placeholder="http://localhost:8000" style="width:100%;margin-top:6px" />
+          <datalist id="apiBaseList"></datalist>
+          <label style="margin-top:8px">Token del Bot</label>
+          <input id="verifyTokenInput" placeholder="123:ABC..." style="width:100%;margin-top:6px" />
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button type="submit" class="btn">Verificar y registrar</button>
+            <button type="button" id="importDataBtn" class="btn ghost">Importar datos</button>
+          </div>
+        </form>
+
+          <h3 style="margin-top:12px">Bot</h3>
+          <div id="botSummary" style="display:flex;align-items:center;gap:10px;background:var(--card);padding:8px;border-radius:8px">
+            <img id="botPhoto" src="" alt="foto bot" style="width:56px;height:56px;border-radius:8px;object-fit:cover;display:none" />
+            <div style="flex:1">
+              <div id="botName" style="font-weight:700">(no verificado)</div>
+              <div id="botExtra" style="color:var(--muted);font-size:0.95rem">ID: -</div>
+              <div id="botStats" style="color:var(--muted);font-size:0.9rem;margin-top:6px">Chats activos: 0 · Infohashes: 0</div>
+            </div>
+          </div>
+
+        <h3 style="margin-top:16px">Info importada</h3>
+        <div id="importSummary" style="background:var(--card);padding:10px;border-radius:8px"></div>
+
+        <h3 style="margin-top:12px">Archivos subidos por el bot</h3>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <button id="listFilesBtn" class="btn ghost">Ver archivos subidos</button>
+          <input id="filesLimit" type="number" min="1" max="200" placeholder="limit" style="width:90px" />
+        </div>
+        <div id="uploadedFilesList" style="background:var(--card);padding:10px;border-radius:8px;max-height:240px;overflow:auto;margin-top:8px"></div>
+        <h3 style="margin-top:12px">Infohashes</h3>
+        <div id="infohashesList" style="background:var(--card);padding:10px;border-radius:8px;max-height:200px;overflow:auto"></div>
+
+        <h3 style="margin-top:12px">Allowed senders (por chat)</h3>
+        <div id="allowedSendersList" style="background:var(--card);padding:10px;border-radius:8px;max-height:200px;overflow:auto"></div>
+
+      </div>
+
+      <aside style="background:var(--card);padding:12px;border-radius:8px">
+        <h3>Roles</h3>
+        <label>Propietario (user id o @username)</label>
+        <input id="ownerInput" placeholder="@andrea7221 o 123456789" style="width:100%;margin-top:6px" />
+        <label style="margin-top:8px">Admins (separados por comas)</label>
+        <input id="adminsInput" placeholder="admin1,admin2,@user" style="width:100%;margin-top:6px" />
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button id="saveRolesBtn" class="btn">Guardar roles</button>
+          <button id="clearRolesBtn" class="btn ghost">Borrar</button>
+        </div>
+
+        <h3 style="margin-top:14px">Dispositivos</h3>
+        <div id="devicesList" style="margin-top:6px;max-height:180px;overflow:auto"></div>
+
+        <h3 style="margin-top:12px">Comandos básicos</h3>
+        <div id="commandsList" style="margin-top:6px"></div>
+      </aside>
+    </section>
+
+  </main>
+
+  <script src="bot_settings.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>
