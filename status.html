@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DBTeamV2 — Status</title>
+  <style>
+    :root{--bg:#f5f8fb;--card:#ffffff;--muted:#6b7280;--primary:#0b69ff;--good:#18c13b;--warn:#f59e0b;--bad:#ef4444}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;margin:0;background:var(--bg);color:#0f172a}
+    header{background:linear-gradient(90deg,#ffffff88, #f7fbff);padding:20px 28px;border-bottom:1px solid #e6eef9;display:flex;align-items:center;gap:18px}
+    .logo{width:48px;height:48px;border-radius:10px;background:var(--primary);color:white;display:flex;align-items:center;justify-content:center;font-weight:700}
+    .title h1{margin:0;font-size:18px}
+    .title p{margin:2px 0 0 0;color:var(--muted);font-size:13px}
+    .wrap{max-width:1100px;margin:26px auto;padding:0 20px}
+    .grid{display:grid;grid-template-columns:360px 1fr;gap:20px}
+    .card{background:var(--card);border:1px solid #e6eef9;padding:16px;border-radius:10px}
+    .status-global{display:flex;align-items:center;gap:12px}
+    .badge{width:14px;height:14px;border-radius:50%}
+    .components li{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px dashed #f0f4fb}
+    .muted{color:var(--muted)}
+    .controls{display:flex;gap:8px}
+    .btn{padding:8px 12px;border-radius:8px;border:none;background:var(--primary);color:white;cursor:pointer}
+    .btn.danger{background:var(--bad)}
+    .incidents .incident{padding:12px;border-radius:8px;border:1px solid #eef4ff;margin-bottom:10px}
+    .small{font-size:13px;color:var(--muted)}
+    footer{max-width:1100px;margin:12px auto 60px;padding:0 20px;color:var(--muted);font-size:13px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo">DB</div>
+    <div class="title">
+      <h1>DBTeamV2 — Status</h1>
+      <p>Local status dashboard — scanner: <code>http://127.0.0.1:8000</code></p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="grid">
+      <aside class="card">
+        <div class="status-global">
+          <div id="global-badge" class="badge" style="background:var(--good)"></div>
+          <div>
+            <div id="global-title" style="font-weight:700">Operacional</div>
+            <div id="global-last" class="small">Última comprobación: —</div>
+          </div>
+        </div>
+
+        <hr style="margin:12px 0">
+        <h4 style="margin:8px 0">Components</h4>
+        <ul id="components" class="components" style="list-style:none;padding:0;margin:0">
+        </ul>
+        <div style="margin-top:12px" class="small muted">Estado derivado del scanner local. Actualiza cada 60s.</div>
+      </aside>
+
+      <section>
+        <div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:700">Incidentes recientes</div>
+            <div class="small muted">Resultados del escaneo automático y manual</div>
+          </div>
+          <div class="controls">
+            <button id="btn-scan" class="btn">Escanear</button>
+            <button id="btn-clean" class="btn danger">Limpiar</button>
+            <button id="btn-report" class="btn" style="background:#06b6d4">Reportar</button>
+          </div>
+        </div>
+
+        <div id="incidents" class="incidents card"></div>
+
+      </section>
+    </div>
+  </main>
+
+  <footer>Herramienta local de diagnóstico. No expongas este servidor públicamente. Usa `.secrets_backup/` para revisar backups tras limpieza.</footer>
+
+  <script>
+    function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+    function badgeColor(status){ if(status==='operational') return ['var(--good)','Operational']
+      if(status==='partial') return ['var(--warn)','Degraded']
+      return ['var(--bad)','Major']
+    }
+
+    function defaultComponents(){
+      return [
+        {id:'api',name:'API',status:'operational'},
+        {id:'bot',name:'Bot',status:'operational'},
+        {id:'web',name:'Web UI',status:'operational'},
+        {id:'db',name:'Database',status:'operational'}
+      ]
+    }
+
+    async function fetchScan(){
+      try{
+        const r = await fetch('/scan')
+        if(!r.ok) throw new Error('no response')
+        return await r.json()
+      }catch(e){
+        console.warn('scan error',e)
+        return null
+      }
+    }
+
+    function renderComponents(list){
+      const el = document.getElementById('components'); el.innerHTML = ''
+      for(const it of list){
+        const div = document.createElement('div'); div.className='incident'
+        const closed = it.status && it.status==='closed'
+        let actions = ''
+        if(!closed){
+          actions = `<button data-id="${it.id}" class="btn" style="background:#06b6d4;margin-left:8px" onclick="closeIncident('${it.id}')">Cerrar</button>`
+        } else {
+          actions = `<div class="small muted">Cerrado: ${escapeHtml(it.closed_at||'')}</div>`
+        }
+        div.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:700">${escapeHtml(it.summary||it.type+' — '+it.file)}</div>${actions}</div><div style="margin-top:6px"><pre style="white-space:pre-wrap;margin:0">${escapeHtml(it.details||it.match||'')}</pre></div><div class="small muted" style="margin-top:8px">Reportado por: ${escapeHtml(it.reported_by||'local')} — ${escapeHtml(it.created_at||new Date().toLocaleString())}</div>`
+        el.appendChild(div)
+      }
+      }
+    }
+
+    function renderIncidents(findings){
+      const el = document.getElementById('incidents');
+      if(!findings) { el.innerHTML = '<div class="small muted">No se puede contactar con el scanner local.</div>'; return }
+      if(findings.length===0) { el.innerHTML = '<div class="small muted">No hay incidentes detectados.</div>'; return }
+      el.innerHTML = ''
+      for(const it of findings){
+        const div = document.createElement('div'); div.className='incident'
+        div.innerHTML = `<div style="font-weight:700">${escapeHtml(it.type)} — ${escapeHtml(it.file)}</div><div style="margin-top:6px"><pre style="white-space:pre-wrap;margin:0">${escapeHtml(it.match)}</pre></div><div class="small muted" style="margin-top:8px">Detectado: ${new Date().toLocaleString()}</div>`
+        el.appendChild(div)
+      }
+    }
+
+    async function doScan(){
+      try{
+        const r = await fetch('/status')
+        if(!r.ok) throw new Error('no status')
+        const s = await r.json()
+        // set global
+        const global = (s.global_status === 'operational') ? 'operational' : 'partial'
+        document.getElementById('global-badge').style.background = badgeColor(global)[0]
+        document.getElementById('global-title').textContent = badgeColor(global)[1]
+        document.getElementById('global-last').textContent = 'Última comprobación: '+new Date(s.timestamp).toLocaleString()
+        // components
+        renderComponents(s.components || defaultComponents())
+        // incidents: combine saved incidents + findings (findings shown as incidents)
+        const findings = s.findings || []
+        const incidents = (s.incidents || []).slice().concat(findings.map(f=>({id: f.file+':'+f.type, status:'open', summary:f.type, details:f.match, file:f.file, created_at:s.timestamp})))
+        renderIncidents(incidents)
+      }catch(e){
+        document.getElementById('incidents').innerHTML = '<div class="small muted">Error contacting local scanner: '+e.message+'</div>'
+      }
+    }
+
+    document.getElementById('btn-scan').addEventListener('click', doScan)
+    document.getElementById('btn-clean').addEventListener('click', async ()=>{
+      if(!confirm('Ejecutar limpieza? Se crearán backups en .secrets_backup/')) return
+      try{
+        const r = await fetch('/clean')
+        const j = await r.json()
+        alert('Limpieza completada. Backup: '+j.backup_dir)
+        doScan()
+      }catch(e){ alert('Error al limpiar: '+e.message) }
+    })
+
+    document.getElementById('btn-report').addEventListener('click', async ()=>{
+      const comp = prompt('Componente (ej: bot, api, web):', 'bot')
+      if(!comp) return
+      const reporter = prompt('Tu nombre o id (reported_by):', 'local') || 'local'
+      const summary = prompt('Resumen corto del incidente:')
+      if(!summary) return
+      const details = prompt('Detalles (opcional):','') || ''
+      const payload = { component: comp, summary: summary, details: details, reported_by: reporter }
+      try{
+        const r = await fetch('/incidents', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+        if(!r.ok) throw new Error('failed')
+        alert('Incidente reportado localmente')
+        doScan()
+      }catch(e){ alert('Error al reportar: '+e.message) }
+    })
+
+    window.closeIncident = async function(id){
+      const closer = prompt('Tu nombre para cerrar el incident (closed_by):', 'local') || 'local'
+      const note = prompt('Nota de cierre (opcional):','') || ''
+      try{
+        const r = await fetch('/incidents/close', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({id: id, closed_by: closer, note: note}) })
+        if(!r.ok) throw new Error('close failed')
+        alert('Incidente cerrado')
+        doScan()
+      }catch(e){ alert('Error al cerrar: '+e.message) }
+    }
+
+    // auto-run and poll
+    doScan(); setInterval(doScan,60000)
+  </script>
+</body>
+</html>

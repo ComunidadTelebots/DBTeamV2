@@ -210,3 +210,8 @@ See `README_DOCKER.md` for Docker-specific instructions.
 ### Large files & setup
 
 If you need to handle large model artifacts or serialized indexes, see `docs/large_files_cleanup.md` for safe, reversible steps to remove them from git history or keep them externally (S3/Drive). A helper script to download `ai_index.pkl` is available at `scripts/download_ai_index.ps1`.
+
+Local tools and status page
+---------------------------
+
+There is a local status page to inspect repository secret scans and trigger cleanup: open `tools/status.html` after starting the local scanner service (see `tools/README.md` for instructions). The service exposes `http://127.0.0.1:8000/scan` and `/clean` endpoints and serves the status page at `http://127.0.0.1:8000/tools/status.html`.

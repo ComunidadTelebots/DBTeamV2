@@ -1,3 +1,31 @@
+Tools — Scanner & Status Page
+================================
+
+This folder contains a small local scanner `scan_and_clean_secrets.py` and a static status UI `status.html` to help detect and remediate leaked secrets.
+
+Quick start (Windows, from repo root):
+
+```powershell
+# Activate your venv if you have one
+.venv\Scripts\Activate.ps1
+
+# Start the scanner service (binds to localhost only)
+.venv\Scripts\python.exe tools\scan_and_clean_secrets.py --serve
+
+# Open in your browser:
+# http://127.0.0.1:8000/tools/status.html
+```
+
+Commands:
+
+- `--scan` : run a scan and print JSON findings.
+- `--clean` : backup matching files to `.secrets_backup/` and replace detected secrets with placeholders.
+- `--serve` : start a local HTTP server on `127.0.0.1:8000` exposing `/scan`, `/clean` and serving `tools/status.html`.
+
+Security notes:
+
+- The server only listens on `127.0.0.1` to avoid remote access. Do not expose it publicly.
+- Always rotate any secret you find and verify backups in `.secrets_backup/` before pushing changes.
 DBTeam tools
 =============
 

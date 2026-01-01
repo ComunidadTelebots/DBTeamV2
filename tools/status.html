@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scanner status</title>
+  <style>
+    body{font-family:Inter,system-ui,Segoe UI,Arial;margin:20px;background:#f7f9fc;color:#111}
+    h1{font-size:20px}
+    table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e1e6ef}
+    th,td{padding:8px 10px;border-bottom:1px solid #eef2f7;text-align:left;font-size:13px}
+    th{background:#f1f5fb}
+    pre{white-space:pre-wrap;word-break:break-word;margin:0}
+    .btn{display:inline-block;padding:8px 12px;background:#0b69ff;color:#fff;border-radius:6px;text-decoration:none}
+    .btn-danger{background:#e05353}
+    .muted{color:#667085;font-size:13px}
+  </style>
+</head>
+<body>
+  <h1>Scanner de secretos — estado</h1>
+  <p class="muted">Muestra hallazgos del scanner local. El servidor debe ejecutarse en <code>http://127.0.0.1:8000</code>.</p>
+  <p>
+    <a id="btn-scan" class="btn">Scan</a>
+    <a id="btn-clean" class="btn btn-danger">Clean (backup y reemplazo)</a>
+    <span id="status" style="margin-left:12px"></span>
+  </p>
+
+  <div id="results"></div>
+
+  <script>
+    const statusEl = document.getElementById('status')
+    const resultsEl = document.getElementById('results')
+    async function fetchJson(path){
+      statusEl.textContent = 'Cargando...'
+      try{
+        const res = await fetch(path)
+        const data = await res.json()
+        statusEl.textContent = `OK (${data.length || Object.keys(data).length})`
+        return data
+      }catch(e){
+        statusEl.textContent = 'Error: '+e.message
+        return null
+      }
+    }
+
+    function renderFindings(list){
+      if(!list || list.length===0){ resultsEl.innerHTML = '<p class="muted">No se encontraron coincidencias.</p>'; return }
+      let html = '<table><thead><tr><th>Archivo</th><th>Tipo</th><th>Coincidencia</th><th>Extracto</th></tr></thead><tbody>'
+      for(const it of list){
+        html += `<tr><td>${it.file}</td><td>${it.type}</td><td><pre>${escapeHtml(it.match)}</pre></td><td><pre>${escapeHtml(it.excerpt)}</pre></td></tr>`
+      }
+      html += '</tbody></table>'
+      resultsEl.innerHTML = html
+    }
+
+    function escapeHtml(s){ return (s+'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+    document.getElementById('btn-scan').addEventListener('click', async ()=>{
+      const data = await fetchJson('/scan')
+      renderFindings(data)
+    })
+
+    document.getElementById('btn-clean').addEventListener('click', async ()=>{
+      if(!confirm('¿Ejecutar limpieza? Esto reemplazará coincidencias y hará backup en .secrets_backup/.')) return
+      const res = await fetch('/clean')
+      const data = await res.json()
+      resultsEl.innerHTML = '<pre>'+escapeHtml(JSON.stringify(data, null, 2))+'</pre>'
+      statusEl.textContent = 'Clean completed'
+    })
+
+    // Auto-scan on load
+    (async ()=>{ const d = await fetchJson('/scan'); renderFindings(d) })()
+  </script>
+</body>
+</html>
