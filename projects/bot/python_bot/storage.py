@@ -49,6 +49,23 @@ class Storage:
     def _skey(self, key: str) -> str:
         return f'{self.prefix}{key}'
 
+    # Generic key/value helpers (used by web login/session code)
+    def set(self, key: str, value):
+        k = self._skey(key)
+        if self.redis:
+            # store raw value as string
+            self.redis.set(k, json.dumps(value) if not isinstance(value, str) else value)
+        else:
+            self.fallback.set(k, json.dumps(value) if not isinstance(value, str) else value)
+
+    def get(self, key: str):
+        k = self._skey(key)
+        if self.redis:
+            val = self.redis.get(k)
+            return val
+        else:
+            return self.fallback.get(k)
+
     def add_chat(self, chat_id: int):
         k = self._skey('chats')
         if self.redis:
@@ -181,6 +198,55 @@ class Storage:
             return [x for x in (self.redis.smembers(k) or [])]
         else:
             return [x for x in (self.fallback.smembers(k) or set())]
+    # Pending torrents per-user (used when users send .torrent/magnets in private)
+    def add_pending_torrent(self, user_id: int, obj: dict):
+        k = self._skey(f'pending:{user_id}')
+        # store as JSON list in a single key for simplicity
+        if self.redis:
+            raw = self.redis.get(k) or '[]'
+            try:
+                arr = json.loads(raw)
+            except Exception:
+                arr = []
+            arr.append(obj)
+            self.redis.set(k, json.dumps(arr))
+        else:
+            raw = self.fallback.get(k) or '[]'
+            try:
+                arr = json.loads(raw)
+            except Exception:
+                arr = []
+            arr.append(obj)
+            self.fallback.set(k, json.dumps(arr))
+
+    def get_pending_torrents(self, user_id: int):
+        k = self._skey(f'pending:{user_id}')
+        if self.redis:
+            raw = self.redis.get(k)
+        else:
+            raw = self.fallback.get(k)
+        if not raw:
+            return []
+        try:
+            return json.loads(raw)
+        except Exception:
+            return []
+
+    def remove_pending_torrent(self, user_id: int, index: int):
+        k = self._skey(f'pending:{user_id}')
+        lst = self.get_pending_torrents(user_id)
+        try:
+            idx = int(index)
+            if idx < 0 or idx >= len(lst):
+                return False
+            lst.pop(idx)
+            if self.redis:
+                self.redis.set(k, json.dumps(lst))
+            else:
+                self.fallback.set(k, json.dumps(lst))
+            return True
+        except Exception:
+            return False
     # Allowed senders per chat (who can trigger the bot to post to origin chats)
     def add_allowed_sender(self, chat_id: int, user_id: int):
         k = self._skey(f'allowed_senders:{chat_id}')

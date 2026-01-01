@@ -1,0 +1,13 @@
+.git
+.gitignore
+.gitattributes
+.venv
+__pycache__
+*.pyc
+bot.log
+pending_torrents
+torrents
+*.torrent
+node_modules
+dist
+build

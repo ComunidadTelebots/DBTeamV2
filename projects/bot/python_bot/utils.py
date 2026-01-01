@@ -63,3 +63,24 @@ def no_markdown(text: Optional[str], replace: Optional[str] = None) -> Optional[
         return re.sub(r'[`*_]', '', str(text))
     else:
         return re.sub(r'[`*_]', replace, str(text))
+
+
+def send_telegram_message(chat_id_or_username: str, text: str, token: Optional[str] = None, timeout: int = 5):
+    """Send a message using the Bot API. `chat_id_or_username` may be numeric id or @username.
+
+    Returns the parsed JSON response on success or raises an exception on failure.
+    """
+    try:
+        import requests
+    except Exception:
+        raise RuntimeError('requests library is required to send Telegram messages')
+    token = token or os.getenv('BOT_TOKEN') or os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        raise RuntimeError('BOT_TOKEN not configured in environment')
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+    payload = {'chat_id': chat_id_or_username, 'text': text, 'disable_web_page_preview': True}
+    r = requests.post(url, json=payload, timeout=timeout)
+    try:
+        return r.json()
+    except Exception:
+        r.raise_for_status()

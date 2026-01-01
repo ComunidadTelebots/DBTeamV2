@@ -89,6 +89,42 @@
 
         <h3 style="margin-top:12px">Comandos básicos</h3>
         <div id="commandsList" style="margin-top:6px"></div>
+
+        <h3 style="margin-top:12px">Bots configurados</h3>
+        <label>Nombre (opcional)</label>
+        <input id="cfgBotName" placeholder="Mi bot" style="width:100%;margin-top:6px" />
+        <label style="margin-top:8px">API base (ej. http://localhost:8000)</label>
+        <input id="cfgBotApiBase" placeholder="http://localhost:8000" style="width:100%;margin-top:6px" />
+        <label style="margin-top:8px">Token (opcional)</label>
+        <input id="cfgBotToken" placeholder="123:ABC... (opcional)" style="width:100%;margin-top:6px" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="addCfgBotBtn" class="btn">Agregar bot</button>
+          <button id="refreshBotsBtn" class="btn ghost">Actualizar</button>
+        </div>
+        <div id="configuredBotsList" style="margin-top:10px;max-height:220px;overflow:auto"></div>
+        
+        <h3 style="margin-top:12px">Modelos Locales (Open-source)</h3>
+        <label>Nombre del modelo (ej. gpt2, EleutherAI/gpt-neo-125M)</label>
+        <input id="localModelInput" placeholder="gpt2 or owner/model" style="width:100%;margin-top:6px" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="installModelBtn" class="btn">Instalar modelo</button>
+          <button id="refreshModelsBtn" class="btn ghost">Actualizar lista</button>
+        </div>
+        <div id="localModelsList" style="margin-top:8px;max-height:160px;overflow:auto;background:var(--card);padding:8px;border-radius:8px"></div>
+        <label style="margin-top:8px">Prompt de prueba</label>
+        <input id="modelPromptInput" placeholder="Escribe un prompt corto" style="width:100%;margin-top:6px" />
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button id="runModelBtn" class="btn">Ejecutar en local</button>
+        </div>
+        <h3 style="margin-top:12px">Servicios / APIs</h3>
+        <div id="apiStatusCard" style="margin-top:8px;background:var(--card);padding:10px;border-radius:8px">
+          <div id="apiStatusList"></div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button id="svcStartBtn" class="btn">Iniciar</button>
+            <button id="svcStopBtn" class="btn ghost">Parar</button>
+            <button id="svcRestartBtn" class="btn">Reiniciar</button>
+          </div>
+        </div>
       </aside>
     </section>
 

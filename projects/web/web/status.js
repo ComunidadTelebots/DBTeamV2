@@ -30,6 +30,9 @@ async function loadStatus(){
     const j = await res.json();
     // update semaphore UI
     try{ updateSemaphore(j); }catch(e){}
+    // render components and incidents if present
+    try{ renderComponents(j.components || j.services || j.pages); }catch(e){}
+    try{ renderIncidents(j.incidents || j.issues || []); }catch(e){}
     // analyze pages listed in the status JSON
     try{ analyzePages(j.pages || j.pages); }catch(e){}
     // build a readable display with explanations
@@ -161,6 +164,53 @@ async function loadStatus(){
   }catch(e){
     out.textContent = 'Error de conexión: '+(e.message||e);
     try{ setSemaphoreError('API unreachable'); }catch(_){}
+  }
+}
+
+function renderComponents(components){
+  const container = document.getElementById('componentsList');
+  if(!container) return;
+  container.innerHTML = '';
+  if(!components || !components.length){ container.innerHTML = '<div style="color:#666;padding:12px">No hay componentes listados.</div>'; return; }
+  for(const c of components){
+    const row = document.createElement('div'); row.className='component-row';
+    const dot = document.createElement('div'); dot.className='component-dot';
+    const name = document.createElement('div'); name.className='component-name'; name.textContent = c.label || c.name || c.href || 'unnamed';
+    const meta = document.createElement('div'); meta.className='component-meta';
+    // determine status color
+    let status = (c.status || c.state || '').toString().toLowerCase();
+    if(!status && c.ok!==undefined) status = c.ok ? 'operational' : 'down';
+    if(status.indexOf('oper')!==-1 || status==='ok' || status==='up') dot.style.background='#2ecc71';
+    else if(status.indexOf('degrad')!==-1 || status.indexOf('warn')!==-1) dot.style.background='#f1c40f';
+    else if(status.indexOf('down')!==-1 || status.indexOf('outage')!==-1 || status==='critical') dot.style.background='#e74c3c';
+    else dot.style.background='#999';
+    meta.textContent = (c.status || c.state || (c.ok? 'OK':'—'));
+    row.appendChild(dot); row.appendChild(name); row.appendChild(meta);
+    container.appendChild(row);
+  }
+}
+
+function renderIncidents(incidents){
+  const container = document.getElementById('incidentsList');
+  if(!container) return;
+  container.innerHTML = '';
+  if(!incidents || !incidents.length){ container.innerHTML = '<div style="color:#666;padding:12px">No hay incidentes recientes.</div>'; return; }
+  for(const inc of incidents.slice(0,10)){
+    const it = document.createElement('div'); it.className='incident';
+    const title = document.createElement('h3'); title.textContent = inc.title || inc.name || inc.id || 'Incidente'; it.appendChild(title);
+    const meta = document.createElement('div'); meta.style.color='var(--muted)'; meta.style.marginBottom='6px'; meta.textContent = (inc.status?('Estado: '+inc.status):''); it.appendChild(meta);
+    const impact = document.createElement('div'); impact.className='impact'; impact.textContent = inc.impact || inc.level || ''; it.appendChild(impact);
+    if(inc.updates && inc.updates.length){
+      const ul = document.createElement('div'); ul.style.marginTop='8px';
+      for(const u of inc.updates.slice(0,3)){
+        const p = document.createElement('div'); p.style.borderTop='1px solid rgba(255,255,255,0.02)'; p.style.paddingTop='6px'; p.textContent = `${new Date((u.time||u.timestamp||Date.now())*1000).toLocaleString()} — ${u.text||u.body||u.message||u.update||''}`;
+        ul.appendChild(p);
+      }
+      it.appendChild(ul);
+    } else if(inc.description){
+      const p = document.createElement('div'); p.style.marginTop='6px'; p.textContent = inc.description; it.appendChild(p);
+    }
+    container.appendChild(it);
   }
 }
 

@@ -10,7 +10,12 @@ This plugin uses the `bot.register_command` API provided by `python_bot.bot.Bot`
 """
 import importlib
 import inspect
+import os
+import subprocess
+import threading
+import time
 from typing import Any
+from python_bot.storage import storage
 
 
 def setup(bot):
@@ -19,6 +24,8 @@ def setup(bot):
     bot.register_command('plugins', plugins_cmd, 'List loaded plugins', plugin='telegram_control')
     bot.register_command('lang', lang_cmd, 'Load language: /lang <code>', plugin='telegram_control')
     bot.register_command('reload', reload_cmd, 'Reload plugins: /reload [plugin]', plugin='telegram_control')
+    bot.register_command('ping', ping_cmd, 'Ping the bot to check liveness', plugin='telegram_control')
+    bot.register_command('reloadbg', reloadbg_cmd, 'Restart the bot in background (owner only)', plugin='telegram_control')
 
 
 async def status(update: Any, context: Any):
@@ -97,5 +104,45 @@ async def reload_cmd(update: Any, context: Any):
                 failed.append(f'{name}: {e}')
         msg = f'Reloaded: {reloaded}\nFailed: {failed}'
         await update.message.reply_text(msg)
+    except Exception as e:
+        await update.message.reply_text(f'Error: {e}')
+
+
+async def ping_cmd(update: Any, context: Any):
+    """Simple ping/pong to check bot is responsive."""
+    try:
+        await update.message.reply_text('pong')
+    except Exception:
+        pass
+
+
+async def reloadbg_cmd(update: Any, context: Any):
+    """Restart the bot in background using the wrapper script. Owner/admin only."""
+    try:
+        user = update.effective_user
+        if not user:
+            return
+        role = storage.get_role(user.id)
+        if role not in ('owner', 'admin'):
+            await update.message.reply_text('Permission denied')
+            return
+        await update.message.reply_text('Restarting bot in background...')
+        # spawn the wrapper via PowerShell to start a fresh bot process
+        try:
+            repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+            wrapper = os.path.join(repo_root, '.run_bot_wrapper.ps1')
+            # fire-and-forget
+            subprocess.Popen(['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', wrapper], cwd=repo_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            await update.message.reply_text(f'Failed to spawn wrapper: {e}')
+            return
+        # schedule exit of current process after short delay so reply is delivered
+        def _exit_after_delay():
+            time.sleep(1)
+            try:
+                os._exit(0)
+            except Exception:
+                pass
+        threading.Thread(target=_exit_after_delay, daemon=True).start()
     except Exception as e:
         await update.message.reply_text(f'Error: {e}')

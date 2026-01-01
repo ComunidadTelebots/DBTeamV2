@@ -1,0 +1,8 @@
+C:\Users\adria\Documents\GitHub\DBTeamV2\projects\bot\python_bot\main.py:15: DeprecationWarning: 'asyncio.WindowsSelectorEventLoopPolicy' is deprecated and slated for removal in Python 3.16
+  asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+C:\Users\adria\Documents\GitHub\DBTeamV2\projects\bot\python_bot\main.py:15: DeprecationWarning: 'asyncio.set_event_loop_policy' is deprecated and slated for removal in Python 3.16
+  asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+Traceback (most recent call last):
+  File "C:\Users\adria\Documents\GitHub\DBTeamV2\projects\bot\python_bot\main.py", line 34, in <module>
+    from python_bot.bot import Bot
+ModuleNotFoundError: No module named 'python_bot'

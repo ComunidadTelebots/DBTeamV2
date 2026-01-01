@@ -1,4 +1,13 @@
 document.addEventListener('DOMContentLoaded', function(){
+  // Apply saved theme (owner_color) to this page immediately
+  try{
+    const owner = localStorage.getItem('owner_color') || null;
+    if(owner){
+      document.documentElement.style.setProperty('--owner-color', owner);
+      document.documentElement.style.setProperty('--accent', owner);
+      document.documentElement.style.setProperty('--bubble-me-bg', `linear-gradient(180deg, ${owner}, #1e6ed8)`);
+    }
+  }catch(e){}
   const apiBaseEl = document.getElementById('apiBaseChat')
   const apiKeyEl = document.getElementById('apiKeyChat')
   const chatSelector = document.getElementById('chatSelector')

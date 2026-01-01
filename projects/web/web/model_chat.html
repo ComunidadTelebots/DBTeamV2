@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat con modelos locales — DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="bot_settings.html">Bot Settings</a>
+        <a href="model_chat.html" class="active">Model Chat</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Chat con modelos locales</h1>
+    <p class="hint">Interactúa con modelos instalados localmente. Selecciona un modelo y envía mensajes.</p>
+
+    <section style="display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start;margin-top:12px">
+      <div style="display:flex;flex-direction:column;height:70vh;border-radius:8px;overflow:hidden;background:var(--card)">
+        <div id="chatWindow" style="flex:1;overflow:auto;padding:12px;"> <!-- messages go here --> </div>
+        <div style="padding:10px;border-top:1px solid rgba(0,0,0,0.06);background:var(--card)">
+          <div style="display:flex;gap:8px;align-items:center">
+            <select id="chatModelSelect" style="flex:0 0 320px"></select>
+            <input id="chatInput" placeholder="Escribe tu mensaje..." style="flex:1;padding:8px;border-radius:6px;border:1px solid #ddd" />
+            <button id="sendChatBtn" class="btn">Enviar</button>
+          </div>
+          <div style="margin-top:8px;color:var(--muted);font-size:0.9rem">Sugerencia: usa modelos pequeños para respuestas rápidas.</div>
+        </div>
+      </div>
+
+      <aside style="background:var(--card);padding:12px;border-radius:8px">
+        <h3>Modelos instalados</h3>
+        <div id="modelsList" style="max-height:50vh;overflow:auto"></div>
+        <div style="margin-top:12px">
+          <label>Prompt de ejemplo</label>
+          <textarea id="examplePrompt" style="width:100%;height:100px;margin-top:6px">Escribe un resumen corto sobre la importancia de las pruebas unitarias.</textarea>
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button id="fillExampleBtn" class="btn ghost">Usar ejemplo</button>
+            <button id="clearChatBtn" class="btn ghost">Limpiar chat</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+  </main>
+
+  <script src="model_chat.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

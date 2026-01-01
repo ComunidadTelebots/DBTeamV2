@@ -1,3 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+env/
+venv/
+.venv/
+
+# Virtualenvs
+.venv/
+env/
+ENV/
+
+# Build / packaging
+dist/
+build/
+eggs/
+*.egg-info/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+.cache
+.pytest_cache/
+htmlcov/
+
+# IDEs
+.vscode/
+.idea/
+
+# System
+*.swp
+*~
+.DS_Store
+
+# Local secrets
+.env
+secrets/
+LOCAL_SECRETS.md
+
+# Logs
+bot.log
+
+# Generated / temporary
+pending_torrents/
+torrents/
+tmp*
+
+# Binary/assets and torrents (keep out of git; use scripts/fetch_assets.sh)
+*.torrent
+*.mp4
+*.mkv
+*.iso
+*.zip
+*.tar.gz
 *.jpg
 bin/
 bot/log.txt
@@ -20,3 +78,7 @@ build/
 
 # PyInstaller pids/logs
 pids/
+
+# Large generated indexes and model artifacts
+projects/bot/python_bot/data/ai_index.pkl
+*.pkl

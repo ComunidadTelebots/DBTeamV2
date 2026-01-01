@@ -2,6 +2,7 @@
 Provides `permissions`, `compare_permissions` and helpers used by legacy code.
 """
 from python_bot.legacy import utils_lua as utils
+from python_bot.storage import storage
 import os
 try:
     import redis
@@ -55,7 +56,13 @@ def user_num(user_id: int, chat_id: int) -> int:
     # basic checks against redis sets
     r = _get_redis()
     try:
-        # sudo users: read env SUDO_USERS as csv
+        # storage-based role check: allow storage role 'creator' full sudo
+        try:
+            if storage.get_role(user_id) == 'creator':
+                return 3
+        except Exception:
+            pass
+        # sudo users: read env SUDO_USERS as csv (legacy fallback)
         sudos_env = os.getenv('SUDO_USERS', '')
         if str(user_id) in [s.strip() for s in sudos_env.split(',') if s.strip()]:
             return 3

@@ -144,6 +144,12 @@
     const isMe = ev && (ev.from_me === true || ev.from === 'me' || ev.sender === 'me');
     container.classList.add(isMe ? 'me' : 'other');
 
+    // determine per-user colors from localStorage
+    function getUserColor(key){
+      try{ const users = JSON.parse(localStorage.getItem('user_colors')||'{}'); if(users && users[key]) return users[key]; }catch(e){}
+      return null
+    }
+
     if(typeof ev === 'string'){
       const bubble = document.createElement('div'); bubble.className = 'msg-bubble other'; bubble.textContent = ev;
       container.appendChild(bubble);
@@ -153,6 +159,12 @@
         const av = document.createElement('div'); av.className = 'msg-avatar'; container.appendChild(av);
       }
       const bubble = document.createElement('div'); bubble.className = 'msg-bubble '+(isMe? 'me' : 'other');
+      // apply per-user color if configured
+      try{
+        const key = isMe ? (localStorage.getItem('td_user_id') || 'me') : (ev.from || ev.sender || (ev.username||'other'))
+        const uc = getUserColor(key)
+        if(uc){ bubble.style.background = uc; bubble.style.color = (contrastYIQ(uc) === 'dark' ? '#000' : '#fff') }
+      }catch(e){}
       // content
       const textNode = document.createElement('div'); textNode.innerHTML = ev.text || '';
       bubble.appendChild(textNode);
@@ -196,6 +208,18 @@
     // attach handlers
     const editBtn = container.querySelector('.msg-edit'); if(editBtn) editBtn.addEventListener('click', ()=> onEditClick(container));
     const delBtn = container.querySelector('.msg-delete'); if(delBtn) delBtn.addEventListener('click', ()=> onDeleteClick(container));
+  }
+
+  // simple contrast helper: return 'dark' if bg light, 'light' if bg dark (to pick text color)
+  function contrastYIQ(hexcolor){
+    try{
+      const c = hexcolor.replace('#','');
+      const r = parseInt(c.substr(0,2),16);
+      const g = parseInt(c.substr(2,2),16);
+      const b = parseInt(c.substr(4,2),16);
+      const yiq = ((r*299)+(g*587)+(b*114))/1000;
+      return (yiq >= 128) ? 'dark' : 'light';
+    }catch(e){ return 'light' }
   }
 
   function onEditClick(node){

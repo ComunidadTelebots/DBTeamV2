@@ -30,13 +30,25 @@
   </header>
 
   <main>
-    <h1>Registro de usuario</h1>
-    <form id="registerForm">
-      <label>Usuario<br><input id="user" name="user" required></label><br>
-      <label>Contraseña<br><input id="pass" name="pass" type="password" required></label><br>
-      <button type="submit">Registrarse</button>
-    </form>
-    <p id="msg" style="color:crimson"></p>
+    <div class="login-container">
+      <h1>Registro de usuario</h1>
+      <p>Crea una cuenta para acceder al panel o usa una API key.</p>
+      <form id="registerForm">
+        <div class="login-row">
+          <label for="user">Usuario / Email</label>
+          <input id="user" name="user" required />
+        </div>
+        <div class="login-row">
+          <label for="pass">Contraseña</label>
+          <input id="pass" name="pass" type="password" required />
+        </div>
+        <div class="login-row">
+          <button type="submit" class="btn">Registrarse</button>
+          <a href="login.html" class="btn ghost" style="margin-left:8px">Ir a Login</a>
+        </div>
+      </form>
+      <div id="msg" class="msg" aria-live="polite"></div>
+    </div>
   </main>
 
   <script src="register.js"></script>

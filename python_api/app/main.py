@@ -775,21 +775,20 @@ def status_info(request: Request):
     try:
         api_key_sessions = 0
         for k in r.scan_iter(match='web:session:*'):
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                v = r.get(k)
-                if not v:
-                    continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        # sessions created from api_key login use user 'api_key_user'
-                        if obj and obj.get('user') == 'api_key_user':
-                            api_key_sessions += 1
-                    except Exception:
-                        continue
-        # keep as int
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') == 'api_key_user':
+                api_key_sessions += 1
+
     except Exception:
         api_key_sessions = None
 
@@ -798,28 +797,28 @@ def status_info(request: Request):
     try:
         api_key_session_ids = []
         for k in r.scan_iter(match='web:session:*'):
+            keyname = k.decode() if isinstance(k, bytes) else k
+            token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                keyname = k.decode() if isinstance(k, bytes) else k
-                token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
-                v = r.get(k)
-                if not v:
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') == 'api_key_user':
+                t = token_part or ''
+                if not t:
                     continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        if obj and obj.get('user') == 'api_key_user':
-                            t = token_part
-                            if not t:
-                                continue
-                            if len(t) <= 10:
-                                masked = t[:2] + '***' + t[-2:]
-                            else:
-                                masked = t[:6] + '***' + t[-4:]
-                            api_key_session_ids.append(masked)
-                    except Exception:
-                        continue
+                if len(t) <= 10:
+                    masked = t[:2] + '***' + t[-2:]
+                else:
+                    masked = t[:6] + '***' + t[-4:]
+                api_key_session_ids.append(masked)
     except Exception:
         api_key_session_ids = None
 

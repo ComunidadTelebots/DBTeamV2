@@ -100,4 +100,37 @@ document.addEventListener('DOMContentLoaded', function(){
 
   // try load on start
   setTimeout(()=>{ loadPagesList().catch(()=>{}) }, 300)
+  // --- API key helpers: save/clear from localStorage and auto-fill ---
+  try{
+    const saveBtn = document.getElementById('saveApiKey')
+    const clearBtn = document.getElementById('clearApiKey')
+    const k = localStorage.getItem('dbteam_api_key')
+    if(k && apiKeyEl) apiKeyEl.value = k
+    if(saveBtn){ saveBtn.addEventListener('click', ()=>{ if(apiKeyEl && apiKeyEl.value){ localStorage.setItem('dbteam_api_key', apiKeyEl.value.trim()); alert('API key guardada en localStorage') } }) }
+    if(clearBtn){ clearBtn.addEventListener('click', ()=>{ localStorage.removeItem('dbteam_api_key'); if(apiKeyEl) apiKeyEl.value=''; alert('API key borrada') }) }
+  }catch(e){ console.debug('apiKey helpers error', e) }
+  // --- Bot control handlers ---
+  try{
+    const btnRestart = document.getElementById('btnRestart')
+    const ctrlToken = document.getElementById('ctrlToken')
+    const ctrlMin = document.getElementById('ctrlMin')
+    const ctrlMax = document.getElementById('ctrlMax')
+    const ctrlResult = document.getElementById('ctrlResult')
+    async function doRestart(){
+      const base = (apiBaseEl && apiBaseEl.value) ? apiBaseEl.value.trim().replace(/\/$/, '') : ''
+      if(!base){ alert('API base no configurada'); return }
+      const k = (apiKeyEl && apiKeyEl.value)?apiKeyEl.value.trim():''
+      const body = { action: 'restart' }
+      if(ctrlToken && ctrlToken.value) body.token = ctrlToken.value.trim()
+      if(ctrlMin && ctrlMin.value) body.min_interval = ctrlMin.value.trim()
+      if(ctrlMax && ctrlMax.value) body.max_concurrent = ctrlMax.value.trim()
+      try{
+        const res = await fetch(base + '/control', { method: 'POST', headers: Object.assign({'Content-Type':'application/json'}, k?{'Authorization':'Bearer '+k}:{ }), body: JSON.stringify(body) })
+        const j = await res.json().catch(()=>({ok:false}))
+        if(!res.ok) ctrlResult.textContent = 'Error: '+ (j.error || res.status)
+        else ctrlResult.textContent = 'Respuesta: '+ (j.status || JSON.stringify(j))
+      }catch(e){ ctrlResult.textContent = 'Network error' }
+    }
+    if(btnRestart) btnRestart.addEventListener('click', doRestart)
+  }catch(e){ console.debug('bot control handlers error', e) }
 })

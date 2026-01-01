@@ -9,7 +9,7 @@ import pkgutil
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Dict
+from typing import Dict, List
 
 
 class Bot:
@@ -21,6 +21,11 @@ class Bot:
         self.command_registry: Dict[str, Dict] = {}
         # message_handlers: list of dicts with keys: 'filter' (str), 'handler' (callable), 'plugin' (str)
         self.message_handlers: List[Dict] = []
+        # inline query handlers: list of dicts with keys: 'handler' (callable), 'plugin' (str)
+        self.inline_handlers: List[Dict] = []
+        # plugin file mtimes for live-reload
+        self._plugin_mtimes: Dict[str, float] = {}
+        self._watcher_thread = None
 
     def start(self):
         print('Starting python_bot...')
@@ -47,7 +52,8 @@ class Bot:
 
         for finder, name, ispkg in pkgutil.iter_modules(pkg.__path__):
             try:
-                mod = importlib.import_module(f'{package_name}.{name}')
+                modname = f'{package_name}.{name}'
+                mod = importlib.import_module(modname)
                 self.plugins[name] = mod
                 # call optional setup
                 setup_fn = getattr(mod, 'setup', None)
@@ -56,8 +62,115 @@ class Bot:
                         setup_fn(self)
                     except Exception as e:
                         print(f'Plugin {name} setup() failed: {e}')
+                # record mtime for live reload
+                try:
+                    path = Path(mod.__file__)
+                    self._plugin_mtimes[name] = path.stat().st_mtime
+                except Exception:
+                    pass
             except Exception as e:
                 print(f'Failed to load plugin {name}: {e}')
+
+        # start watcher thread after initial load
+        try:
+            self._start_watcher()
+        except Exception:
+            pass
+
+    def _start_watcher(self):
+        import threading, time
+        if self._watcher_thread is not None:
+            return
+        def _watch():
+            while True:
+                try:
+                    self._scan_plugins_for_changes()
+                except Exception:
+                    pass
+                time.sleep(1.0)
+        t = threading.Thread(target=_watch, daemon=True)
+        t.start()
+        self._watcher_thread = t
+
+    def _scan_plugins_for_changes(self):
+        # check plugin files under python_bot.plugins and reload if mtime changed
+        package_name = 'python_bot.plugins'
+        try:
+            pkg = importlib.import_module(package_name)
+        except Exception:
+            return
+        if not hasattr(pkg, '__path__'):
+            return
+        for finder, name, ispkg in pkgutil.iter_modules(pkg.__path__):
+            try:
+                mod = self.plugins.get(name)
+                modname = f'{package_name}.{name}'
+                # determine file path
+                spec = None
+                try:
+                    spec = importlib.util.find_spec(modname)
+                except Exception:
+                    spec = None
+                filepath = None
+                if spec and getattr(spec, 'origin', None):
+                    filepath = spec.origin
+                elif mod is not None and getattr(mod, '__file__', None):
+                    filepath = mod.__file__
+                if not filepath:
+                    continue
+                try:
+                    mtime = Path(filepath).stat().st_mtime
+                except Exception:
+                    continue
+                prev = self._plugin_mtimes.get(name)
+                if prev is None:
+                    self._plugin_mtimes[name] = mtime
+                    continue
+                if mtime != prev:
+                    print(f"[watcher] Detected change in plugin {name}, reloading...")
+                    self._plugin_mtimes[name] = mtime
+                    try:
+                        self.reload_plugin(name)
+                    except Exception as e:
+                        print(f"[watcher] reload of {name} failed: {e}")
+            except Exception:
+                pass
+
+    def reload_plugin(self, name: str):
+        """Unload and reload a plugin by name. This will remove any registered
+        commands/handlers associated with the plugin and re-run its `setup(bot)`.
+        """
+        # remove registrations for this plugin
+        try:
+            # commands
+            to_remove = [c for c, md in list(self.command_registry.items()) if md.get('plugin') == name]
+            for c in to_remove:
+                del self.command_registry[c]
+            # message handlers
+            self.message_handlers = [mh for mh in self.message_handlers if mh.get('plugin') != name]
+            # inline handlers
+            self.inline_handlers = [ih for ih in self.inline_handlers if ih.get('plugin') != name]
+        except Exception:
+            pass
+        # reload module
+        modname = f'python_bot.plugins.{name}'
+        try:
+            if modname in sys.modules:
+                m = sys.modules[modname]
+                importlib.reload(m)
+                self.plugins[name] = m
+            else:
+                m = importlib.import_module(modname)
+                self.plugins[name] = m
+            # call setup
+            setup_fn = getattr(self.plugins[name], 'setup', None)
+            if callable(setup_fn):
+                try:
+                    setup_fn(self)
+                except Exception as e:
+                    print(f'Plugin {name} setup() after reload failed: {e}')
+        except Exception as e:
+            print(f'Failed to reload plugin {name}: {e}')
 
     # Language helpers
     def load_lang(self, code: str) -> ModuleType:
@@ -132,3 +245,17 @@ class Bot:
 
     def get_registered_message_handlers(self):
         return list(self.message_handlers)
+
+    def register_inline_handler(self, handler, plugin: str = ''):
+        """Register an inline query handler callable.
+
+        The handler will be called with the usual (update, context) signature
+        and is responsible for answering the inline query via
+        `update.inline_query.answer(results)`.
+        """
+        if not handler:
+            raise ValueError('handler required')
+        self.inline_handlers.append({'handler': handler, 'plugin': plugin})
+
+    def get_registered_inline_handlers(self):
+        return list(self.inline_handlers)

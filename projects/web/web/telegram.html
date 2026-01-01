@@ -28,12 +28,13 @@
     .full-lock-overlay.hidden{display:none}
     .full-lock-box{background:var(--card);padding:20px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);min-width:320px;text-align:center}
     /* message bubbles */
+    /* message bubbles: use site-wide variables from shared.css */
     .msg-row{display:flex}
     .msg-row.me{justify-content:flex-end}
     .msg-row.other{justify-content:flex-start}
-    .msg-bubble{max-width:66%;padding:10px;border-radius:12px;background:rgba(255,255,255,0.03);box-shadow:0 1px 0 rgba(0,0,0,0.04)}
-    .msg-bubble.me{background:#2b90ff;color:white;border-bottom-right-radius:6px}
-    .msg-bubble.other{background:rgba(255,255,255,0.03);color:var(--text)}
+    .msg-bubble{max-width:66%;padding:10px;border-radius:12px;background:var(--bubble-other-bg);box-shadow:0 1px 0 rgba(0,0,0,0.06);color:var(--bubble-other-text)}
+    .msg-bubble.me{background:var(--bubble-me-bg);color:var(--bubble-me-text);border-bottom-right-radius:6px}
+    .msg-bubble.other{background:var(--bubble-other-bg);color:var(--bubble-other-text);border-bottom-left-radius:6px}
     .msg-meta{font-size:0.75rem;color:var(--muted);margin-top:6px;text-align:right}
     .msg-avatar{width:28px;height:28px;border-radius:50%;background:#ccc;margin-right:8px}
   </style>
@@ -122,8 +123,8 @@
         </div>
         <div class="messages" id="messages">(mensajes)</div>
         <div class="composer">
-          <input id="attachFile" type="file" style="display:none" />
-          <button id="attachBtn" class="btn ghost">Adjuntar</button>
+            <button id="attachBtn" class="btn ghost">Adjuntar</button>
+            <input id="attachFile" type="file" accept=".tdesktop-theme,.torrent,image/*,application/json" style="display:none" />
           <div id="attachPreview" style="display:flex;align-items:center;gap:8px;margin-right:8px"></div>
           <textarea id="msgText" rows="3" placeholder="Escribe un mensaje..."></textarea>
           <button id="sendMsg" class="btn">Enviar</button>

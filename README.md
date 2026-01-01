@@ -192,3 +192,21 @@ rizaumami and his tdcli lib
 [![https://github.com/rizaumami/tdcli.lua](https://img.shields.io/badge/%F0%9F%92%AC_GitHub-rizaumami-green.svg)](https://github.com/rizaumami/tdcli.lua)
 
 Thanks to [@Reload_Life](https://t.me/Reload_Life) for [settings design](https://github.com/Reload-Life).
+
+## Packaging for GitHub + Docker
+
+This repository is prepared to avoid committing large binary assets. Large media files and `.torrent` files are excluded via `.gitignore`. If you need to preserve specific assets, upload them to GitHub Releases or an object storage bucket and use `scripts/fetch_assets.sh` to retrieve them.
+
+Quick actions added by maintainers:
+
+- `.gitignore` and `.gitattributes` — keep virtualenvs, caches and large assets out of the repo.
+- `scripts/setup_ubuntu.sh` — create a Python virtualenv and install requirements on Ubuntu.
+- `Dockerfile` and `scripts/build_docker.sh` — build an Ubuntu-based image for Docker Desktop.
+- `scripts/fetch_assets.sh` — template for `curl`/`wget`/`aria2c` commands to download excluded assets.
+- `.dockerignore` — keep Docker images small.
+
+See `README_DOCKER.md` for Docker-specific instructions.
+
+### Large files & setup
+
+If you need to handle large model artifacts or serialized indexes, see `docs/large_files_cleanup.md` for safe, reversible steps to remove them from git history or keep them externally (S3/Drive). A helper script to download `ai_index.pkl` is available at `scripts/download_ai_index.ps1`.

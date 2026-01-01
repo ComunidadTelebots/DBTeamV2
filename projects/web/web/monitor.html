@@ -39,9 +39,50 @@
     <input id="apiBaseMon" type="text" value="http://localhost:8081" />
 
     <label for="apiKeyMon">API Key (opcional):</label>
-    <input id="apiKeyMon" type="text" placeholder="Token de sesión o API key" />
+    <input id="apiKeyMon" type="text" value="yZc4OLfdUny6q/I/AGs7RqAJ4orRLAckndG1fEFnuXw=" placeholder="Token de sesión o API key" />
+    <div class="controls">
+      <button id="start">Iniciar monitor</button>
+      <button id="stop" class="secondary">Detener</button>
+    </div>
+
+    <section id="apiDocs">
+      <h2>APIs disponibles</h2>
+      <p>El backend expone los siguientes endpoints útiles para monitorizar y depurar el bot:</p>
+      <ul>
+        <li><strong>GET /stats</strong> — Devuelve un JSON con estadísticas básicas (chats, usuarios, conteos, infohash_count). Requiere <code>Authorization: Bearer &lt;API_KEY&gt;</code>.</li>
+        <li><strong>GET /messages</strong> — Devuelve las últimas líneas del <code>bot.log</code> como un array JSON. Requiere autorización Bearer.</li>
+      </ul>
+      <p>Puerto por defecto: <code>8081</code> (configurable en la caja <em>API base</em> arriba).</p>
+
+      <h3>Ejemplos</h3>
+      <pre style="background:#0b0b0b;padding:8px;border-radius:6px;color:#dcdcdc;overflow:auto"># curl
+curl -H "Authorization: Bearer &lt;TU_SECRET&gt;" http://127.0.0.1:8081/stats
 
     <div class="controls">
+$secret = (Get-Content .env | Where-Object { $_ -match '^WEB_API_SECRET=' }) -replace '^[^=]*=' , '' ; $secret = $secret.Trim('"') ; Invoke-RestMethod -Uri 'http://127.0.0.1:8081/stats' -Headers @{ Authorization = "Bearer $secret" }</pre>
+
+      <div style="margin-top:8px">
+        <label for="saveApiKey">Guardar API key localmente (localStorage):</label>
+        <button id="saveApiKey" class="secondary" style="margin-left:8px">Guardar</button>
+        <button id="clearApiKey" class="secondary" style="margin-left:8px">Borrar</button>
+        <small style="display:block;margin-top:6px;color:var(--muted)">Guardar la API key en localStorage facilita recargas del monitor; no se envía al servidor hasta que pulses Iniciar.</small>
+      </div>
+    </section>
+
+    <section id="botControl">
+      <h2>Control del Bot</h2>
+      <p>Acciones remotas: reiniciar/iniciar el proceso del bot en el host.</p>
+      <label for="ctrlToken">Token (opcional, si no se usa el env):</label>
+      <input id="ctrlToken" type="text" placeholder="Bot token para iniciar" />
+      <label for="ctrlMin">Min interval (s):</label>
+      <input id="ctrlMin" type="text" value="1.0" style="width:80px" />
+      <label for="ctrlMax">Max concurrent:</label>
+      <input id="ctrlMax" type="text" value="1" style="width:60px" />
+      <div style="margin-top:8px">
+        <button id="btnRestart" class="secondary">Reiniciar bot</button>
+        <span id="ctrlResult" style="margin-left:12px;color:var(--muted)"></span>
+      </div>
+    </section>
       <button id="start">Iniciar monitor</button>
       <button id="stop" class="secondary">Detener</button>
     </div>

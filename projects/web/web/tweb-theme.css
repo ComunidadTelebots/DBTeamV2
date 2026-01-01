@@ -21,7 +21,7 @@ body{ background:var(--bg); color:var(--text); font-family:var(--font-stack); }
 .chat-sub{ color:var(--muted); }
 /* message bubbles */
 .msg-bubble.me{ background: linear-gradient(180deg, #2b90ff, #1e6ed8); color:var(--brand-contrast); }
-.msg-bubble.other{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); }
+.msg-bubble.other{ background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)); color:var(--text); }
 .msg-meta{ color:var(--muted); }
 /* attachments */
 .msg-bubble img{ border-radius:8px; }

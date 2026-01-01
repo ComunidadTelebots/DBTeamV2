@@ -1,0 +1,17 @@
+*.pkl filter=lfs diff=lfs merge=lfs -text# Ensure text files normalized
+* text=auto
+
+# Mark common binary types
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.mp4 binary
+*.mkv binary
+*.zip binary
+*.tar.gz binary
+
+# Prevent exporting local artifacts
+/.venv export-ignore
+/.gitignore export-ignore
+/.gitattributes export-ignore

@@ -1,10 +1,12 @@
 :root{
   --bg:#071028;
   --card:#0f1724;
-  --accent:#2563eb;
+  --owner-color: #2563eb; /* owner's primary color (editable) */
+  --accent: var(--owner-color);
   --accent-2:#7c3aed;
-  --text:#e6eef8;
+  --text:#e6eef8; /* restored original text color */
   --muted:#9aa6bf;
+  --bubble-contrast: rgba(255,255,255,0.03);
 }
 *{box-sizing:border-box}
 body{font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#021021);color:var(--text);margin:0}
@@ -29,3 +31,46 @@ body{font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180
 /* small helpers */
 .site-brand-sub{font-size:0.85rem;color:var(--muted)}
 .page-title{margin-top:6px;color:var(--muted)}
+
+/* Global message bubble styles (site-wide). Uses owner color and overrides via JS per-user. */
+:root{
+  --bubble-me-bg: linear-gradient(180deg, var(--owner-color), #1e6ed8);
+  --bubble-other-bg: rgba(255,255,255,0.06);
+  --bubble-me-text: #fff;
+  --bubble-other-text: var(--text);
+}
+
+.msg-row{display:flex}
+.msg-row.me{justify-content:flex-end}
+.msg-row.other{justify-content:flex-start}
+.msg-bubble{max-width:66%;padding:10px;border-radius:12px;background:var(--bubble-other-bg);box-shadow:0 1px 0 rgba(0,0,0,0.06);color:var(--bubble-other-text)}
+.msg-bubble.me{background:var(--bubble-me-bg);color:var(--bubble-me-text);border-bottom-right-radius:6px}
+.msg-bubble.other{background:var(--bubble-other-bg);color:var(--bubble-other-text);border-bottom-left-radius:6px}
+.msg-meta{font-size:0.75rem;color:var(--muted);margin-top:6px;text-align:right}
+
+/* Login / Register form shared styles */
+.login-container{max-width:420px;margin:4.5rem auto;padding:1.5rem;border:1px solid rgba(255,255,255,0.03);border-radius:8px;background:var(--card)}
+.login-row{margin-bottom:0.75rem}
+.login-row label{display:block;font-weight:600;margin-bottom:0.25rem;color:var(--text)}
+.login-row input{width:100%;padding:0.5rem;border:1px solid rgba(255,255,255,0.04);border-radius:4px;background:transparent;color:var(--text)}
+.msg{margin-top:0.75rem;color:#ff6b6b}
+
+/* Status page styles */
+.status-grid{display:grid;grid-template-columns:360px 1fr;gap:18px;margin-top:12px}
+.components{background:var(--card);padding:12px;border-radius:8px}
+.components-header h2{margin:0}
+.components-sub{font-size:0.9rem;color:var(--muted);margin-bottom:8px}
+.components-list{display:flex;flex-direction:column;gap:8px}
+.component-row{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01)}
+.component-dot{width:12px;height:12px;border-radius:50%;background:#999}
+.component-name{font-weight:600;color:var(--text)}
+.component-meta{margin-left:auto;color:var(--muted);font-size:0.9rem}
+.incidents{background:transparent;padding:0}
+.incidents-header h2{margin:0}
+.incidents-list{display:flex;flex-direction:column;gap:10px;margin-top:8px}
+.incident{background:var(--card);padding:12px;border-radius:8px}
+.incident h3{margin:0 0 6px 0}
+.incident .impact{font-weight:700}
+.semaforo-overall{display:flex;align-items:center;gap:10px;margin-top:12px}
+.semaforo-dot{width:16px;height:16px;border-radius:50%;background:#ccc;border:1px solid rgba(0,0,0,0.2)}
+.semaforo-details{display:flex;gap:12px;margin-top:8px;color:var(--muted)}

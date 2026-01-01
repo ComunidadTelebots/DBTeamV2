@@ -19,10 +19,13 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 import requests
+import signal
 import time
 import uuid
 import hmac as _hmaclib
 import re
+import socket
+import threading
 # Load configuration from a local `config.py` if present; otherwise fall back to env vars
 try:
     from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
@@ -122,7 +125,12 @@ def _auto_register_startup_event():
 # Include tdlib router (scaffold). If import fails, register a JSON fallback
 TDLIB_AVAILABLE = True
 try:
-    from .tdlib_router import router as tdlib_router
+    # Try package-relative import first (works when running as a package)
+    try:
+        from .tdlib_router import router as tdlib_router
+    except Exception:
+        # Fallback to top-level import (works when running from the module dir)
+        from tdlib_router import router as tdlib_router
     app.include_router(tdlib_router, prefix='/tdlib')
     print('tdlib router included')
 except Exception as _e:
@@ -422,6 +430,56 @@ def processes_restart(payload: dict, request: Request):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post('/processes/start')
+def processes_start(payload: dict, request: Request):
+    """Start a named process. Payload: { name: 'python_bot' }
+    Requires admin privileges similar to /processes/restart.
+    """
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('name'):
+        raise HTTPException(status_code=400, detail='name required')
+    name = payload.get('name')
+    if name not in PROCESS_DEFS:
+        raise HTTPException(status_code=400, detail='unknown process')
+    try:
+        pid = start_process(name)
+        return { 'status': 'started', 'name': name, 'pid': pid }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/processes/stop')
+def processes_stop(payload: dict, request: Request):
+    """Attempt to stop a named process. Payload: { name: 'python_bot' }
+    This will try to read the pidfile and send SIGTERM to the process.
+    """
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('name'):
+        raise HTTPException(status_code=400, detail='name required')
+    name = payload.get('name')
+    if name not in PROCESS_DEFS:
+        raise HTTPException(status_code=400, detail='unknown process')
+    pid = read_pid(name)
+    if not pid:
+        return { 'status': 'not-running', 'name': name }
+    try:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except Exception:
+            # fallback: try terminate via subprocess on Windows if available
+            try:
+                import psutil
+                p = psutil.Process(pid)
+                p.terminate()
+            except Exception:
+                pass
+        return { 'status': 'stopped', 'name': name, 'pid': pid }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get('/devices')
 def get_devices(request: Request):
     if not check_auth(request):
@@ -435,6 +493,131 @@ def get_devices(request: Request):
         except Exception:
             continue
     return out
+
+
+@app.get('/bot/stats')
+def bot_stats(request: Request):
+    """Return various bot-related statistics (messages, devices, tdlib events, processes)."""
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    out = {}
+    try:
+        out['messages_count'] = r.llen('web:messages')
+    except Exception:
+        out['messages_count'] = None
+    try:
+        out['tdlib_events_count'] = r.llen('tdlib:events')
+        last = r.lindex('tdlib:events', 0)
+        if last:
+            try:
+                out['tdlib_last_event'] = json.loads(last.decode() if isinstance(last, bytes) else last)
+            except Exception:
+                out['tdlib_last_event'] = str(last)
+        else:
+            out['tdlib_last_event'] = None
+    except Exception:
+        out['tdlib_events_count'] = None
+        out['tdlib_last_event'] = None
+    try:
+        items = r.lrange('web:devices', 0, -1) or []
+        devs = []
+        for it in items:
+            try:
+                obj = json.loads(it.decode() if isinstance(it, bytes) else it)
+                devs.append({'id': obj.get('id'), 'name': obj.get('name')})
+            except Exception:
+                continue
+        out['devices'] = devs
+    except Exception:
+        out['devices'] = None
+    # processes
+    try:
+        out['processes'] = [ process_status(n) for n in PROCESS_DEFS.keys() ]
+    except Exception:
+        out['processes'] = None
+    # uptime basic
+    try:
+        out['server_uptime'] = int(time.time()) - START_TIME
+    except Exception:
+        out['server_uptime'] = None
+    return out
+
+
+@app.post('/bot/start')
+def bot_start(payload: Optional[dict] = None, request: Request = None):
+    """Start the `python_bot` process (admin only). Payload optional: { name: 'python_bot' }"""
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    name = 'python_bot'
+    if payload and payload.get('name'):
+        name = payload.get('name')
+    if name not in PROCESS_DEFS:
+        raise HTTPException(status_code=400, detail='unknown process')
+    try:
+        pid = start_process(name)
+        return { 'status': 'started', 'name': name, 'pid': pid }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get('/bot/accounts')
+def bot_accounts(request: Request):
+    """Return list of registered bot accounts (from `web:devices`) and their Telegram getMe status."""
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    admin = is_admin_request(request)
+    items = r.lrange('web:devices', 0, -1) or []
+    out = []
+    for it in items:
+        try:
+            obj = json.loads(it.decode() if isinstance(it, bytes) else it)
+        except Exception:
+            continue
+        device_id = obj.get('id')
+        name = obj.get('name')
+        token_enc = obj.get('token')
+        has_token = bool(token_enc)
+        token = None
+        if token_enc:
+            dec = decrypt_value(token_enc) if FERNET else None
+            token = dec if dec else token_enc
+
+        entry = { 'id': device_id, 'name': name, 'has_token': has_token }
+
+        # include masked token only for admins (never reveal full token)
+        if admin and has_token:
+            try:
+                t = token if token else token_enc
+                ts = str(t)
+                if len(ts) <= 10:
+                    masked = ts[:2] + '***' + ts[-2:]
+                else:
+                    masked = ts[:6] + '***' + ts[-4:]
+                entry['token_masked'] = masked
+            except Exception:
+                entry['token_masked'] = None
+
+        # attempt to call Telegram getMe if we have a token
+        if token:
+            try:
+                resp = requests.get(f'https://api.telegram.org/bot{token}/getMe', timeout=8)
+                if resp.ok:
+                    try:
+                        jd = resp.json()
+                    except Exception:
+                        jd = { 'raw': resp.text }
+                    entry['getMe'] = jd.get('result') if isinstance(jd, dict) and jd.get('ok') else jd
+                    entry['getMe_status'] = 'ok' if resp.ok else 'error'
+                else:
+                    entry['getMe_error'] = f'status={resp.status_code}'
+            except Exception as e:
+                entry['getMe_error'] = str(e)
+        else:
+            entry['getMe'] = None
+
+        out.append(entry)
+
+    return { 'accounts': out }
 
 @app.post('/devices/add')
 def add_device(payload: dict, request: Request):
@@ -835,6 +1018,73 @@ def ai_generate(payload: dict, request: Request):
 
     else:
         raise HTTPException(status_code=400, detail='unknown provider')
+
+
+@app.get('/models/list')
+def models_list(request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    try:
+        items = r.smembers('local_models') or set()
+        out = [ (i.decode() if isinstance(i, bytes) else i) for i in items ]
+        return { 'models': out }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+def _install_model_background(model_name: str):
+    try:
+        from transformers import pipeline
+        # instantiate pipeline to trigger model download
+        pipeline('text-generation', model=model_name)
+        try:
+            r.sadd('local_models', model_name)
+        except Exception:
+            pass
+    except Exception:
+        # ignore errors in background
+        pass
+
+
+@app.post('/models/install')
+def models_install(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('model'):
+        raise HTTPException(status_code=400, detail='model required')
+    model_name = payload.get('model')
+    # start background thread to download and cache the model
+    try:
+        t = threading.Thread(target=_install_model_background, args=(model_name,), daemon=True)
+        t.start()
+        return { 'status': 'installing', 'model': model_name }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post('/models/run')
+def models_run(payload: dict, request: Request):
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('prompt') or not payload.get('model'):
+        raise HTTPException(status_code=400, detail='prompt and model required')
+    model = payload.get('model')
+    try:
+        from transformers import pipeline
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f'transformers not installed: {e}')
+    try:
+        gen = pipeline('text-generation', model=model)
+        params = {
+            'max_length': int(payload.get('max_length', 128)),
+            'do_sample': bool(payload.get('do_sample', True)),
+            'top_k': int(payload.get('top_k', 50)),
+            'num_return_sequences': int(payload.get('num_return_sequences', 1)),
+        }
+        res = gen(payload.get('prompt'), **params)
+        return { 'provider': 'local', 'model': model, 'result': res }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post('/auth')
 def auth(payload: dict):
@@ -1401,6 +1651,24 @@ def status_info(request: Request):
     except Exception:
         tdlib_status = { 'available': False }
 
+    # Tor status: check common local ports (SOCKS5 9050, ControlPort 9051)
+    tor_status = { 'socks_ok': False, 'control_ok': False }
+    try:
+        try:
+            s = socket.create_connection(('127.0.0.1', 9050), timeout=1)
+            s.close()
+            tor_status['socks_ok'] = True
+        except Exception:
+            tor_status['socks_ok'] = False
+        try:
+            s2 = socket.create_connection(('127.0.0.1', 9051), timeout=1)
+            s2.close()
+            tor_status['control_ok'] = True
+        except Exception:
+            tor_status['control_ok'] = False
+    except Exception:
+        tor_status = { 'socks_ok': False, 'control_ok': False }
+
     return {
         'status': 'ok',
         'time': now,
@@ -1417,6 +1685,34 @@ def status_info(request: Request):
         'tdlib': tdlib_status,
         'explanations': explanations
     }
+
+
+@app.get('/status/mock')
+def status_mock():
+    """Development mock for the status page. Returns example components and incidents."""
+    now = int(time.time())
+    sample = {
+        'status': 'ok',
+        'time': now,
+        'uptime': 3600,
+        'redis': { 'ok': True, 'connected_clients': 3, 'used_memory_human': '1.2M' },
+        'counts': { 'messages': 123, 'devices': 2, 'users': 5 },
+        'api_info': { 'web_api_key_set': bool(WEB_API_KEY), 'bot_token_set': bool(BOT_TOKEN) },
+        'supported_endpoints': [ { 'path': '/status', 'method': 'GET', 'desc': 'Server status' } ],
+        'pages': [ { 'href': 'index.html', 'label': 'Inicio' }, { 'href': 'chat.html', 'label': 'Chat' } ],
+        'components': [
+            { 'name': 'web', 'label': 'Web UI', 'status': 'operational' },
+            { 'name': 'api', 'label': 'API', 'status': 'operational' },
+            { 'name': 'redis', 'label': 'Redis', 'status': 'operational' },
+            { 'name': 'tdlib', 'label': 'TDLib', 'status': 'degraded' }
+        ],
+        'incidents': [
+            { 'title': 'TDLib connectivity issues', 'status': 'investigating', 'impact': 'minor', 'updates': [ { 'time': now, 'text': 'Investigando desconexiones intermitentes' } ] }
+        ],
+        'processes': [ process_status(n) for n in PROCESS_DEFS.keys() ],
+        'tdlib': { 'available': TDLIB_AVAILABLE }
+    }
+    return sample
 
 
 # Finally, mount the web/ static files so API routes are registered first
