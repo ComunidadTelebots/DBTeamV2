@@ -60,6 +60,46 @@ After installation completes, you can start the bot:
 ./launch.sh # Will ask you for a phone number & confirmation code.
 ```
 
+Quick start (scripts)
+---------------------
+
+There are convenience scripts to run the UI, API and bot for local testing.
+
+1. Make the scripts executable:
+
+```bash
+chmod +x start_quick.sh stop_quick.sh
+```
+
+2. Create a minimal `.env` in the repo root with at least:
+
+```bash
+BOT_TOKEN="<your_bot_token>"
+WEB_API_SECRET="change_me"
+REDIS_HOST="127.0.0.1"
+REDIS_PORT="6379"
+```
+
+3. Start services:
+
+```bash
+./start_quick.sh
+```
+
+Logs are written to `logs/` and PIDs to `pids/`. To stop everything:
+
+```bash
+./stop_quick.sh
+```
+
+Tip: copy the example env and edit it before running:
+
+```bash
+cp .env.example .env
+# then edit .env and fill your BOT_TOKEN and secrets
+```
+
+
 ## Manual Installation
 
 If you prefer to install dependencies manually, follow the instructions for your distribution:

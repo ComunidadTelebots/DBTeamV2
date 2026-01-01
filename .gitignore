@@ -12,3 +12,11 @@ secrets/
 *.key
 *.pem
 *.crt
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# PyInstaller pids/logs
+pids/
