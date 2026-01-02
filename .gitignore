@@ -38,6 +38,7 @@ htmlcov/
 
 # Local secrets
 .env
+.env.*
 secrets/
 LOCAL_SECRETS.md
 

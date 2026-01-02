@@ -1,4 +1,36 @@
-from fastapi import FastAPI, Request, HTTPException
+## ...existing code...
+
+# (Mover esto después de app = FastAPI())
+
+app = FastAPI()
+## ...existing code...
+
+# Endpoint para estado de traducciones
+@app.get('/i18n/status.json')
+def i18n_status():
+    # Ajusta los paths según tu estructura
+    base_path = 'web/i18n/en.json'
+    import glob
+    langs = []
+    try:
+        with open(base_path, 'r', encoding='utf-8') as f:
+            base = json.load(f)
+    except Exception:
+        return {"languages": []}
+    total = len(base)
+    for fpath in glob.glob('web/i18n/*.json'):
+        code = fpath.split('/')[-1].replace('.json','')
+        if code == 'en':
+            continue
+        try:
+            with open(fpath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            translated = sum(1 for k in base if k in data and data[k] and data[k].strip())
+            langs.append({"code": code, "translated": translated, "total": total})
+        except Exception:
+            continue
+    return {"languages": langs}
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 import subprocess
@@ -7,6 +39,36 @@ import platform
 from typing import Optional, Any
 from fastapi.responses import JSONResponse
 import os
+import sys
+import subprocess
+# --- Dependencias requeridas ---
+REQUIRED_PACKAGES = [
+    'uvicorn',
+    'fastapi',
+    'redis',
+    'cryptography',
+    'requests',
+    'python-dotenv',
+    'python-telegram-bot',
+    'transformers',
+    'torch',
+    'PySocks',
+    'stem',
+]
+def ensure_dependencies():
+    import importlib
+    missing = []
+    for pkg in REQUIRED_PACKAGES:
+        try:
+            importlib.import_module(pkg.split('[')[0])
+        except ImportError:
+            missing.append(pkg)
+    if missing:
+        print(f"Instalando dependencias faltantes: {missing}")
+        subprocess.check_call([sys.executable, '-m', 'pip', 'install', *missing])
+        print("Dependencias instaladas. Reinicia el servidor.")
+        sys.exit(0)
+ensure_dependencies()
 from pathlib import Path
 import redis
 import json
@@ -19,6 +81,118 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.fernet import Fernet
 import requests
+import socks
+import socket
+from stem import Signal
+from stem.control import Controller
+import threading
+def libretranslate_translate(text, target_lang, source_lang='en', api_url='https://libretranslate.com/translate'):
+    def request_with_tor():
+        # Start Tor if not running
+        try:
+            with Controller.from_port(port=9051) as controller:
+                controller.authenticate()
+                controller.signal(Signal.NEWNYM)
+        except Exception:
+            pass  # Tor may already be running or not installed
+        session = requests.Session()
+        session.proxies = {
+            'http': 'socks5h://127.0.0.1:9050',
+            'https': 'socks5h://127.0.0.1:9050'
+        }
+        try:
+            resp = session.post(api_url, json={
+                'q': text,
+                'source': source_lang,
+                'target': target_lang,
+                'format': 'text'
+            }, timeout=20, verify=True)
+            if resp.ok:
+                return resp.json().get('translatedText', text)
+            return text
+        except Exception:
+            return text
+
+    def request_normal():
+        try:
+            resp = requests.post(api_url, json={
+                'q': text,
+                'source': source_lang,
+                'target': target_lang,
+                'format': 'text'
+            }, timeout=10, verify=True)
+            if resp.ok:
+                return resp.json().get('translatedText', text)
+            return text
+        except Exception:
+            return text
+
+    # Detect if banned (simulate with _is_banned on IP)
+    # For demo, use local IP
+    ip = None
+    try:
+        ip = requests.get('https://api.ipify.org').text
+    except Exception:
+        ip = None
+    if ip and _is_banned(ip):
+        return request_with_tor()
+    else:
+        return request_normal()
+
+def auto_translate_all(scope='bot'):
+    # Detect new strings and translate them using LibreTranslate
+    # Only for demonstration: assumes en.json as base, others as targets
+    base_path = f'projects/bot/python_bot/lang/en.py' if scope == 'bot' else f'web/i18n/en.json'
+    output_dir = f'projects/bot/python_bot/lang/generated_libretranslate' if scope == 'bot' else f'web/i18n'
+    # For bot: parse LANG dict from en.py
+    lang_dict = {}
+    if scope == 'bot':
+        try:
+            with open(base_path, 'r', encoding='utf-8') as f:
+                code = f.read()
+                ns = {}
+                exec(code, ns)
+                lang_dict = ns.get('LANG', {})
+        except Exception:
+            return {'error': 'No se pudo leer el archivo base.'}
+    else:
+        try:
+            with open(base_path, 'r', encoding='utf-8') as f:
+                lang_dict = json.load(f)
+        except Exception:
+            return {'error': 'No se pudo leer el archivo base.'}
+    # Idiomas destino
+    LANGUAGES = ['es', 'fr', 'de', 'it', 'pt', 'ru', 'zh', 'ja']
+    os.makedirs(output_dir, exist_ok=True)
+    results = {}
+    for lang in LANGUAGES:
+        translated = {}
+        for k, v in lang_dict.items():
+            translated[k] = libretranslate_translate(v, lang)
+        # Guardar resultado
+        if scope == 'bot':
+            out_path = os.path.join(output_dir, f'{lang}.py')
+            with open(out_path, 'w', encoding='utf-8') as out:
+                out.write(f"""# Auto-generated translation\nLANG = {json.dumps(translated, ensure_ascii=False, indent=2)}\n""")
+        else:
+            out_path = os.path.join(output_dir, f'{lang}.json')
+            with open(out_path, 'w', encoding='utf-8') as out:
+                json.dump(translated, out, ensure_ascii=False, indent=2)
+        results[lang] = out_path
+    return {'status': 'ok', 'results': results}
+# Endpoint para traducción automática forzada
+@app.post('/translations/auto')
+def force_auto_translate(request: Request, scope: str = 'bot', background_tasks: BackgroundTasks = None):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    def run_task():
+        auto_translate_all(scope)
+    if background_tasks:
+        background_tasks.add_task(run_task)
+        return {'status': 'started'}
+    else:
+        result = auto_translate_all(scope)
+        return result
 import signal
 import time
 import uuid

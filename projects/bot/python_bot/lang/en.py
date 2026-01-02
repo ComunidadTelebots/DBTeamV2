@@ -24,13 +24,7 @@ LANG = {
     'commands:1': '#commands: Show all commands for every plugin.',
     'commands:2': '#commands [plugin]: Commands for that plugin.',
     'commandsT': 'Commands',
-    'defaultRules': '*Chat rules:*
-`>` No Flood.
-`>` No Spam.
-`>` Try to stay on topic.
-`>` Forbidden any racist, sexual, gore content...
-
-_Repeated failure to comply with these rules will cause ban._',
+    'defaultRules': '*Chat rules:* No Flood. No Spam. Try to stay on topic. Forbidden any racist, sexual, gore content. Repeated failure to comply with these rules will cause ban.',
     'defaultWelcome': 'Welcome $users to the chat!',
     'delAll': '`>` All messages *cleared*.',
     'delXMsg': '`>` User $user *has deleted* `$num messages`.',
@@ -129,8 +123,7 @@ _Repeated failure to comply with these rules will cause ban._',
     'pluginIsEnabled': '`>` The *plugin* is *already enabled*.',
     'pluginNoEnabled': '`>` The *plugin* is *already disabled*.',
     'pluginNoExist': '`>` *Plugin* $name does *not exist*.',
-    'pluginsActivated': '*Plugins enabled:*
-',
+    'pluginsActivated': '*Plugins enabled:*',
     'pluginsReload': '`>` *Plugins reloaded!*',
     'privateError': '`>` An error occuried.',
     'privateMSG': '`>` Sorry, this command only works *in a private chat with the bot.*',
@@ -194,8 +187,7 @@ _Repeated failure to comply with these rules will cause ban._',
     'welcome:3': '#welcome on/off - enable/disable welcome in this chat',
     'welcomeT': '> *Welcome messages* are now *enabled* in this chat.',
     'weldefault': 'The welcome is the default.',
-    'welnew': 'Welcome saved! Actual welcome:
-',
+    'welnew': 'Welcome saved! Actual welcome:',
     'weloff': 'Welcome enabled.',
     'welon': 'Welcome disabled.',
 }

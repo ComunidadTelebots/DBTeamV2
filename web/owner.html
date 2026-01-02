@@ -1,3 +1,37 @@
+  <section class="card" style="margin-bottom:18px">
+    <h2 style="margin:0 0 10px 0">Estado de las traducciones</h2>
+    <div id="translationStatusPanel" style="display:flex;flex-wrap:wrap;gap:18px"></div>
+  </section>
+  <script>
+  async function fetchTranslationStatus() {
+    const panel = document.getElementById('translationStatusPanel');
+    panel.innerHTML = '<span style="color:var(--muted)">Cargando estado...</span>';
+    try {
+      // Puedes ajustar la ruta según tu backend
+      const res = await fetch('/i18n/status.json');
+      if (!res.ok) throw new Error('No disponible');
+      const data = await res.json();
+      panel.innerHTML = '';
+      for (const lang of data.languages) {
+        const percent = Math.round((lang.translated / lang.total) * 100);
+        const color = percent === 100 ? '#22c55e' : percent > 60 ? '#facc15' : '#ef4444';
+        panel.innerHTML += `
+          <div style="min-width:180px;background:var(--panel,#181f2a);border-radius:12px;padding:16px 18px;box-shadow:0 2px 8px #0001;display:flex;flex-direction:column;align-items:center;">
+            <span style="font-weight:600;font-size:1.1rem;text-transform:capitalize">${lang.code}</span>
+            <div style="width:100%;height:10px;background:#222;border-radius:6px;margin:10px 0 6px 0;overflow:hidden">
+              <div style="width:${percent}%;height:100%;background:${color};transition:width 0.5s"></div>
+            </div>
+            <span style="font-size:0.98rem;color:${color}">${percent}%</span>
+            <span style="font-size:0.92rem;color:#888">${lang.translated} / ${lang.total} traducidas</span>
+          </div>
+        `;
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#ef4444">No se pudo cargar el estado de las traducciones.</span>';
+    }
+  }
+  fetchTranslationStatus();
+  </script>
 <!doctype html>
 <html lang="es">
 <head>
@@ -39,6 +73,35 @@
         <a href="telegram.html">Telegram</a>
         <a href="monitor.html">Monitor</a>
         <a href="traducciones.html">Traducciones</a>
+        <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
+          <script>
+          async function checkOwner() {
+            // Verifica si el usuario es owner/admin por sesión
+            const token = localStorage.getItem('authToken');
+            if (!token) return false;
+            const resp = await fetch('/translations/suggestions', { headers: { 'Authorization': 'Bearer ' + token } });
+            if (resp.status === 200) {
+              document.getElementById('forceTranslateBtn').style.display = '';
+              return true;
+            }
+            return false;
+          }
+          checkOwner();
+          document.getElementById('forceTranslateBtn').onclick = async function() {
+            const token = localStorage.getItem('authToken');
+            const scope = 'bot';
+            const resp = await fetch('/translations/auto', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ scope })
+            });
+            if (resp.ok) {
+              alert('Traducción automática iniciada');
+            } else {
+              alert('No autorizado o error');
+            }
+          };
+          </script>
         <a href="links.html">Enlaces</a>
         <a href="status.html">Estado</a>
         <a href="bot_settings.html">Bots</a>

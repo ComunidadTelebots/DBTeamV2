@@ -59,7 +59,35 @@
         <input type="checkbox" id="editToggle"> Editar
       </label>
       <button id="exportBtn" class="secondary" title="Exportar las traducciones editadas">Exportar edits</button>
+      <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
     </div>
+  <script>
+  async function checkOwner() {
+    const token = localStorage.getItem('authToken');
+    if (!token) return false;
+    const resp = await fetch('/translations/suggestions', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (resp.status === 200) {
+      document.getElementById('forceTranslateBtn').style.display = '';
+      return true;
+    }
+    return false;
+  }
+  checkOwner();
+  document.getElementById('forceTranslateBtn').onclick = async function() {
+    const token = localStorage.getItem('authToken');
+    const scope = document.getElementById('scopeSelect') ? document.getElementById('scopeSelect').value : 'bot';
+    const resp = await fetch('/translations/auto', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scope })
+    });
+    if (resp.ok) {
+      alert('Traducción automática iniciada');
+    } else {
+      alert('No autorizado o error');
+    }
+  };
+  </script>
 
     <section id="strings" style="margin-top:16px">
       <h2>Claves y traducciones</h2>
