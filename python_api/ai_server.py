@@ -22,8 +22,181 @@ import subprocess
 import sys
 import platform
 import signal
+import time
+import json
 
 app = Flask(__name__)
+
+try:
+    import psutil
+except Exception:
+    psutil = None
+
+
+def _collect_docker_info():
+    # Try docker SDK first, fallback to CLI `docker stats`/`docker ps` parsing
+    try:
+        try:
+            import docker as _docker
+        except Exception:
+            _docker = None
+        out = []
+        if _docker is not None:
+            try:
+                cli = _docker.from_env()
+                for c in cli.containers.list(all=True):
+                    try:
+                        info = {'id': c.id, 'name': c.name, 'image': getattr(c, 'image', None).tags[0] if getattr(c, 'image', None) and getattr(c, 'image', None).tags else None, 'status': c.status}
+                        # try to get stats via low-level API
+                        try:
+                            stats = cli.api.stats(c.id, stream=False)
+                            # cpu percent calc best-effort: use precalculated field if present
+                            cpu = None
+                            try:
+                                cpu = float(stats.get('cpu_stats', {}).get('cpu_usage', {}).get('total_usage', 0))
+                            except Exception:
+                                cpu = None
+                            info.update({'raw_stats': stats, 'cpu_percent': None, 'memory_rss': None})
+                            try:
+                                mem = stats.get('memory_stats', {}).get('usage')
+                                info['memory_rss'] = int(mem) if mem is not None else None
+                            except Exception:
+                                pass
+                        except Exception:
+                            pass
+                        out.append(info)
+                    except Exception:
+                        continue
+            except Exception:
+                out = []
+        else:
+            # fallback to CLI
+            try:
+                p = subprocess.run(['docker', 'stats', '--no-stream', '--format', '{{json .}}'], capture_output=True, text=True, timeout=5)
+                if p.returncode == 0 and p.stdout:
+                    for line in p.stdout.splitlines():
+                        try:
+                            j = json.loads(line)
+                            # j contains fields like Name, CPUPerc, MemUsage, MemPerc, Container
+                            name = j.get('Name')
+                            cid = j.get('Container')
+                            cpu = None
+                            try:
+                                cpu = float(str(j.get('CPUPerc','')).strip().strip('%'))
+                            except Exception:
+                                cpu = None
+                            mem_usage = None
+                            try:
+                                mu = j.get('MemUsage','')
+                                # format: "12.34MiB / 1.952GiB"
+                                used = mu.split('/')[0].strip()
+                                # best-effort parse size
+                                def parse_size(s):
+                                    s = s.strip()
+                                    if s.endswith('KiB'):
+                                        return float(s[:-3].strip())*1024
+                                    if s.endswith('MiB'):
+                                        return float(s[:-3].strip())*1024*1024
+                                    if s.endswith('GiB'):
+                                        return float(s[:-3].strip())*1024*1024*1024
+                                    if s.endswith('B'):
+                                        return float(s[:-1].strip())
+                                    return None
+                                mem_usage = parse_size(used)
+                            except Exception:
+                                mem_usage = None
+                            out.append({'id': cid, 'name': name, 'cpu_percent': cpu, 'memory_rss': mem_usage})
+            except Exception:
+                out = []
+        return out
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def _collect_k8s_info():
+    # Try kubernetes python client; fallback to `kubectl` CLI top/get
+    try:
+        try:
+            from kubernetes import client as kclient, config as kconfig
+        except Exception:
+            kclient = None
+            kconfig = None
+        pods_out = []
+        metrics_map = {}
+        # try kubectl top pods for simple metrics
+        try:
+            p = subprocess.run(['kubectl', 'top', 'pods', '--all-namespaces', '--no-headers'], capture_output=True, text=True, timeout=5)
+            if p.returncode == 0 and p.stdout:
+                for line in p.stdout.splitlines():
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        ns = parts[0]; name = parts[1]; cpu = parts[2]; mem = parts[3] if len(parts) > 3 else None
+                        metrics_map[f"{ns}/{name}"] = {'cpu': cpu, 'mem': mem}
+        except Exception:
+            pass
+
+        if kclient is not None and kconfig is not None:
+            try:
+                try:
+                    kconfig.load_kube_config()
+                except Exception:
+                    try:
+                        kconfig.load_incluster_config()
+                    except Exception:
+                        pass
+                v1 = kclient.CoreV1Api()
+                pods = v1.list_pod_for_all_namespaces(watch=False)
+                for p in pods.items:
+                    try:
+                        name = p.metadata.name
+                        ns = p.metadata.namespace
+                        status = p.status.phase
+                        node = p.spec.node_name
+                        start = p.status.start_time
+                        age = None
+                        if start:
+                            try:
+                                age = int(time.time() - start.timestamp())
+                            except Exception:
+                                age = None
+                        key = f"{ns}/{name}"
+                        met = metrics_map.get(key)
+                        pods_out.append({'namespace': ns, 'name': name, 'node': node, 'status': status, 'restarts': sum([c.restart_count for c in (p.status.container_statuses or [])]) if p.status.container_statuses else 0, 'cpu': met.get('cpu') if met else None, 'mem': met.get('mem') if met else None, 'age_seconds': age})
+                    except Exception:
+                        continue
+            except Exception:
+                pods_out = []
+        else:
+            # fallback to kubectl get pods
+            try:
+                p = subprocess.run(['kubectl', 'get', 'pods', '--all-namespaces', '-o', 'json'], capture_output=True, text=True, timeout=5)
+                if p.returncode == 0 and p.stdout:
+                    j = json.loads(p.stdout)
+                    for it in j.get('items', []):
+                        md = it.get('metadata', {})
+                        st = it.get('status', {})
+                        ns = md.get('namespace')
+                        name = md.get('name')
+                        node = st.get('nodeName')
+                        phase = st.get('phase')
+                        start = st.get('startTime')
+                        age = None
+                        try:
+                            if start:
+                                # parse ISO time
+                                from datetime import datetime
+                                dt = datetime.fromisoformat(start.replace('Z','+00:00'))
+                                age = int(time.time() - dt.timestamp())
+                        except Exception:
+                            age = None
+                        key = f"{ns}/{name}"
+                        met = metrics_map.get(key)
+                        pods_out.append({'namespace': ns, 'name': name, 'node': node, 'status': phase, 'cpu': met.get('cpu') if met else None, 'mem': met.get('mem') if met else None, 'age_seconds': age})
+            except Exception:
+                pods_out = []
+        return pods_out
+    except Exception as e:
+        return {'error': str(e)}
 
 
 def load_generator(model_dir: str):
@@ -303,6 +476,9 @@ def create_app(model_dir: str):
             pidfile = logdir / f'service_{s["name"]}.pid'
             pid = None
             running = False
+            cpu = None
+            memory = None
+            uptime = None
             try:
                 if pidfile.exists():
                     pid = pidfile.read_text().strip()
@@ -310,9 +486,196 @@ def create_app(model_dir: str):
             except Exception:
                 pid = None
                 running = False
-            services.append({'name': s['name'], 'cmd': s['cmd'], 'pid': pid, 'running': running})
-        return jsonify({'services': services})
+            # if running and psutil available, collect basic process metrics
+            if running and pid and psutil is not None:
+                try:
+                    p = psutil.Process(int(pid))
+                    # non-blocking cpu_percent: first call may be 0.0, try a short interval
+                    try:
+                        cpu = p.cpu_percent(interval=0.1)
+                    except Exception:
+                        cpu = None
+                    try:
+                        memory = int(p.memory_info().rss)
+                    except Exception:
+                        memory = None
+                    try:
+                        uptime = int(time.time() - p.create_time())
+                    except Exception:
+                        uptime = None
+                except Exception:
+                    cpu = None; memory = None; uptime = None
 
+            services.append({'name': s['name'], 'cmd': s['cmd'], 'pid': pid, 'running': running, 'cpu_percent': cpu, 'memory_rss': memory, 'uptime_seconds': uptime})
+        # attach docker and k8s info if available
+        docker_info = _collect_docker_info()
+        k8s_info = _collect_k8s_info()
+        return jsonify({'services': services, 'docker': docker_info, 'k8s': k8s_info})
+
+        def _collect_docker_info():
+            # Try docker SDK first, fallback to CLI `docker stats`/`docker ps` parsing
+            try:
+                try:
+                    import docker as _docker
+                except Exception:
+                    _docker = None
+                out = []
+                if _docker is not None:
+                    try:
+                        cli = _docker.from_env()
+                        for c in cli.containers.list(all=True):
+                            try:
+                                info = {'id': c.id, 'name': c.name, 'image': getattr(c, 'image', None).tags[0] if getattr(c, 'image', None) and getattr(c, 'image', None).tags else None, 'status': c.status}
+                                # try to get stats via low-level API
+                                try:
+                                    stats = cli.api.stats(c.id, stream=False)
+                                    # cpu percent calc best-effort: use precalculated field if present
+                                    cpu = None
+                                    try:
+                                        cpu = float(stats.get('cpu_stats', {}).get('cpu_usage', {}).get('total_usage', 0))
+                                    except Exception:
+                                        cpu = None
+                                    info.update({'raw_stats': stats, 'cpu_percent': None, 'memory_rss': None})
+                                    try:
+                                        mem = stats.get('memory_stats', {}).get('usage')
+                                        info['memory_rss'] = int(mem) if mem is not None else None
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    pass
+                                out.append(info)
+                            except Exception:
+                                continue
+                    except Exception:
+                        out = []
+                else:
+                    # fallback to CLI
+                    try:
+                        p = subprocess.run(['docker', 'stats', '--no-stream', '--format', '{{json .}}'], capture_output=True, text=True, timeout=5)
+                        if p.returncode == 0 and p.stdout:
+                            for line in p.stdout.splitlines():
+                                try:
+                                    j = json.loads(line)
+                                    # j contains fields like Name, CPUPerc, MemUsage, MemPerc, Container
+                                    name = j.get('Name')
+                                    cid = j.get('Container')
+                                    cpu = None
+                                    try:
+                                        cpu = float(str(j.get('CPUPerc','')).strip().strip('%'))
+                                    except Exception:
+                                        cpu = None
+                                    mem_usage = None
+                                    try:
+                                        mu = j.get('MemUsage','')
+                                        # format: "12.34MiB / 1.952GiB"
+                                        used = mu.split('/')[0].strip()
+                                        # best-effort parse size
+                                        def parse_size(s):
+                                            s = s.strip()
+                                            if s.endswith('KiB'):
+                                                return float(s[:-3].strip())*1024
+                                            if s.endswith('MiB'):
+                                                return float(s[:-3].strip())*1024*1024
+                                            if s.endswith('GiB'):
+                                                return float(s[:-3].strip())*1024*1024*1024
+                                            if s.endswith('B'):
+                                                return float(s[:-1].strip())
+                                            return None
+                                        mem_usage = parse_size(used)
+                                    except Exception:
+                                        mem_usage = None
+                                    out.append({'id': cid, 'name': name, 'cpu_percent': cpu, 'memory_rss': mem_usage})
+                    except Exception:
+                        out = []
+                return out
+            except Exception as e:
+                return {'error': str(e)}
+
+
+        def _collect_k8s_info():
+            # Try kubernetes python client; fallback to `kubectl` CLI top/get
+            try:
+                try:
+                    from kubernetes import client as kclient, config as kconfig
+                except Exception:
+                    kclient = None
+                    kconfig = None
+                pods_out = []
+                metrics_map = {}
+                # try kubectl top pods for simple metrics
+                try:
+                    p = subprocess.run(['kubectl', 'top', 'pods', '--all-namespaces', '--no-headers'], capture_output=True, text=True, timeout=5)
+                    if p.returncode == 0 and p.stdout:
+                        for line in p.stdout.splitlines():
+                            parts = line.split()
+                            if len(parts) >= 3:
+                                ns = parts[0]; name = parts[1]; cpu = parts[2]; mem = parts[3] if len(parts) > 3 else None
+                                metrics_map[f"{ns}/{name}"] = {'cpu': cpu, 'mem': mem}
+                except Exception:
+                    pass
+
+                if kclient is not None and kconfig is not None:
+                    try:
+                        try:
+                            kconfig.load_kube_config()
+                        except Exception:
+                            try:
+                                kconfig.load_incluster_config()
+                            except Exception:
+                                pass
+                        v1 = kclient.CoreV1Api()
+                        pods = v1.list_pod_for_all_namespaces(watch=False)
+                        for p in pods.items:
+                            try:
+                                name = p.metadata.name
+                                ns = p.metadata.namespace
+                                status = p.status.phase
+                                node = p.spec.node_name
+                                start = p.status.start_time
+                                age = None
+                                if start:
+                                    try:
+                                        age = int(time.time() - start.timestamp())
+                                    except Exception:
+                                        age = None
+                                key = f"{ns}/{name}"
+                                met = metrics_map.get(key)
+                                pods_out.append({'namespace': ns, 'name': name, 'node': node, 'status': status, 'restarts': sum([c.restart_count for c in (p.status.container_statuses or [])]) if p.status.container_statuses else 0, 'cpu': met.get('cpu') if met else None, 'mem': met.get('mem') if met else None, 'age_seconds': age})
+                            except Exception:
+                                continue
+                    except Exception:
+                        pods_out = []
+                else:
+                    # fallback to kubectl get pods
+                    try:
+                        p = subprocess.run(['kubectl', 'get', 'pods', '--all-namespaces', '-o', 'json'], capture_output=True, text=True, timeout=5)
+                        if p.returncode == 0 and p.stdout:
+                            j = json.loads(p.stdout)
+                            for it in j.get('items', []):
+                                md = it.get('metadata', {})
+                                st = it.get('status', {})
+                                ns = md.get('namespace')
+                                name = md.get('name')
+                                node = st.get('nodeName')
+                                phase = st.get('phase')
+                                start = st.get('startTime')
+                                age = None
+                                try:
+                                    if start:
+                                        # parse ISO time
+                                        from datetime import datetime
+                                        dt = datetime.fromisoformat(start.replace('Z','+00:00'))
+                                        age = int(time.time() - dt.timestamp())
+                                except Exception:
+                                    age = None
+                                key = f"{ns}/{name}"
+                                met = metrics_map.get(key)
+                                pods_out.append({'namespace': ns, 'name': name, 'node': node, 'status': phase, 'cpu': met.get('cpu') if met else None, 'mem': met.get('mem') if met else None, 'age_seconds': age})
+                    except Exception:
+                        pods_out = []
+                return pods_out
+            except Exception as e:
+                return {'error': str(e)}
     @app.route('/monitor/service/restart', methods=['POST'])
     def monitor_service_restart():
         data = request.get_json(force=True) or {}

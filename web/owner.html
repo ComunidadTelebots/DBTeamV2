@@ -17,6 +17,20 @@
 </head>
 <body>
   <header class="site-header">
+  <aside id="notificationSidebar" style="position:fixed;right:-340px;top:0;height:100vh;width:320px;background:var(--card,#181f2a);box-shadow:-2px 0 8px #0002;z-index:1000;transition:right 0.3s;overflow-y:auto;padding:18px 16px 16px 16px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-weight:700;font-size:1.2rem">Notificaciones</span>
+      <button id="closeSidebarBtn" class="btn ghost" style="font-size:1.2rem">×</button>
+    </div>
+    <div style="margin-bottom:12px">
+      <label for="tgChannelInput" style="font-size:0.95rem;color:#888">Canal Telegram para notificaciones</label>
+      <input id="tgChannelInput" type="text" placeholder="@micanal o -100123456789" style="width:100%;margin-top:4px" />
+      <button id="saveTgChannelBtn" class="btn" style="margin-top:6px">Guardar canal</button>
+      <span id="tgChannelStatus" style="margin-left:8px;color:#888"></span>
+    </div>
+    <div id="notificationList"></div>
+  </aside>
+  <button id="openSidebarBtn" style="position:fixed;right:12px;top:60px;z-index:1001;background:var(--owner-color,#1e90ff);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:1.1rem;box-shadow:0 2px 8px #0002;cursor:pointer">🔔</button>
     <div class="header-inner">
       <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
       <nav class="main-nav" aria-label="Main navigation">
@@ -39,14 +53,118 @@
   </header>
 
   <main class="container">
+                                                <!-- Modal edición bot usuario -->
+                                                <div id="editUserBotModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#1e2338e0;z-index:2100;align-items:center;justify-content:center">
+                                                  <div style="background:#f5f8ff;padding:36px 40px;border-radius:22px;max-width:420px;box-shadow:0 8px 36px #1e2338cc;display:flex;flex-direction:column;align-items:center;gap:20px">
+                                                    <h3 style="margin:0 0 10px 0;font-size:1.35rem;color:#2563eb;font-weight:700;letter-spacing:0.5px">Editar bot de usuario</h3>
+                                                    <div style="width:100%;display:flex;flex-direction:column;gap:14px">
+                                                      <label style="font-weight:500;color:#2563eb">Nombre
+                                                        <input id="editBotName" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
+                                                      </label>
+                                                      <label style="font-weight:500;color:#2563eb">Estado
+                                                        <input id="editBotStatus" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
+                                                      </label>
+                                                      <label style="font-weight:500;color:#2563eb">Avatar URL
+                                                        <input id="editBotAvatar" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
+                                                      </label>
+                                                      <label style="font-weight:500;color:#2563eb">Token de Telegram
+                                                        <input id="editBotToken" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
+                                                      </label>
+                                                      <label style="font-weight:500;color:#2563eb">Info
+                                                        <textarea id="editBotInfo" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;min-height:60px;background:#fff;color:#222;font-weight:500;"></textarea>
+                                                      </label>
+                                                    </div>
+                                                    <div style="display:flex;gap:18px;margin-top:22px">
+                                                      <button id="saveEditUserBotBtn" class="btn" style="padding:10px 28px;font-size:1.05rem;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:600">Guardar</button>
+                                                      <button id="cancelEditUserBotBtn" class="btn ghost" style="padding:10px 28px;font-size:1.05rem;background:#fff;color:#2563eb;border:1.5px solid #2563eb;border-radius:10px;font-weight:600">Cancelar</button>
+                                                    </div>
+                                                  </div>
+                                                </div>
+                                        <section class="card" style="margin-bottom:18px">
+                                          <h2 style="margin:0 0 10px 0">Bots de usuario</h2>
+                                          <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
+                                            <input id="telegramTokenInput" type="text" placeholder="Token de Telegram" style="width:260px;max-width:100%" />
+                                            <button id="addUserBotByTokenBtn" class="btn" style="max-width:180px">+ Agregar bot por token</button>
+                                          </div>
+                                          <div id="userBotsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
+                                          <button id="addUserBotBtn" class="btn" style="margin-top:12px;max-width:180px">+ Agregar bot de usuario manual</button>
+                                        </section>
+                                <!-- Modal resumen bot -->
+                                <div id="botSummaryModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0008;z-index:2000;align-items:center;justify-content:center">
+                                  <div style="background:#fff;padding:28px 32px;border-radius:16px;max-width:340px;box-shadow:0 4px 24px #0004;display:flex;flex-direction:column;align-items:center;gap:14px">
+                                    <img id="botSummaryAvatar" src="/logo.svg" alt="Bot avatar" style="width:64px;height:64px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002" />
+                                    <div id="botSummaryName" style="font-weight:700;font-size:1.2rem">Bot</div>
+                                    <div id="botSummaryStatus" style="color:green;font-size:1rem">Activo</div>
+                                    <div id="botSummaryInfo" style="color:#444;font-size:0.98rem;text-align:center">Resumen del bot aquí.</div>
+                                    <button id="closeBotSummaryBtn" class="btn" style="margin-top:10px">Cerrar</button>
+                                  </div>
+                                </div>
+                        <section class="card" style="margin-bottom:18px">
+                          <h2 style="margin:0 0 10px 0">Grupos y usuarios activos</h2>
+                          <div id="liveGroupsUsers" style="display:flex;flex-direction:column;gap:12px;padding:8px 0">
+                            <div style="color:var(--muted)">Cargando información en vivo...</div>
+                          </div>
+                        </section>
+                <section class="card" style="margin-bottom:18px">
+                  <h2 style="margin:0 0 10px 0">Bots activos</h2>
+                  <div style="display:flex;flex-direction:row;gap:24px;align-items:center">
+                    <!-- Bot 1 ejemplo -->
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                      <img src="/logo.svg" alt="Bot avatar" class="bot-avatar" data-bot="DBTeamBot" style="width:54px;height:54px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002;cursor:pointer" />
+                      <span style="font-weight:700">DBTeamBot</span>
+                      <span style="color:green;font-size:0.95rem">Activo</span>
+                    </div>
+                    <!-- Bot 2 ejemplo -->
+                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+                      <img src="/logo.svg" alt="Bot avatar" class="bot-avatar" data-bot="MediaBot" style="width:54px;height:54px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002;cursor:pointer" />
+                      <span style="font-weight:700">MediaBot</span>
+                      <span style="color:orange;font-size:0.95rem">En espera</span>
+                    </div>
+                  </div>
+                </section>
+        <section class="card" style="margin-bottom:18px">
+          <h2 style="margin:0 0 10px 0">Canales y grupos principales</h2>
+          <div style="display:flex;flex-direction:row;align-items:center;gap:18px;margin-bottom:10px">
+            <img id="botAvatar" src="/logo.svg" alt="Bot avatar" style="width:54px;height:54px;border-radius:50%;border:2px solid var(--border,#e5e7eb);background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002" />
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div><strong>Canal de notificaciones:</strong> <span id="notifChannelDisplay" style="color:var(--muted)"></span></div>
+              <div><strong>Grupo/Canal principal de la web:</strong> <span id="mainChannelDisplay" style="color:var(--muted)"></span></div>
+              <div><strong>Canales afiliados:</strong> <span id="affiliatesDisplay" style="color:var(--muted)"></span></div>
+            </div>
+          </div>
+          <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
+            <label for="mainChannelInput">Editar canal principal:</label>
+            <input id="mainChannelInput" type="text" placeholder="@canalprincipal o -100123456789" style="width:100%;max-width:400px" />
+            <label for="affiliatesInput">Editar canales afiliados (separados por coma):</label>
+            <input id="affiliatesInput" type="text" placeholder="@afiliado1,@afiliado2" style="width:100%;max-width:400px" />
+            <button id="saveChannelsBtn" class="btn" style="margin-top:8px;max-width:200px">Guardar canales</button>
+          </div>
+        </section>
     <h1>Panel Owner</h1>
     <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
+
+    <section class="card">
+          <section class="card">
+            <div style="display:flex;align-items:center;gap:12px">
+              <h2 style="margin:0">Grupos bloqueados (solo owner puede usar comandos)</h2>
+              <button id="refreshGroupLocks" class="secondary">Actualizar lista</button>
+            </div>
+            <div id="groupLocksList" style="margin-top:12px"></div>
+          </section
+      <div style="display:flex;align-items:center;gap:12px">
+        <h2 style="margin:0">Modo Owner-only</h2>
+        <label style="display:flex;align-items:center;gap:8px;font-size:1rem">
+          <input type="checkbox" id="ownerLockToggle" /> Activar owner-only
+        </label>
+        <span id="ownerLockStatus" style="color:var(--muted);margin-left:12px">Estado: desconocido</span>
+      </div>
+    </section>
 
     <section class="card">
       <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
         <div style="flex:1;min-width:220px">
           <label for="apiBase">API base</label>
-          <input id="apiBase" list="apiBaseList" placeholder="http://127.0.0.1:8081" />
+          <input id="apiBase" list="apiBaseList" value="http://127.0.0.1:8081" placeholder="http://127.0.0.1:8081" />
           <datalist id="apiBaseList"></datalist>
         </div>
         <div style="flex:1;min-width:220px">
@@ -62,6 +180,28 @@
     </section>
 
     <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2 style="margin:0">Torrents descargados</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="torrentSearch" placeholder="Buscar torrents..." style="min-width:220px" />
+          <button id="torrentSearchBtn" class="secondary">Buscar</button>
+          <button id="torrentClearBtn" class="ghost">Limpiar</button>
+          <button id="myTorrentsBtn" class="secondary">Mis torrents</button>
+          <select id="torrentTargetSelect" style="min-width:180px">
+            <option value="local">Local (este servidor)</option>
+          </select>
+          <input id="assignUser" placeholder="Asignar a usuario (opcional)" style="min-width:160px" />
+          <input id="torrentFile" type="file" accept=".torrent" style="display:inline-block" />
+          <button id="uploadTorrentBtn" class="btn">Subir</button>
+          <button id="viewUserPanel" class="secondary">Ver panel usuario</button>
+          <button id="refreshTorrents" class="secondary">Actualizar</button>
+        </div>
+      </div>
+      <div id="torrentsList" style="margin-top:12px">
+        <div class="mini-body" style="color:var(--muted)">Sin datos</div>
+      </div>
+    </section>
+
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
         <h2 style="margin:0">Monitor de servicios</h2>
         <div style="display:flex;gap:8px;align-items:center">

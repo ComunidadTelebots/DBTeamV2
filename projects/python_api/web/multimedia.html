@@ -33,7 +33,7 @@
     <div id="drop" class="drop">Arrastra aquí un archivo .torrent o pega un magnet link.<br/><small class="muted">También puedes usar el botón para seleccionar un fichero .torrent</small></div>
 
     <div class="controls">
-      <input id="fileInput" type="file" accept=".torrent" />
+      <input id="fileInput" type="file" accept=".torrent,.mkv,.mp4,.webm,.ogg,.mov" />
       <input id="magnetInput" type="text" placeholder="Pega un magnet URI aquí" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
       <button id="addMagnet" class="btn">Añadir</button>
     </div>
@@ -160,10 +160,23 @@
     fileInput.addEventListener('change', (e)=>{ const f=e.target.files[0]; if (f) addTorrentFile(f) });
     addMagnet.addEventListener('click', ()=>{ const m=magnetInput.value.trim(); if (m) addMagnetURI(m) });
 
+    // Lista de trackers WebRTC públicos actualizados
+    const defaultTrackers = [
+      'wss://tracker.openwebtorrent.com',
+      'wss://tracker.btorrent.xyz',
+      'wss://tracker.fastcast.nz',
+      'wss://tracker.webtorrent.dev',
+      'wss://tracker.sloppyta.co:443/announce',
+      'wss://tracker.files.fm:7073/announce',
+      'ws://tracker.files.fm:7072/announce',
+      'wss://tracker.thepiratebay.org/announce',
+      'wss://dontorrent.prof/announce'
+    ];
+
     function addTorrentFile(file){ setStatus('Añadiendo .torrent...');
-      client.add(file, (torrent)=>{ handleTorrent(torrent) });
+      client.add(file, { announce: defaultTrackers }, (torrent)=>{ handleTorrent(torrent) });
     }
-    function addMagnetURI(magnet){ setStatus('Añadiendo magnet...'); client.add(magnet, (torrent)=>{ handleTorrent(torrent) }); }
+    function addMagnetURI(magnet){ setStatus('Añadiendo magnet...'); client.add(magnet, { announce: defaultTrackers }, (torrent)=>{ handleTorrent(torrent) }); }
 
     // handle unload: destroy client
     window.addEventListener('beforeunload', ()=>{ try{ client.destroy() }catch(e){} });

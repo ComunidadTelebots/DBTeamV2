@@ -13,6 +13,17 @@ from typing import Dict, List
 
 
 class Bot:
+        async def leave_group_by_id(self, group_id):
+            # This method should use the Telegram API to leave the group by ID
+            # You may need to adapt this to your bot framework
+            try:
+                if hasattr(self, 'telegram_bot'):
+                    await self.telegram_bot.leave_chat(int(group_id))
+                elif hasattr(self, 'updater') and hasattr(self.updater, 'bot'):
+                    await self.updater.bot.leave_chat(int(group_id))
+                # Add other frameworks as needed
+            except Exception as e:
+                print(f'Error leaving group {group_id}: {e}')
     def __init__(self):
         self.plugins: Dict[str, ModuleType] = {}
         self.lang_modules: Dict[str, ModuleType] = {}

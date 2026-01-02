@@ -1,3 +1,192 @@
+from fastapi import APIRouter
+router = APIRouter()
+
+import os
+# --- Endpoint para obtener datos de bot Telegram por token ---
+import requests
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.post('/api/get_telegram_bot_info')
+async def get_telegram_bot_info(request: Request):
+    data = await request.json()
+    token = data.get('token', '').strip()
+    if not token:
+        return JSONResponse({'ok': False, 'error': 'Token requerido'}, status_code=400)
+    try:
+        url = f'https://api.telegram.org/bot{token}/getMe'
+        resp = requests.get(url)
+        if not resp.ok:
+            # Detectar si el bot está bloqueado por la API
+            if resp.status_code == 403 or 'blocked' in resp.text.lower():
+                return JSONResponse({'ok': False, 'blocked': True, 'error': 'El bot ha sido bloqueado por la API de Telegram.'}, status_code=403)
+            return JSONResponse({'ok': False, 'error': 'No se pudo consultar Telegram'}, status_code=400)
+        info = resp.json().get('result', {})
+        # Avatar: getUserProfilePhotos
+        avatar_url = ''
+        try:
+            photos_url = f'https://api.telegram.org/bot{token}/getUserProfilePhotos?user_id={info.get("id")}&limit=1'
+            photos_resp = requests.get(photos_url)
+            if photos_resp.ok:
+                photos = photos_resp.json().get('result', {}).get('photos', [])
+                if photos and photos[0]:
+                    # Get file_id
+                    file_id = photos[0][0].get('file_id')
+                    # Get file path
+                    file_resp = requests.get(f'https://api.telegram.org/bot{token}/getFile?file_id={file_id}')
+                    if file_resp.ok:
+                        file_path = file_resp.json().get('result', {}).get('file_path')
+                        if file_path:
+                            avatar_url = f'https://api.telegram.org/file/bot{token}/{file_path}'
+        except Exception:
+            pass
+        return JSONResponse({
+            'ok': True,
+            'name': info.get('first_name', '') + ((' ' + info.get('last_name', '')) if info.get('last_name') else ''),
+            'username': info.get('username', ''),
+            'id': info.get('id', ''),
+            'avatar': avatar_url,
+            'status': 'Activo'
+        })
+    except Exception as e:
+        return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+# --- Endpoints para bots de usuario ---
+import json
+USER_BOTS_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'user_bots.json')
+
+def read_user_bots():
+    try:
+        with open(USER_BOTS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def write_user_bots(bots):
+    try:
+        with open(USER_BOTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(bots, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+@app.get('/api/get_user_bots')
+async def get_user_bots():
+    bots = read_user_bots()
+    return JSONResponse({'bots': bots})
+
+@app.post('/api/set_user_bots')
+async def set_user_bots(request: Request):
+    data = await request.json()
+    bots = data.get('bots', [])
+    ok = write_user_bots(bots)
+    return JSONResponse({'success': ok})
+# --- Endpoint ejemplo: grupos y usuarios activos en vivo ---
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+app = FastAPI()
+
+@app.get('/api/live_groups_users')
+async def live_groups_users():
+    # Simulación: datos de ejemplo
+    groups = [
+        {'id': '-100123456789', 'name': 'Grupo Principal', 'status': 'activo'},
+        {'id': '-100987654321', 'name': 'Grupo Afiliado', 'status': 'activo'}
+    ]
+    users = [
+        {'id': '123456', 'name': 'Owner', 'username': 'owneruser', 'status': 'online'},
+        {'id': '654321', 'name': 'Afiliado', 'username': 'afiliado1', 'status': 'online'}
+    ]
+    return JSONResponse({'groups': groups, 'users': users})
+@router.get('/ownerlock/tgchannel')
+async def get_tg_channel():
+    tg_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'tg_notify_channel.txt')
+    channel = ''
+    if os.path.exists(tg_path):
+        with open(tg_path, 'r', encoding='utf-8') as f:
+            channel = f.read().strip()
+    return { 'channel': channel }
+@router.post('/ownerlock/tgchannel')
+async def set_tg_channel(request: Request):
+    data = await request.json()
+    channel = str(data.get('channel', '')).strip()
+    user_id = str(data.get('user_id', ''))
+    tg_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'tg_notify_channel.txt')
+    bot_token = os.getenv('BOT_TOKEN')
+    if not bot_token:
+        return JSONResponse({'ok': False, 'error': 'BOT_TOKEN no configurado'}, status_code=400)
+    # Check bot is admin in channel
+    import requests
+    try:
+        url = f'https://api.telegram.org/bot{bot_token}/getChatAdministrators?chat_id={channel}'
+        resp = requests.get(url)
+        if not resp.ok:
+            return JSONResponse({'ok': False, 'error': 'No se pudo consultar administradores del canal'}, status_code=400)
+        admins = resp.json().get('result', [])
+        bot_is_admin = False
+        user_is_admin = False
+        for adm in admins:
+            if adm.get('user', {}).get('is_bot') and adm.get('user', {}).get('username'):
+                if adm['user']['username'].lower() == os.getenv('BOT_USERNAME', '').lower():
+                    bot_is_admin = True
+            if user_id and str(adm.get('user', {}).get('id')) == user_id:
+                user_is_admin = True
+        if not bot_is_admin:
+            return JSONResponse({'ok': False, 'error': 'El bot no es administrador del canal. Agrégalo y vuelve a intentar.'}, status_code=400)
+        if not user_is_admin:
+            return JSONResponse({'ok': False, 'error': 'Solo el dueño o administrador del canal puede configurar esto.'}, status_code=403)
+        with open(tg_path, 'w', encoding='utf-8') as f:
+            f.write(channel)
+        log_notification(f'Canal Telegram para notificaciones guardado: {channel}', 'info')
+        return JSONResponse({'ok': True, 'channel': channel})
+    except Exception as e:
+        return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
+@router.get('/ownerlock/groups')
+async def ownerlock_groups():
+    group_lock_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'group_lock.flag')
+    groups = []
+    if os.path.exists(group_lock_path):
+        with open(group_lock_path, 'r') as f:
+            groups = [line.strip() for line in f if line.strip()]
+    return { 'groups': groups }
+
+@router.post('/ownerlock/groups/toggle')
+async def ownerlock_groups_toggle(request: Request):
+    group_lock_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'group_lock.flag')
+    data = await request.json()
+    group_id = str(data.get('group_id'))
+    lock = bool(data.get('lock', False))
+    groups = set()
+    if os.path.exists(group_lock_path):
+        with open(group_lock_path, 'r') as f:
+            groups = set(line.strip() for line in f if line.strip())
+    if lock:
+        groups.add(group_id)
+    else:
+        groups.discard(group_id)
+    with open(group_lock_path, 'w') as f:
+        for gid in groups:
+            f.write(str(gid)+'\n')
+    return { 'groups': list(groups) }
+
+@router.post('/ownerlock/groups/leave')
+async def ownerlock_groups_leave(request: Request):
+    # This should trigger the bot to leave the group via Telegram API (requires bot integration)
+    # For now, just return success; actual leave logic should be handled by the bot process
+    data = await request.json()
+    group_id = str(data.get('group_id'))
+    # IPC: append group_id to leave queue file for bot to process
+    leave_queue_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'leave_group_queue.txt')
+    try:
+        with open(leave_queue_path, 'a') as f:
+            f.write(str(group_id)+'\n')
+    except Exception:
+        pass
+    return JSONResponse({'left': group_id})
+OWNERLOCK_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'ownerlock.flag')
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
 import subprocess
@@ -22,10 +211,57 @@ import time
 import uuid
 import hmac as _hmaclib
 import re
-from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+# from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
 
+r = redis.from_url(REDIS_URL)
 app = FastAPI()
 r = redis.from_url(REDIS_URL)
+r = redis.from_url(REDIS_URL)
+app.include_router(router)
+r = redis.from_url(REDIS_URL)
+
+# --- Main/Affiliate Channels Backend ---
+MAIN_CHANNEL_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'main_channel.txt')
+AFFILIATE_CHANNELS_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'affiliate_channels.txt')
+
+def read_file_safe(path):
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except Exception:
+        return ''
+
+def write_file_safe(path, content):
+    try:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(content.strip())
+        return True
+    except Exception:
+        return False
+
+@app.post('/api/set_main_channel')
+async def set_main_channel(request: Request):
+    data = await request.json()
+    channel = data.get('channel', '').strip()
+    ok = write_file_safe(MAIN_CHANNEL_FILE, channel)
+    return JSONResponse({'success': ok})
+
+@app.get('/api/get_main_channel')
+async def get_main_channel():
+    channel = read_file_safe(MAIN_CHANNEL_FILE)
+    return JSONResponse({'channel': channel})
+
+@app.post('/api/set_affiliate_channels')
+async def set_affiliate_channels(request: Request):
+    data = await request.json()
+    channels = data.get('channels', '').strip()
+    ok = write_file_safe(AFFILIATE_CHANNELS_FILE, channels)
+    return JSONResponse({'success': ok})
+
+@app.get('/api/get_affiliate_channels')
+async def get_affiliate_channels():
+    channels = read_file_safe(AFFILIATE_CHANNELS_FILE)
+    return JSONResponse({'channels': channels})
 
 # server start time for uptime reporting
 START_TIME = int(time.time())
@@ -36,7 +272,7 @@ START_TIME = int(time.time())
 # Include tdlib router (scaffold). If import fails, register a JSON fallback
 TDLIB_AVAILABLE = True
 try:
-    from .tdlib_router import router as tdlib_router
+#     from .tdlib_router import router as tdlib_router
     app.include_router(tdlib_router, prefix='/tdlib')
     print('tdlib router included')
 except Exception as _e:

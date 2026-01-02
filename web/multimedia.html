@@ -33,7 +33,7 @@
     <div id="drop" class="drop">Arrastra aquí un archivo .torrent o pega un magnet link.<br/><small class="muted">También puedes usar el botón para seleccionar un fichero .torrent</small></div>
 
     <div class="controls">
-      <input id="fileInput" type="file" accept=".torrent" />
+      <input id="fileInput" type="file" accept=".torrent,.mkv,.mp4,.webm,.ogg,.mov" />
       <input id="magnetInput" type="text" placeholder="Pega un magnet URI aquí" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
       <button id="addMagnet" class="btn">Añadir</button>
     </div>
@@ -160,13 +160,54 @@
     fileInput.addEventListener('change', (e)=>{ const f=e.target.files[0]; if (f) addTorrentFile(f) });
     addMagnet.addEventListener('click', ()=>{ const m=magnetInput.value.trim(); if (m) addMagnetURI(m) });
 
-    function addTorrentFile(file){ setStatus('Añadiendo .torrent...');
-      client.add(file, (torrent)=>{ handleTorrent(torrent) });
+
+    // Lista de trackers WebRTC públicos recomendados para WebTorrent
+    const defaultTrackers = [
+      'wss://tracker.openwebtorrent.com',
+      'wss://tracker.btorrent.xyz',
+      'wss://tracker.fastcast.nz',
+      'wss://tracker.webtorrent.dev',
+      'wss://tracker.sloppyta.co:443/announce',
+      'wss://tracker.files.fm:7073/announce',
+      'ws://tracker.files.fm:7072/announce',
+      'wss://tracker.thepiratebay.org/announce',
+      'wss://dontorrent.prof/announce'
+    ];
+
+    function addTorrentFile(file){
+      setStatus('Añadiendo .torrent...');
+      client.add(file, { announce: defaultTrackers }, (torrent)=>{ handleTorrent(torrent) });
     }
-    function addMagnetURI(magnet){ setStatus('Añadiendo magnet...'); client.add(magnet, (torrent)=>{ handleTorrent(torrent) }); }
+    function addMagnetURI(magnet){
+      setStatus('Añadiendo magnet...');
+      client.add(magnet, { announce: defaultTrackers }, (torrent)=>{ handleTorrent(torrent) });
+    }
 
     // handle unload: destroy client
     window.addEventListener('beforeunload', ()=>{ try{ client.destroy() }catch(e){} });
+
+    // if page opened with ?file=URL, show native player; otherwise support ?torrent or ?magnet
+    try{
+      const params = new URLSearchParams(window.location.search)
+      const fileUrl = params.get('file')
+      const t = params.get('torrent')
+      const m = params.get('magnet')
+      if(fileUrl){
+        setStatus('Cargando archivo de multimedia...')
+        playerArea.innerHTML = ''
+        const video = document.createElement('video')
+        video.controls = true
+        video.autoplay = true
+        video.style.width = '100%'
+        video.src = decodeURIComponent(fileUrl)
+        playerArea.appendChild(video)
+        setStatus('Reproduciendo: ' + decodeURIComponent(fileUrl))
+      } else if(t){
+        setStatus('Cargando torrent desde URL...'); client.add(decodeURIComponent(t), (torrent)=>{ handleTorrent(torrent) })
+      } else if(m){
+        setStatus('Cargando magnet...'); client.add(decodeURIComponent(m), (torrent)=>{ handleTorrent(torrent) })
+      }
+    }catch(e){ console.error('multimedia init param error', e) }
 
     // --- Sync with bot stats API: list active torrents and allow stop ---
     const botTorrentsDiv = document.getElementById('botTorrents');
@@ -204,10 +245,11 @@
       }catch(e){ alert('Error stopping torrent: '+e) }
     }
 
-    // poll every 5s
-    setInterval(fetchBotTorrents, 5000);
-    // initial
-    fetchBotTorrents();
+    // Bot polling disabled in dev when bot service is not running to avoid
+    // repeated connection-refused errors in the console. Enable manually
+    // by uncommenting the lines below if the bot API is available on :8081.
+    // setInterval(fetchBotTorrents, 5000);
+    // fetchBotTorrents();
   </script>
   <script src="shared.js"></script>
 </body>

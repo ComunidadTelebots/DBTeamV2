@@ -44,6 +44,7 @@
       const data = await res.json();
       if(data.token){
         localStorage.setItem('api_token', data.token);
+        try{ localStorage.setItem('api_user', inputUser.value); }catch(e){}
         show('Autenticado. Redirigiendo...');
         setTimeout(()=> location.href = '/', 600);
       }else{

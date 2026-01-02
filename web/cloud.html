@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Mini Nextcloud — Owner (local)</title>
+  <link rel="stylesheet" href="shared.css" />
+  <style>body{font-family:Inter,system-ui,Arial;margin:20px} .wrap{max-width:1000px;margin:0 auto}</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Mini Nextcloud (archivo privado)</h1>
+    <p style="color:var(--muted)">Sube, descarga y elimina archivos en el servidor.</p>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="ncUser" type="text" placeholder="Usuario (opcional)" style="min-width:160px" />
+      <input id="ncFile" type="file" />
+      <button id="ncUpload" class="btn">Subir</button>
+      <button id="ncRefresh" class="secondary">Actualizar</button>
+    </div>
+    <div id="ncMsg" style="margin-top:8px;color:var(--muted)"></div>
+    <div id="ncList" style="margin-top:12px"></div>
+  </div>
+  <script src="shared.js"></script>
+  <script src="nextcloud.js"></script>
+</body>
+</html>

@@ -3,7 +3,6 @@ FROM ubuntu:22.04
 # Avoid interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install Python and common tools
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     python3-venv \
@@ -42,3 +41,19 @@ EXPOSE 8000 8081
 
 # Default command: run bot runner
 CMD ["/bin/bash", "-lc", "python3 projects/bot/python_bot/main.py"]
+
+
+# --- Node.js, build tools y node-pre-gyp para webtorrent-hybrid (pyratebye) ---
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    build-essential \
+    python3 \
+    python3-pip \
+    git \
+    && curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g node-pre-gyp \
+    && npm install -g webtorrent-hybrid \
+    && rm -rf /var/lib/apt/lists/*
+USER appuser

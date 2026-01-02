@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Media Library — Owner</title>
+  <link rel="stylesheet" href="shared.css" />
+  <style>body{font-family:Inter,system-ui,Arial;margin:20px} .wrap{max-width:1000px;margin:0 auto}</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Media Library</h1>
+    <div style="display:flex;gap:8px;align-items:center">
+      <input id="mediaUser" type="text" placeholder="Filtrar por usuario (opcional)" style="min-width:220px" />
+      <button id="mediaRefresh" class="secondary">Actualizar</button>
+    </div>
+    <div id="mediaMsg" style="margin-top:8px;color:var(--muted)"></div>
+    <div id="mediaList" style="margin-top:12px"></div>
+  </div>
+  <script src="shared.js"></script>
+  <script src="media.js"></script>
+</body>
+</html>

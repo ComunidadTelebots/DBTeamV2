@@ -158,3 +158,22 @@ Response:
 ```
 
 Note: wildcard DNS requires a DNS server; the hosts file does not support wildcards.
+
+Dockerized local DNS (recommended for Docker Desktop)
+-----------------------------------------------
+
+If you prefer not to run a host DNS service, you can run a lightweight `dnsmasq` container that provides wildcard DNS for development. `docker-compose.yml` already includes a `local_dns` service.
+
+Start it with Compose:
+
+```bash
+docker-compose up -d local_dns
+```
+
+On Docker Desktop for Windows, enable the DNS server by configuring your system DNS to point to the Docker host IP (often `127.0.0.1` for WSL2 or the Docker for Windows host). For many setups simply running the container makes the DNS available to containers; to use it from the host, adjust your adapter DNS settings to `127.0.0.1`.
+
+Windows helper
+--------------
+
+Run `scripts/run_local_dns.ps1` as Administrator to start `tools/local_dns.py` in background on Windows.
+

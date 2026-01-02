@@ -1,6 +1,8 @@
+
 version: '3.8'
 
 services:
+
   nginx:
     build:
       context: .
@@ -17,6 +19,7 @@ services:
       timeout: 10s
       retries: 3
 
+
   ai_server:
     build: .
     command: python3 python_api/ai_server.py
@@ -29,6 +32,7 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
 
+
   stream_server:
     build: .
     command: python3 python_api/stream_server.py
@@ -40,3 +44,13 @@ services:
     restart: always
     environment:
       - PYTHONUNBUFFERED=1
+
+
+  local_dns:
+    image: andyshinn/dnsmasq:2.76
+    container_name: local_dns
+    ports:
+      - "53:53/udp"
+    volumes:
+      - ./deploy/dnsmasq.conf:/etc/dnsmasq.conf:ro
+    restart: unless-stopped

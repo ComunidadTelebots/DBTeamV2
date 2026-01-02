@@ -1,0 +1,25 @@
+version: '3.7'
+
+services:
+  plex:
+    image: lscr.io/linuxserver/plex:latest
+    container_name: plex
+    restart: unless-stopped
+    network_mode: bridge
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - VERSION=latest
+      - TZ=UTC
+    ports:
+      - "32400:32400"
+      - "3005:3005"
+      - "8324:8324"
+      - "32469:32469"
+      - "32410:32410/udp"
+      - "32412:32412/udp"
+      - "32413:32413/udp"
+      - "32414:32414/udp"
+    volumes:
+      - ../../data/plex/config:/config
+      - ../../data/media:/data/media
