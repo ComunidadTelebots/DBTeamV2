@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Streamer — OBS-like Web UI</title>
+  <link rel="stylesheet" href="/streamer.css">
+</head>
+<body>
+  <div id="app" class="obs-ui">
+    <aside class="scenes">
+      <h3>Scenes</h3>
+      <ul id="scenesList"></ul>
+      <div class="import">
+        <label>Import OBS JSON</label>
+        <input id="importFile" type="file" accept=".json">
+        <button id="btnImport">Import</button>
+        <div style="margin-top:8px">
+          <label>Import RSS (rss.app)</label>
+          <input id="importRssUrl" type="text" placeholder="https://rss.app/feeds/XXXX.xml" style="width:100%">
+          <button id="btnImportRSS">Import RSS</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="preview">
+      <div class="preview-area" id="previewArea">Preview (placeholder)</div>
+      <div class="transport">
+        <select id="platformSelect">
+          <option value="telegram">Telegram</option>
+          <option value="rtmp">RTMP</option>
+          <option value="youtube">YouTube</option>
+        </select>
+        <button id="btnStart">Start</button>
+        <button id="btnStop">Stop</button>
+        <span id="streamStatus">Stopped</span>
+      </div>
+    </main>
+
+    <aside class="live-settings">
+      <h3>Directos / Live Settings</h3>
+      <div>
+        <label>Title</label>
+        <input id="liveTitle" type="text" placeholder="Stream title" style="width:100%">
+      </div>
+      <div>
+        <label>Description</label>
+        <input id="liveDescription" type="text" placeholder="Short description" style="width:100%">
+      </div>
+      <div>
+        <label>Platform</label>
+        <select id="livePlatform" style="width:100%">
+          <option value="telegram">Telegram</option>
+          <option value="rtmp">RTMP</option>
+          <option value="youtube">YouTube</option>
+        </select>
+      </div>
+      <div>
+        <label>Stream Key / Target</label>
+        <input id="liveTarget" type="text" placeholder="rtmp://.../key" style="width:100%">
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button id="btnSaveSettings">Save Settings</button>
+        <button id="btnLoadSettings">Load</button>
+      </div>
+      <div style="margin-top:10px">
+        <label>API Key</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="liveApiKey" type="text" readonly style="width:100%">
+          <button id="btnGenKey">Regenerate</button>
+        </div>
+      </div>
+    </aside>
+
+    <aside class="sources">
+      <h3>Sources</h3>
+      <div id="sourcesList">Select a scene to see sources</div>
+      <div class="editor">
+        <h4>Scene Editor</h4>
+        <textarea id="editorArea" rows="12" placeholder='Edit scene JSON here'></textarea>
+        <div style="margin-top:6px;display:flex;gap:8px;align-items:center">
+          <label style="margin:0"><input id="autoLive" type="checkbox"> Auto Live</label>
+          <button id="btnApplyLive">Apply Live</button>
+        </div>
+        <div style="margin-top:6px">
+          <input id="aiPrompt" type="text" placeholder="Ask the AI to generate captions or text" style="width:75%">
+          <button id="btnAIGen">AI Generate</button>
+        </div>
+        <div class="editor-controls">
+          <button id="btnSave">Save</button>
+          <button id="btnDuplicate">Duplicate</button>
+          <button id="btnDelete">Delete</button>
+          <button id="btnNew">New</button>
+        </div>
+      </div>
+    </aside>
+    <aside class="panels">
+      <h3>Panels</h3>
+      <div id="panelsList">Loading...</div>
+      <div style="margin-top:8px">
+        <label>Import panel CSS</label>
+        <input id="importPanelFile" type="file" accept="text/css">
+        <button id="btnImportPanel">Import & Apply</button>
+      </div>
+    </aside>
+  </div>
+
+  <script src="/streamer.js"></script>
+</body>
+</html>

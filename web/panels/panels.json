@@ -1,0 +1,14 @@
+[
+  {
+    "id": "classic",
+    "name": "Classic Lower Third",
+    "css": "/panels/classic.css",
+    "description": "Simple lower-third overlay with title and subtitle."
+  },
+  {
+    "id": "modern",
+    "name": "Modern Overlay",
+    "css": "/panels/modern.css",
+    "description": "Transparent modern bar with accent color."
+  }
+]

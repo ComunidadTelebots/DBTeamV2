@@ -1,0 +1,11 @@
+[
+  { "href": "index.html", "label": "Inicio" },
+  { "href": "chat.html", "label": "Chat" },
+  { "href": "monitor.html", "label": "Monitor" },
+  { "href": "wsl_install.html", "label": "WSL install" },
+  { "href": "traducciones.html", "label": "Traducciones" },
+  { "href": "login.html", "label": "Login" },
+  { "href": "register.html", "label": "Registro" }
+  ,{ "href": "status.html", "label": "Status" }
+  ,{ "href": "links.html", "label": "Enlaces" }
+]

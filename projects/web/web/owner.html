@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Panel Owner - DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="icon" href="/logo.svg">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="bot_settings.html">Bots</a>
+        <a href="owner.html">Owner</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Panel Owner</h1>
+    <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
+
+    <section class="card">
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end">
+        <div style="flex:1;min-width:220px">
+          <label for="apiBase">API base</label>
+          <input id="apiBase" list="apiBaseList" placeholder="http://127.0.0.1:8000" />
+          <datalist id="apiBaseList"></datalist>
+        </div>
+        <div style="flex:1;min-width:220px">
+          <label for="apiToken">Token/Bearer</label>
+          <input id="apiToken" placeholder="session token o api key" />
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button id="saveConnection" class="secondary">Guardar</button>
+          <button id="refreshAll" class="btn">Recargar datos</button>
+        </div>
+      </div>
+      <div id="connectionStatus" style="margin-top:8px;color:var(--muted);font-size:0.9rem">Sin comprobar</div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2 style="margin:0">Resumen</h2>
+        <button id="refreshOverview" class="secondary">Actualizar</button>
+      </div>
+      <div class="grid" style="margin-top:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">
+        <div class="mini-card">
+          <div class="mini-title">Estado</div>
+          <div id="statusSummary" class="mini-body">Sin datos</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-title">Bots</div>
+          <div id="botStatsSummary" class="mini-body">Sin datos</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-title">Sesiones</div>
+          <div id="sessionSummary" class="mini-body">Sin datos</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2 style="margin:0">Usuarios</h2>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="newUser" placeholder="usuario" style="width:160px" />
+          <input id="newPass" placeholder="contraseña" style="width:160px" />
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;color:var(--muted)"><input type="checkbox" id="newIsAdmin" /> Admin</label>
+          <button id="createUser" class="btn">Crear</button>
+        </div>
+      </div>
+      <div style="overflow-x:auto;margin-top:10px">
+        <table class="table">
+          <thead>
+            <tr><th>Usuario</th><th>Admin</th><th>Creado</th><th>Acciones</th></tr>
+          </thead>
+          <tbody id="usersTable"><tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin datos</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <h2 style="margin:0">Bots y dispositivos</h2>
+        <button id="refreshBots" class="secondary">Actualizar bots</button>
+      </div>
+      <div id="botsList" style="margin-top:12px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">
+        <div class="mini-body" style="color:var(--muted)">Sin datos</div>
+      </div>
+    </section>
+  </main>
+
+  <script src="owner.js"></script>
+  <script src="shared.js"></script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "y": 10,
+      "size": 36,
+      "x": 10,
+      "type": "text",
+      "text": "Prueba E2E: Hola mundo"
+    },
+    {
+      "title": "E2E",
+      "subtitle": "Stream Test",
+      "panel": "classic",
+      "type": "panel"
+    }
+  ],
+  "name": "e2e-test"
+}

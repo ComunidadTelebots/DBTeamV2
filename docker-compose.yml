@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  nginx:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - ai_server
+      - stream_server
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ai_server:
+    build: .
+    command: python3 python_api/ai_server.py
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./:/app:rw
+    working_dir: /home/appuser/app
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  stream_server:
+    build: .
+    command: python3 python_api/stream_server.py
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./:/app:rw
+    working_dir: /home/appuser/app
+    restart: always
+    environment:
+      - PYTHONUNBUFFERED=1

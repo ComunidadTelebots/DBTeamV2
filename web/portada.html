@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DBTeam — Portal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css">
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9ca3af;--accent:#06b6d4}
+    body{font-family:Inter,system-ui,Segoe UI,Arial;padding:0;margin:0;background:linear-gradient(180deg,#071126 0%, #081428 100%);color:#e6eef6}
+    .wrap{max-width:1100px;margin:28px auto;padding:24px}
+    header{display:flex;align-items:center;gap:18px}
+    .brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
+    .logo{width:56px;height:56px;border-radius:10px;background:linear-gradient(135deg,#06b6d4,#3b82f6);display:inline-block}
+    h1{margin:0;font-weight:600;font-size:28px}
+    p.lead{color:var(--muted);margin-top:6px}
+    .hero{display:flex;gap:24px;align-items:center;margin-top:20px}
+    .hero-left{flex:1}
+    .hero-right{width:320px}
+    .search-card{background:var(--card);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:20px}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(255,255,255,0.01));padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+    .card h3{margin:0 0 8px 0}
+    .card p{margin:0;color:var(--muted);font-size:0.95rem}
+    .actions{margin-top:12px;display:flex;gap:8px}
+    .btn{background:var(--accent);color:#042028;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:600}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+    footer{margin-top:28px;color:var(--muted);font-size:0.9rem}
+    .login-widget{margin-top:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <a class="brand" href="/">
+        <div class="logo" aria-hidden></div>
+        <div>
+          <h1>DBTeam</h1>
+          <div style="font-size:0.9rem;color:var(--muted)">Monitor, chat y herramientas de integración</div>
+        </div>
+      </a>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <a class="btn ghost" href="login.html">Iniciar sesión</a>
+        <a class="btn" href="register.html">Registro</a>
+      </div>
+    </header>
+
+    <section class="hero">
+      <div class="hero-left">
+        <div class="search-card">
+          <h2>Bienvenido a DBTeam</h2>
+          <p class="lead">Accede a las herramientas del proyecto: monitor en tiempo real, UI de chat, integración con Telegram y utilidades para desarrolladores.</p>
+
+          <div class="actions">
+            <a class="btn" href="chat.html">Abrir Chat</a>
+            <a class="btn ghost" href="monitor.html">Ver Monitor</a>
+            <a class="btn" href="projects/bot/python_bot/main.py">Código del bot</a>
+          </div>
+
+          <div style="margin-top:12px;color:var(--muted);font-size:0.95rem">Enlaces rápidos:</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+            <a class="btn ghost" href="telegram.html">Integración Telegram</a>
+            <a class="btn ghost" href="links.html">Enlaces</a>
+            <a class="btn ghost" href="traducciones.html">Traducciones</a>
+            <a class="btn ghost" href="status.html">Estado</a>
+            <a class="btn ghost" href="monitor.html#stats">API /stats</a>
+          </div>
+        </div>
+      </div>
+
+      <aside class="hero-right">
+        <div class="card">
+          <h3>Acceso rápido</h3>
+          <p class="muted">Login Telegram o acceso tradicional</p>
+          <div class="login-widget">
+            <!-- Telegram login widget (replace YOUR_BOT_USERNAME) -->
+            <script async src="https://telegram.org/js/telegram-widget.js?15" data-telegram-login="YOUR_BOT_USERNAME" data-size="large" data-userpic="false" data-request-access="write"></script>
+          </div>
+          <div style="margin-top:10px">
+            <a class="btn" href="login.html">Iniciar sesión (form)</a>
+            <a class="btn ghost" href="register.html">Crear cuenta</a>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:12px">
+          <h3>Herramientas</h3>
+          <p>Paneles y utilidades para desarrolladores y administradores.</p>
+          <div style="margin-top:10px;display:flex;flex-direction:column;gap:8px">
+            <a class="btn ghost" href="monitor.html">Monitor /stats</a>
+            <a class="btn ghost" href="projects/web/web/miniapp_webapp.html">Mini WebApp</a>
+            <a class="btn ghost" href="tools/bot_control.ps1">PowerShell Control</a>
+            <a class="btn ghost" href="multimedia.html">Multimedia</a>
+          </div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="grid" aria-label="Secciones">
+      <div class="card">
+        <h3>Chat UI</h3>
+        <p>Interfaz web para probar envíos y recepción. Útil para demos y pruebas locales.</p>
+        <div style="margin-top:10px"><a class="btn" href="chat.html">Abrir</a></div>
+      </div>
+
+      <div class="card">
+        <h3>Monitor</h3>
+        <p>Ver estadísticas del bot, mensajes y estado de colas.</p>
+        <div style="margin-top:10px"><a class="btn" href="monitor.html">Abrir</a></div>
+      </div>
+
+      <div class="card">
+        <h3>Documentación</h3>
+        <p>Guías del proyecto, scripts y herramientas auxiliares.</p>
+        <div style="margin-top:10px"><a class="btn" href="README.md">Repo README</a></div>
+      </div>
+
+      <div class="card">
+        <h3>Traducciones</h3>
+        <p>Archivos de idioma y utilidades para internacionalización.</p>
+        <div style="margin-top:10px"><a class="btn" href="traducciones.html">Abrir</a></div>
+      </div>
+    </section>
+
+    <footer>
+      <small>DBTeam — Proyecto de integración. Servir `projects/web/web` en el puerto 8000 para probar localmente.</small>
+    </footer>
+  </div>
+  <div style="position:fixed;right:18px;bottom:18px;max-width:320px;text-align:right;color:#9ca3af">
+    <div id="onionInfo"></div>
+  </div>
+  <script>
+    (function(){
+      const apiKey = localStorage.getItem('apiKey') || '';
+      const headers = apiKey ? { 'Authorization': 'Bearer ' + apiKey } : {};
+      fetch((location.protocol+'//127.0.0.1:8081') + '/stats', { headers }).then(r=>r.json()).then(j=>{
+        if (j && (j.webapp_onion || j.webapp_url)){
+          const el = document.getElementById('onionInfo');
+          let html = '';
+          if (j.webapp_onion) html += `<div><strong>Onion:</strong> ${j.webapp_onion}</div>`;
+          if (j.webapp_url) html += `<div><strong>Web:</strong> <a href="${j.webapp_url}" style="color:#9ca3af">${j.webapp_url}</a></div>`;
+          el.innerHTML = html;
+        }
+      }).catch(()=>{})
+    })();
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>

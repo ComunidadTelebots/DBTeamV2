@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Incrustar enlaces</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>textarea{width:100%;height:80px}</style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+  <h1>Incrustar lista de enlaces</h1>
+  <p>Puedes incrustar la lista de páginas desde este sitio en otra web usando un <code>iframe</code>. Copia el código siguiente y pégalo en la otra web:</p>
+  <textarea id="embedCode" readonly></textarea>
+  <p>Vista previa:</p>
+  <iframe id="preview" src="/links_widget.html" style="width:100%;height:300px;border:1px solid #ccc"></iframe>
+
+  </main>
+
+  <script>
+    const host = location.origin;
+    const widget = host + '/links_widget.html';
+    const code = `<iframe src="${widget}" width="800" height="600" style="border:0"></iframe>`;
+    document.getElementById('embedCode').value = code;
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>

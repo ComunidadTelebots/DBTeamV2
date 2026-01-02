@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>DBTeam — Telegram UI</title>
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    .tg-app{display:flex;gap:12px;height:80vh}
+    .tg-left{width:320px;background:var(--card);padding:12px;border-radius:8px;overflow:auto}
+    .tg-right{flex:1;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;display:flex;flex-direction:column}
+    .tg-app{position:relative}
+    .locked-overlay{position:absolute;right:12px;top:64px;bottom:12px;left:340px;background:linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.2));backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:40;border-radius:8px;pointer-events:auto}
+    .locked-overlay.hidden{display:none}
+    .locked-box{background:var(--card);padding:18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.5);min-width:320px;text-align:center}
+    .chat-item{display:flex;gap:8px;align-items:center;padding:8px;border-radius:8px;margin-bottom:6px;cursor:pointer}
+    .chat-item:hover{background:rgba(255,255,255,0.01)}
+    .chat-avatar{width:40px;height:40px;border-radius:50%;background:#ddd;display:inline-block;flex:0 0 40px}
+    .chat-meta{flex:1;min-width:0}
+    .chat-title{font-weight:600}
+    .chat-sub{font-size:0.85rem;color:var(--muted)}
+    .messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+    .composer{display:flex;gap:8px;padding-top:8px}
+    .composer textarea{flex:1}
+    .composer.hidden{display:none !important}
+    /* full page lock overlay */
+    .full-lock-overlay{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;pointer-events:auto}
+    .full-lock-overlay.hidden{display:none}
+    .full-lock-box{background:var(--card);padding:20px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);min-width:320px;text-align:center}
+    /* message bubbles */
+    /* message bubbles: use site-wide variables from shared.css */
+    .msg-row{display:flex}
+    .msg-row.me{justify-content:flex-end}
+    .msg-row.other{justify-content:flex-start}
+    .msg-bubble{max-width:66%;padding:10px;border-radius:12px;background:var(--bubble-other-bg);box-shadow:0 1px 0 rgba(0,0,0,0.06);color:var(--bubble-other-text)}
+    .msg-bubble.me{background:var(--bubble-me-bg);color:var(--bubble-me-text);border-bottom-right-radius:6px}
+    .msg-bubble.other{background:var(--bubble-other-bg);color:var(--bubble-other-text);border-bottom-left-radius:6px}
+    .msg-meta{font-size:0.75rem;color:var(--muted);margin-top:6px;text-align:right}
+    .msg-avatar{width:28px;height:28px;border-radius:50%;background:#ccc;margin-right:8px}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram UI</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+          <div>
+            <button id="btnRefresh" class="btn ghost">Refrescar</button>
+          </div>
+  </header>
+
+  <main class="container">
+    <h1 class="page-title">Telegram-like interface (scaffold)</h1>
+    <div class="tg-app">
+      <aside class="tg-left" id="chats">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div>
+            <strong>Chats</strong>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="apiKey" placeholder="App API key (WEB_API_KEY)" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);width:220px" />
+            <button id="saveKey" class="btn ghost">Guardar</button>
+            <input id="botToken" placeholder="Bot token (123456:ABC...)" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);width:240px" />
+            <label style="display:flex;align-items:center;gap:6px"><input id="rememberBot" type="checkbox"/> Recordar</label>
+            <button id="saveBotServer" class="btn ghost">Guardar en servidor</button>
+            <select id="sendVia" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
+              <option value="tdlib">Enviar vía TDLib</option>
+              <option value="bot">Enviar vía Bot API</option>
+            </select>
+            <button id="btnConnect" class="btn">Conectar</button>
+          </div>
+        </div>
+        <div id="loginPanel" style="margin-bottom:8px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01)">
+          <div style="margin-bottom:6px"><strong>Iniciar sesión de Telegram</strong></div>
+          <!-- Telegram login widget -->
+          <div style="margin-bottom:8px">
+            <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="cintiaandrea_bot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:6px">
+            <select id="countryPrefix" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
+              <option value="+34">🇪🇸 +34</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+52">🇲🇽 +52</option>
+              <option value="+54">🇦🇷 +54</option>
+              <option value="+57">🇨🇴 +57</option>
+              <option value="+55">🇧🇷 +55</option>
+              <option value="+33">🇫🇷 +33</option>
+              <option value="+49">🇩🇪 +49</option>
+              <option value="+39">🇮🇹 +39</option>
+              <option value="+20">🇪🇬 +20</option>
+              <option value="+91">🇮🇳 +91</option>
+              <option value="+7">🇷🇺 +7</option>
+              <option value="+81">🇯🇵 +81</option>
+            </select>
+            <input id="authPhone" placeholder="612345678" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)" />
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
+            <button id="authStart" class="btn ghost">Enviar código</button>
+            <input id="authCode" placeholder="Código" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)" />
+            <button id="authCheck" class="btn ghost">Verificar</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <input id="authPwd" type="password" placeholder="Contraseña (si aplica)" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);display:none" />
+          </div>
+          <div id="authStatus" class="site-brand-sub" style="font-size:0.85rem">Estado: no iniciado</div>
+        </div>
+        <div id="chatList">Cargando...</div>
+      </aside>
+
+      <section class="tg-right">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong id="chatTitle">Selecciona un chat</strong><div id="chatSubtitle" class="site-brand-sub"></div></div>
+          <div>
+            <button id="btnRefresh" class="btn ghost">Refrescar</button>
+          </div>
+        </div>
+        <div class="messages" id="messages">(mensajes)</div>
+        <div class="composer">
+            <button id="attachBtn" class="btn ghost">Adjuntar</button>
+            <input id="attachFile" type="file" accept=".tdesktop-theme,.torrent,image/*,application/json" style="display:none" />
+          <div id="attachPreview" style="display:flex;align-items:center;gap:8px;margin-right:8px"></div>
+          <textarea id="msgText" rows="3" placeholder="Escribe un mensaje..."></textarea>
+          <button id="sendMsg" class="btn">Enviar</button>
+        </div>
+        <div id="writeLockedOverlay" class="locked-overlay">
+          <div class="locked-box">
+            <h3>Inicia sesión para escribir</h3>
+            <p class="site-brand-sub">El panel de escritura está bloqueado hasta que te conectes con Telegram.</p>
+            <div style="margin-top:12px"><button id="focusLogin" class="btn">Ir a iniciar sesión</button></div>
+          </div>
+        </div>
+        
+      </section>
+    </div>
+  </main>
+
+  <script src="shared.js"></script>
+  <div id="fullLockOverlay" class="full-lock-overlay">
+    <div class="full-lock-box">
+      <h2>Acceso restringido</h2>
+      <p class="site-brand-sub">Inicia sesión con Telegram para usar la aplicación.</p>
+      <div style="margin-top:8px;text-align:left">
+        <!-- Telegram login widget (full overlay) -->
+        <div style="margin-bottom:8px">
+          <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="cintiaandrea_bot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
+        </div>
+        <label style="display:block;margin-bottom:6px">Teléfono</label>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <select id="countryPrefixFull" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)">
+            <option value="+34">🇪🇸 +34</option>
+            <option value="+1">🇺🇸 +1</option>
+            <option value="+44">🇬🇧 +44</option>
+            <option value="+52">🇲🇽 +52</option>
+            <option value="+54">🇦🇷 +54</option>
+            <option value="+57">🇨🇴 +57</option>
+            <option value="+55">🇧🇷 +55</option>
+            <option value="+33">🇫🇷 +33</option>
+            <option value="+49">🇩🇪 +49</option>
+            <option value="+39">🇮🇹 +39</option>
+            <option value="+91">🇮🇳 +91</option>
+          </select>
+          <input id="authPhoneFull" placeholder="612345678" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+          <button id="authStartFull" class="btn ghost">Enviar código</button>
+          <input id="authCodeFull" placeholder="Código" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+          <button id="authCheckFull" class="btn ghost">Verificar</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <input id="authPwdFull" type="password" placeholder="Contraseña (si aplica)" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);display:none" />
+        </div>
+        <div id="authStatusFull" class="site-brand-sub" style="font-size:0.9rem">Estado: no iniciado</div>
+      </div>
+    </div>
+  </div>
+  <script src="telegram.js"></script>
+</body>
+</html>

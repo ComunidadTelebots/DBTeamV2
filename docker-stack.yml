@@ -1,0 +1,34 @@
+version: '3.8'
+  nginx:
+    image: dbteamv2-nginx:alfa
+    ports:
+      - "80:80"
+    depends_on:
+      - ai_server
+      - stream_server
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      restart_policy:
+        condition: on-failure
+
+  ai_server:
+    image: dbteamv2:alfa
+    command: python3 python_api/ai_server.py
+    ports:
+      - "8081:8081"
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+
+  stream_server:
+    image: dbteamv2:alfa
+    command: python3 python_api/stream_server.py
+    ports:
+      - "8082:8082"
+    deploy:
+      replicas: 2
+      restart_policy:
+        condition: on-failure

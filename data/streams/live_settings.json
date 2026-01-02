@@ -1,0 +1,6 @@
+{
+  "title": "Prueba Stream",
+  "description": "Prueba desde UI",
+  "target": "rtmp://live/mi_key",
+  "platform": "rtmp"
+}

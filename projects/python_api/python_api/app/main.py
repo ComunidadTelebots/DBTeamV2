@@ -26,6 +26,8 @@ import hmac as _hmaclib
 import re
 import socket
 import threading
+import ipaddress
+import math
 # Load configuration from a local `config.py` if present; otherwise fall back to env vars
 try:
     from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
@@ -264,16 +266,92 @@ def decrypt_value(cipher: str) -> str:
     except Exception:
         return None
 
+# --- API key helpers for bot/client control ---
+API_KEYS_HASH = 'bot:api_keys'
+BANS_SET = 'security:bans'
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+    return salt.hex() + ':' + dk.hex()
+
+def _is_api_key(token: str) -> bool:
+    if not token:
+        return False
+    # direct WEB_API_KEY match first
+    if WEB_API_KEY and token == WEB_API_KEY:
+        return True
+    try:
+        val = r.hget(API_KEYS_HASH, token)
+        return val is not None
+    except Exception:
+        return False
+
+def _ban_list() -> list:
+    try:
+        raw = r.smembers(BANS_SET) or []
+        out = []
+        for x in raw:
+            try:
+                out.append(x.decode() if isinstance(x, bytes) else str(x))
+            except Exception:
+                continue
+        return sorted(out)
+    except Exception:
+        return []
+
+def _is_banned(value: str) -> bool:
+    if not value:
+        return False
+    try:
+        return r.sismember(BANS_SET, value)
+    except Exception:
+        return False
+
+def _add_ban(value: str):
+    if not value:
+        return
+    r.sadd(BANS_SET, value)
+
+def _remove_ban(value: str):
+    if not value:
+        return
+    r.srem(BANS_SET, value)
+
+
+def geolocate_ip(ip: str) -> Optional[dict]:
+    if not ip:
+        return None
+    try:
+        resp = requests.get(f'https://ipapi.co/{ip}/json/', timeout=1.2)
+        if not resp.ok:
+            return None
+        data = resp.json()
+        return {
+            'ip': ip,
+            'city': data.get('city'),
+            'country': data.get('country_name') or data.get('country'),
+            'lat': data.get('latitude'),
+            'lon': data.get('longitude'),
+            'org': data.get('org')
+        }
+    except Exception:
+        return None
+
 def check_auth(request: Request) -> bool:
-    if not WEB_API_KEY:
+    try:
+        have_custom_keys = r.hlen(API_KEYS_HASH) > 0
+    except Exception:
+        have_custom_keys = False
+    if not WEB_API_KEY and not have_custom_keys:
         return True
     auth = request.headers.get('authorization')
     xapi = request.headers.get('x-api-key')
-    if xapi and xapi == WEB_API_KEY:
+    if xapi and _is_api_key(xapi):
         return True
     if auth and auth.lower().startswith('bearer '):
         token = auth.split(None, 1)[1]
-        if token == WEB_API_KEY:
+        if _is_api_key(token):
             return True
         # check session
         v = r.get(f'web:session:{token}')
@@ -302,6 +380,46 @@ def get_session_from_request(request: Request) -> Optional[dict]:
                 except Exception:
                     return None
     return None
+
+def _sanitize_user_records() -> list:
+    out = []
+    try:
+        for k in r.scan_iter(match='web:user:*'):
+            name = k.decode() if isinstance(k, bytes) else k
+            username = name.split(':', 2)[-1]
+            rec = r.get(k)
+            if not rec:
+                continue
+            try:
+                obj = json.loads(rec.decode() if isinstance(rec, bytes) else rec)
+            except Exception:
+                obj = {}
+            out.append({
+                'user': username,
+                'is_admin': bool(obj.get('is_admin')),
+                'created_at': obj.get('created_at')
+            })
+    except Exception:
+        return []
+    return sorted(out, key=lambda x: x.get('user') or '')
+
+def _delete_user_sessions(username: str):
+    try:
+        for key in r.scan_iter(match='web:session:*'):
+            try:
+                v = r.get(key)
+                if not v:
+                    continue
+                dec = decrypt_value(v.decode() if isinstance(v, bytes) else v)
+                if not dec:
+                    continue
+                obj = json.loads(dec)
+                if obj.get('user') == username:
+                    r.delete(key)
+            except Exception:
+                continue
+    except Exception:
+        pass
 
 
 # Static files mount moved to the end of this file to avoid shadowing API routes.
@@ -431,6 +549,120 @@ def processes_restart(payload: dict, request: Request):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# --- API keys management for bot/client control ---
+@app.post('/bot/api-keys')
+def create_api_key(payload: Optional[dict] = None, request: Request = None):
+    """Generate and store a new API key for bot/control clients.
+    Payload optional: { name: 'client-1' }
+    Requires admin privileges.
+    """
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    name = (payload or {}).get('name') or 'client'
+    key = secrets.token_hex(32)
+    meta = { 'name': name, 'created_at': int(time.time()) }
+    try:
+        r.hset(API_KEYS_HASH, key, json.dumps(meta))
+    except Exception:
+        raise HTTPException(status_code=500, detail='failed to store api key')
+    return { 'status': 'created', 'key': key, 'meta': meta }
+
+
+@app.get('/security/bans')
+def list_bans(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    return { 'bans': _ban_list() }
+
+
+@app.post('/security/bans')
+def add_ban(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    val = payload.get('value') if payload else None
+    if not val:
+        raise HTTPException(status_code=400, detail='value required')
+    _add_ban(str(val))
+    return { 'status': 'added', 'value': str(val) }
+
+
+@app.delete('/security/bans/{value}')
+def delete_ban(value: str, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    _remove_ban(value)
+    return { 'status': 'removed', 'value': value }
+
+
+@app.get('/geo/summary')
+def geo_summary(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    bots = []
+    users = []
+    try:
+        for k in r.scan_iter(match='geo:bot:*'):
+            name = k.decode() if isinstance(k, bytes) else k
+            data = r.hgetall(name) or {}
+            obj = { 'id': name.split(':',2)[-1] }
+            for dk, dv in data.items():
+                key = dk.decode() if isinstance(dk, bytes) else dk
+                val = dv.decode() if isinstance(dv, bytes) else dv
+                obj[key] = val
+            bots.append(obj)
+    except Exception:
+        bots = []
+    try:
+        for k in r.scan_iter(match='geo:user:*'):
+            name = k.decode() if isinstance(k, bytes) else k
+            data = r.hgetall(name) or {}
+            obj = { 'user': name.split(':',2)[-1] }
+            for dk, dv in data.items():
+                key = dk.decode() if isinstance(dk, bytes) else dk
+                val = dv.decode() if isinstance(dv, bytes) else dv
+                obj[key] = val
+            users.append(obj)
+    except Exception:
+        users = []
+    return { 'bots': bots, 'users': users }
+
+
+@app.get('/bot/api-keys')
+def list_api_keys(request: Request):
+    """List stored API keys (hash bot:api_keys). Requires admin."""
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    out = []
+    try:
+        data = r.hgetall(API_KEYS_HASH) or {}
+        for k, v in data.items():
+            key = k.decode() if isinstance(k, bytes) else k
+            try:
+                meta = json.loads(v.decode() if isinstance(v, bytes) else v)
+            except Exception:
+                meta = None
+            out.append({ 'key': key, 'meta': meta })
+    except Exception:
+        out = []
+    return { 'keys': out }
+
+
+@app.delete('/bot/api-keys/{token}')
+def delete_api_key(token: str, request: Request):
+    """Revoke a specific API key. Requires admin."""
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    try:
+        removed = r.hdel(API_KEYS_HASH, token)
+        if not removed:
+            raise HTTPException(status_code=404, detail='not found')
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail='delete failed')
+    return { 'status': 'deleted', 'key': token }
+
+
 @app.post('/processes/start')
 def processes_start(payload: dict, request: Request):
     """Start a named process. Payload: { name: 'python_bot' }
@@ -493,6 +725,62 @@ def get_devices(request: Request):
         except Exception:
             continue
     return out
+
+
+@app.get('/discover/lan')
+def discover_lan(request: Request, subnet: str = '192.168.1.0/24', ports: str = '8000', limit: int = 64):
+    """Scan a small LAN range for DBTeam web/status endpoints.
+
+    Query params:
+    - subnet: CIDR, default 192.168.1.0/24
+    - ports: comma-separated ports, default 8000
+    - limit: max hosts to scan from the subnet hosts list (to keep it fast)
+    """
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+
+    try:
+        net = ipaddress.ip_network(subnet, strict=False)
+    except Exception:
+        raise HTTPException(status_code=400, detail='invalid subnet')
+
+    try:
+        port_list = [int(p) for p in ports.split(',') if p.strip()]
+        port_list = [p for p in port_list if p > 0 and p < 65536]
+    except Exception:
+        raise HTTPException(status_code=400, detail='invalid ports')
+    if not port_list:
+        raise HTTPException(status_code=400, detail='no ports provided')
+
+    hosts = list(net.hosts())
+    if limit and limit > 0:
+        hosts = hosts[:limit]
+
+    found = []
+    for h in hosts:
+        for p in port_list:
+            url = f'http://{h}:{p}/status'
+            try:
+                resp = requests.get(url, timeout=0.6)
+                if not resp.ok:
+                    continue
+                data = None
+                try:
+                    data = resp.json()
+                except Exception:
+                    data = None
+                entry = {
+                    'host': str(h),
+                    'port': p,
+                    'url': url,
+                    'status': data.get('status') if isinstance(data, dict) else None,
+                    'pages': data.get('pages') if isinstance(data, dict) else None,
+                }
+                found.append(entry)
+            except Exception:
+                continue
+
+    return { 'found': found, 'count': len(found) }
 
 
 @app.get('/bot/stats')
@@ -625,10 +913,79 @@ def add_device(payload: dict, request: Request):
         raise HTTPException(status_code=401, detail='unauthorized')
     if not payload or not payload.get('id') or not payload.get('token'):
         raise HTTPException(status_code=400, detail='invalid payload, require id and token')
+    if _is_banned(str(payload.get('id'))):
+        raise HTTPException(status_code=403, detail='device id banned')
     enc = encrypt_value(payload.get('token'))
     obj = { 'id': payload.get('id'), 'name': payload.get('name') or payload.get('id'), 'token': enc }
     r.rpush('web:devices', json.dumps(obj))
     return { 'status': 'added' }
+
+
+@app.post('/bot/announce')
+def bot_announce(payload: dict, request: Request):
+    """Endpoint para que un bot se auto-registre/sincronice.
+    Requiere API key o sesión válida (check_auth). Payload mínimo: { id, token }.
+    Campos opcionales: name, host, port, status_url.
+    """
+    if not check_auth(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('id') or not payload.get('token'):
+        raise HTTPException(status_code=400, detail='id y token requeridos')
+
+    dev_id = str(payload.get('id'))
+    if _is_banned(dev_id) or _is_banned(str(payload.get('host') or '')):
+        raise HTTPException(status_code=403, detail='banned bot or host')
+    name = payload.get('name') or dev_id
+    enc = encrypt_value(payload.get('token'))
+    meta = {
+        'id': dev_id,
+        'name': name,
+        'token': enc,
+        'host': payload.get('host'),
+        'port': payload.get('port'),
+        'status_url': payload.get('status_url'),
+        'updated_at': int(time.time())
+    }
+
+    # geolocate client IP and store
+    try:
+        ip = request.client.host if request and request.client else None
+        if ip and not ip.startswith('127.'):
+            geo = geolocate_ip(ip)
+            if geo:
+                r.hset(f'geo:bot:{dev_id}', mapping={
+                    'ip': geo.get('ip') or ip,
+                    'city': geo.get('city') or '',
+                    'country': geo.get('country') or '',
+                    'lat': geo.get('lat') or '',
+                    'lon': geo.get('lon') or '',
+                    'org': geo.get('org') or '',
+                    'ts': int(time.time())
+                })
+    except Exception:
+        pass
+
+    try:
+        items = r.lrange('web:devices', 0, -1) or []
+        kept = []
+        for it in items:
+            try:
+                obj = json.loads(it.decode() if isinstance(it, bytes) else it)
+                if obj.get('id') == dev_id:
+                    continue  # replace existing
+                kept.append(obj)
+            except Exception:
+                continue
+        kept.append(meta)
+        pipe = r.pipeline()
+        pipe.delete('web:devices')
+        for k in kept:
+            pipe.rpush('web:devices', json.dumps(k))
+        pipe.execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail='store error: '+str(e))
+
+    return { 'status': 'ok', 'id': dev_id, 'name': name }
 
 
 @app.delete('/devices/{device_id}')
@@ -1109,7 +1466,7 @@ def auth(payload: dict):
 
 
 @app.post('/auth/login')
-def auth_login(payload: dict):
+def auth_login(payload: dict, request: Request):
     """Simple login endpoint for the web UI.
     Accepts either { "api_key": "..." } or { "user": "...", "pass": "..." }.
     If the provided api_key or pass equals `WEB_API_KEY` the request is accepted and
@@ -1156,6 +1513,23 @@ def auth_login(payload: dict):
                 sess = { 'user': user, 'is_admin': bool(obj.get('is_admin')) }
                 enc = encrypt_value(json.dumps(sess))
                 r.setex(f'web:session:{token}', 3600, enc)
+                # geolocate login IP
+                try:
+                    ip = request.client.host if request and request.client else None
+                    if ip and not str(ip).startswith('127.'):
+                        geo = geolocate_ip(str(ip))
+                        if geo:
+                            r.hset(f'geo:user:{user}', mapping={
+                                'ip': geo.get('ip') or str(ip),
+                                'city': geo.get('city') or '',
+                                'country': geo.get('country') or '',
+                                'lat': geo.get('lat') or '',
+                                'lon': geo.get('lon') or '',
+                                'org': geo.get('org') or '',
+                                'ts': int(time.time())
+                            })
+                except Exception:
+                    pass
                 return { 'token': token, 'ttl': 3600 }
             else:
                 raise HTTPException(status_code=401, detail='invalid credentials')
@@ -1185,15 +1559,103 @@ def auth_register(payload: dict):
     if r.exists(user_key):
         raise HTTPException(status_code=409, detail='user exists')
 
-    def _hash_password(password: str) -> str:
-        salt = secrets.token_bytes(16)
-        dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
-        return salt.hex() + ':' + dk.hex()
-
     hashed = _hash_password(passwd)
     obj = { 'pw': hashed, 'created_at': int(time.time()), 'is_admin': bool(payload.get('is_admin', False)) }
     r.set(user_key, json.dumps(obj))
     return { 'status': 'created', 'user': user }
+
+
+# --- Admin: user management ---
+@app.get('/admin/users')
+def admin_list_users(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    return { 'users': _sanitize_user_records() }
+
+
+@app.post('/admin/users')
+def admin_create_user(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('user') or not payload.get('pass'):
+        raise HTTPException(status_code=400, detail='user and pass required')
+    user = payload.get('user')
+    passwd = payload.get('pass')
+    user_key = f'web:user:{user}'
+    if r.exists(user_key):
+        raise HTTPException(status_code=409, detail='user exists')
+    hashed = _hash_password(passwd)
+    obj = { 'pw': hashed, 'created_at': int(time.time()), 'is_admin': bool(payload.get('is_admin', False)) }
+    try:
+        r.set(user_key, json.dumps(obj))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return { 'status': 'created', 'user': user }
+
+
+@app.post('/admin/users/reset')
+def admin_reset_user(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    if not payload or not payload.get('user') or not payload.get('pass'):
+        raise HTTPException(status_code=400, detail='user and pass required')
+    user = payload.get('user')
+    passwd = payload.get('pass')
+    user_key = f'web:user:{user}'
+    stored = r.get(user_key)
+    if not stored:
+        raise HTTPException(status_code=404, detail='user not found')
+    try:
+        obj = json.loads(stored.decode() if isinstance(stored, bytes) else stored)
+    except Exception:
+        obj = {}
+    obj['pw'] = _hash_password(passwd)
+    if 'is_admin' in payload:
+        obj['is_admin'] = bool(payload.get('is_admin'))
+    r.set(user_key, json.dumps(obj))
+    _delete_user_sessions(user)
+    return { 'status': 'reset', 'user': user }
+
+
+@app.delete('/admin/users/{username}')
+def admin_delete_user(username: str, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    key = f'web:user:{username}'
+    if not r.exists(key):
+        raise HTTPException(status_code=404, detail='user not found')
+    try:
+        r.delete(key)
+        _delete_user_sessions(username)
+        return { 'status': 'deleted', 'user': username }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get('/admin/overview')
+def admin_overview(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=401, detail='unauthorized')
+    out = {}
+    try:
+        out['users'] = _sanitize_user_records()
+    except Exception as e:
+        out['users_error'] = str(e)
+    try:
+        out['status'] = status_info(request)
+    except Exception as e:
+        out['status_error'] = str(e)
+    try:
+        out['bot_stats'] = bot_stats(request)
+    except Exception as e:
+        out['bot_stats_error'] = str(e)
+    try:
+        out['bot_accounts'] = bot_accounts(request)
+    except Exception as e:
+        out['bot_accounts_error'] = str(e)
+    return out
 
 
 @app.get('/settings/backup')
@@ -1504,6 +1966,9 @@ def status_info(request: Request):
         {'path': '/status', 'method': 'GET', 'desc': 'Server status, uptime, redis and pages'},
         {'path': '/auth/register', 'method': 'POST', 'desc': 'Register a new user (user, pass) stored in Redis'},
         {'path': '/auth/login', 'method': 'POST', 'desc': 'Login using api_key or user/pass, returns session token'},
+        {'path': '/admin/users', 'method': 'GET/POST/DELETE', 'desc': 'List, create or delete users (admin)'},
+        {'path': '/admin/users/reset', 'method': 'POST', 'desc': 'Reset password or role for a user (admin)'},
+        {'path': '/admin/overview', 'method': 'GET', 'desc': 'Combined status, bots and users (admin)'},
         {'path': '/translations/suggest', 'method': 'POST', 'desc': 'Submit a translation suggestion'},
         {'path': '/translations/suggestions', 'method': 'GET', 'desc': 'List pending translation suggestions (admin)'},
         {'path': '/translations/apply', 'method': 'POST', 'desc': 'Apply a suggestion to i18n files (admin)'}

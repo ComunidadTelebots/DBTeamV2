@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Chat — DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <link rel="icon" href="/logo.svg">
+  <style>
+    .chat-wrap{display:flex;gap:16px}
+    .chat-list{width:320px;max-height:70vh;overflow:auto;padding:8px;background:var(--card);border-radius:8px}
+    .chat-window{flex:1;display:flex;flex-direction:column;max-height:70vh}
+    .messages{flex:1;overflow:auto;padding:12px;background:rgba(0,0,0,0.03);border-radius:8px}
+    .msg{margin-bottom:10px;padding:8px;border-radius:8px}
+    .msg.me{background:linear-gradient(90deg,var(--accent),var(--accent-2));color:#022;text-align:right}
+    .msg.other{background:rgba(255,255,255,0.02);color:var(--text)}
+    .composer{display:flex;gap:8px;margin-top:8px}
+    .composer textarea{flex:1}
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <a href="login.html" class="btn">Login</a>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Chat UI</h1>
+    <p class="hint">Conecta a la API, elige chat_id y envía/recibe mensajes en tiempo real (polling).</p>
+
+    <!-- Recursos desplegable debajo del encabezado de Chat UI -->
+    <div class="chat-resources">
+      <button id="toggleChatResources" class="secondary" style="margin-bottom:8px">Recursos</button>
+      <button id="btnSettings" class="secondary" style="margin-left:8px;margin-bottom:8px">Ajustes</button>
+      <div id="chatResources" style="display:none;padding:8px;background:rgba(255,255,255,0.01);border-radius:8px;border:1px solid rgba(255,255,255,0.02);margin-bottom:12px"></div>
+    </div>
+
+    <label for="apiBaseChat">API base:</label>
+    <input id="apiBaseChat" type="text" value="http://localhost:8081" />
+
+    <label for="apiKeyChat">API Key:</label>
+    <input id="apiKeyChat" type="text" placeholder="Token o API key" />
+
+    <div class="chat-wrap">
+      <div class="chat-list">
+        <label for="chatSelector">Chats recientes</label>
+        <select id="chatSelector" size="10" style="width:100%"></select>
+        <div style="margin-top:8px;">
+          <button id="refreshChats">Refrescar</button>
+        </div>
+      </div>
+
+      <div class="chat-window">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+          <label for="chatIdInput">Chat ID:</label>
+          <input id="chatIdInput" type="text" style="width:200px" />
+          <label for="sendAsChat">Enviar como:</label>
+          <select id="sendAsChat"><option value="user">Usuario</option><option value="bot">Bot</option><option value="ai">IA</option></select>
+          <label for="deviceSelectChat">Device:</label>
+          <select id="deviceSelectChat"><option value="">(usar BOT_TOKEN)</option></select>
+        </div>
+
+        <div class="messages" id="messages"></div>
+
+        <div class="composer">
+          <textarea id="compose" rows="3" placeholder="Escribe tu mensaje..."></textarea>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <button id="sendMessage">Enviar</button>
+            <button id="clearChat" class="secondary">Limpiar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      <small class="hint">Nota: el chat usa polling cada 1.5s para actualizar mensajes.</small>
+    </footer>
+  </main>
+  <script src="chat.js"></script>
+  <script src="chat_ai.js"></script>
+  <!-- Settings modal -->
+  <div id="settingsPanel" class="full-lock-overlay hidden" aria-hidden="true">
+    <div class="full-lock-box" style="max-width:760px;text-align:left">
+      <h2>Ajustes del bot</h2>
+      <p class="site-brand-sub">Gestiona roles y revisa las funciones implementadas.</p>
+      <div style="margin-top:12px">
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <button id="tabRoles" class="btn">Roles</button>
+          <button id="tabExplain" class="btn ghost">Explicación</button>
+        </div>
+        <div id="rolesContent">
+          <div style="display:flex;gap:12px">
+            <div style="flex:1">
+              <label>Propietario (user id o @username)</label>
+              <input id="ownerInput" style="width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" placeholder="ej. @andrea7221 o 123456789" />
+              <div style="margin-top:8px">
+                <label>Admins (separados por comas)</label>
+                <input id="adminsInput" style="width:100%;padding:8px;margin-top:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" placeholder="admin1,admin2,@user" />
+              </div>
+              <div style="margin-top:10px;display:flex;gap:8px">
+                <button id="saveRolesBtn" class="btn">Guardar roles</button>
+                <button id="clearRolesBtn" class="btn ghost">Borrar</button>
+              </div>
+            </div>
+            <div style="flex:1">
+              <label>Funciones implementadas</label>
+              <div id="featuresList" style="margin-top:6px;background:var(--card);padding:8px;border-radius:8px;max-height:260px;overflow:auto"></div>
+              <div style="margin-top:12px">
+                <label>Verificar Bot y sincronizar</label>
+                <form id="verifyTokenForm" style="margin-top:6px;display:flex;flex-direction:column;gap:6px">
+                  <input id="verifyTokenInput" placeholder="Bot token (ej: 123:ABC...)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <input id="verifyDeviceId" placeholder="Device id (opcional)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <input id="verifyDeviceName" placeholder="Nombre (opcional)" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+                  <div style="display:flex;gap:8px">
+                    <button type="submit" class="btn">Verificar y sincronizar</button>
+                    <button type="button" id="importDataBtn" class="btn ghost">Importar datos</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="explainContent" style="display:none;margin-top:8px">
+          <h3>Explicación de las funciones</h3>
+          <p class="site-brand-sub">En esta pestaña se muestran las funciones implementadas y al activarla el panel de chat se ocultará para centrar la vista en la documentación/controles.</p>
+          <h4 style="margin-top:12px">Comandos básicos</h4>
+          <div id="commandsList" style="margin-top:6px;background:var(--card);padding:10px;border-radius:8px;max-height:160px;overflow:auto"></div>
+          <div id="explainList" style="margin-top:8px;background:var(--card);padding:10px;border-radius:8px;max-height:260px;overflow:auto"></div>
+          <div style="margin-top:10px">
+            <button id="restoreChatBtn" class="btn ghost">Mostrar panel de chat</button>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:12px;text-align:right">
+        <button id="closeSettings" class="btn ghost">Cerrar</button>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+  <script src="shared.js"></script>
+
+  <!-- Bubble side panel (shared) -->
+  <aside class="bubble-panel" id="bubblePanel" aria-hidden="true">
+    <button class="bubble-toggle" id="bubbleToggle" aria-label="Abrir panel">
+      <img src="logo.svg" alt="logo" class="bubble-logo"/>
+    </button>
+    <div class="bubble-body" id="bubbleBody">
+      <div class="bubble-header">
+        <div class="bubble-title">DBTeam</div>
+        <button id="bubbleClose" class="bubble-close" aria-label="Cerrar">✕</button>
+      </div>
+      <nav class="bubble-nav">
+        <a href="chat.html">Chat</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="#" id="linkSettings">Ajustes</a>
+        <a href="#" id="linkAI">IA (endpoint)</a>
+        <a href="#" id="linkDevices">Dispositivos</a>
+        <a href="#" id="linkBackup">Backup/Restore</a>
+      </nav>
+      <div id="bubbleResources" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.02)"></div>
+      <div class="bubble-footer">
+        <button id="logoutBtn" class="secondary">Salir</button>
+      </div>
+    </div>
+  </aside>
+</body>
+</html>

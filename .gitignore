@@ -82,3 +82,4 @@ pids/
 # Large generated indexes and model artifacts
 projects/bot/python_bot/data/ai_index.pkl
 *.pkl
+models/

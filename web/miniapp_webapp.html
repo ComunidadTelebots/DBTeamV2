@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MiniApp Web</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;padding:16px;background:var(--bg);color:var(--text)}
+    .btn{display:inline-block;padding:10px 14px;margin:6px;border-radius:6px;background:var(--accent);color:#022;text-decoration:none}
+  </style>
+</head>
+<body>
+  <header class="site-header" style="margin-bottom:12px; background:transparent; border-bottom:0;">
+    <div class="header-inner" style="padding:0;">
+      <a class="brand" href="index.html" style="text-decoration:none"><strong>DBTeam</strong></a>
+      <div class="header-actions" style="margin-left:auto;display:flex;gap:8px;align-items:center"></div>
+    </div>
+  </header>
+  <h1>MiniApp Web</h1>
+  <p>This is a small Telegram Web App example. It can send data back to the bot and close.</p>
+
+  <div id="info"></div>
+
+  <p>
+    <a id="sendBtn" class="btn" href="#">Send data to bot</a>
+    <a id="closeBtn" class="btn" href="#" style="background:#666">Close</a>
+  </p>
+
+  <script>
+    const tg = window.Telegram.WebApp;
+    const info = document.getElementById('info');
+    info.innerText = `Init: locale=${tg.initDataUnsafe?.user?.language_code || 'n/a'}\n`;
+
+    document.getElementById('sendBtn').addEventListener('click', (e)=>{
+      e.preventDefault();
+      const payload = {time: Date.now(), message: 'Hello from WebApp'};
+      try{ tg.sendData(JSON.stringify(payload)); }
+      catch(err){ console.warn('sendData failed', err); alert('sendData failed'); }
+    });
+
+    document.getElementById('closeBtn').addEventListener('click', (e)=>{
+      e.preventDefault();
+      tg.close();
+    });
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>

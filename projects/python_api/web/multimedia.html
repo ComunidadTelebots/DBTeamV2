@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Multimedia — DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    body{font-family:Inter,system-ui,Arial;background:var(--bg);color:var(--text);margin:0;padding:20px}
+    .wrap{max-width:1100px;margin:0 auto}
+    h1{margin:0 0 8px}
+    .drop{border:2px dashed rgba(255,255,255,0.06);padding:30px;border-radius:12px;text-align:center;color:var(--muted)}
+    .drop.dragover{background:rgba(255,255,255,0.01);border-color:var(--accent)}
+    .controls{margin-top:12px;display:flex;gap:8px}
+    .btn{background:var(--accent);color:#022;padding:8px 12px;border-radius:8px;text-decoration:none;font-weight:600;border:none}
+    #files{margin-top:14px;display:grid;gap:10px}
+    .file{background:rgba(255,255,255,0.02);padding:10px;border-radius:8px;display:flex;align-items:center;justify-content:space-between}
+    video{width:100%;max-height:480px;border-radius:8px;background:#000}
+    .muted{color:var(--muted)}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header" style="margin-bottom:12px; background:transparent; border-bottom:0;">
+      <div class="header-inner" style="padding:0;">
+        <a class="brand" href="index.html" style="text-decoration:none"><strong>DBTeam</strong></a>
+        <h1 style="margin-left:12px">Multimedia — Drag & Play</h1>
+        <div class="header-actions" style="margin-left:auto;display:flex;gap:8px;align-items:center"></div>
+      </div>
+    </header>
+
+    <div id="drop" class="drop">Arrastra aquí un archivo .torrent o pega un magnet link.<br/><small class="muted">También puedes usar el botón para seleccionar un fichero .torrent</small></div>
+
+    <div class="controls">
+      <input id="fileInput" type="file" accept=".torrent" />
+      <input id="magnetInput" type="text" placeholder="Pega un magnet URI aquí" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit" />
+      <button id="addMagnet" class="btn">Añadir</button>
+    </div>
+
+    <div id="status" style="margin-top:12px;color:#9ca3af">Estado: esperando...</div>
+
+    <div id="playerArea" style="margin-top:12px"></div>
+
+    <div id="files"></div>
+    <h2 style="margin-top:18px">Torrents activos en el bot</h2>
+    <div id="botTorrents" style="margin-top:8px;color:#cfe8ef"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/webtorrent/webtorrent.min.js"></script>
+  <script>
+    const client = new WebTorrent();
+    const drop = document.getElementById('drop');
+    const fileInput = document.getElementById('fileInput');
+    const magnetInput = document.getElementById('magnetInput');
+    const addMagnet = document.getElementById('addMagnet');
+    const status = document.getElementById('status');
+    const filesDiv = document.getElementById('files');
+    const playerArea = document.getElementById('playerArea');
+
+    function setStatus(t){ status.innerText = 'Estado: ' + t }
+
+    function handleTorrent(torrent){
+      setStatus('Torrent añadido: ' + torrent.name);
+      filesDiv.innerHTML = '';
+      // list files
+      torrent.files.forEach((file, idx) => {
+        const row = document.createElement('div'); row.className='file';
+        const left = document.createElement('div'); left.style.flex='1'; left.innerText = file.name;
+        const right = document.createElement('div'); right.style.display='flex'; right.style.alignItems='center'; right.style.gap='8px';
+
+        // progress UI
+        const progWrap = document.createElement('div'); progWrap.style.minWidth='220px'; progWrap.style.marginRight='12px';
+        const progBar = document.createElement('div'); progBar.style.height='8px'; progBar.style.background='rgba(255,255,255,0.04)'; progBar.style.borderRadius='6px';
+        const progFill = document.createElement('div'); progFill.style.height='100%'; progFill.style.width='0%'; progFill.style.background='#06b6d4'; progFill.style.borderRadius='6px';
+        progBar.appendChild(progFill);
+        const progText = document.createElement('div'); progText.style.fontSize='0.85rem'; progText.style.color='#9ca3af'; progText.style.marginTop='6px'; progText.innerText='0%';
+        progWrap.appendChild(progBar); progWrap.appendChild(progText);
+
+        const play = document.createElement('button'); play.className='btn'; play.innerText='Reproducir';
+        const dl = document.createElement('button'); dl.className='btn ghost'; dl.innerText='Descargar';
+        const removeBtn = document.createElement('button'); removeBtn.className='btn ghost'; removeBtn.innerText='Eliminar';
+        const readdBtn = document.createElement('button'); readdBtn.className='btn ghost'; readdBtn.innerText='Re-add'; readdBtn.style.display='none';
+
+        play.addEventListener('click', ()=>{
+          const isVideo = /\.(mp4|webm|ogg|mkv|mov)$/i.test(file.name);
+          if (isVideo){
+            playerArea.innerHTML = '';
+            const video = document.createElement('video'); video.controls=true; video.autoplay=true; video.style.width='100%';
+            playerArea.appendChild(video);
+            setStatus('Preparando stream...');
+            file.getBlobURL((err,url)=>{
+              if (err){ setStatus('Error al obtener blob: '+err); return }
+              video.src = url;
+              setStatus('Reproduciendo: '+file.name);
+            });
+          } else {
+            setStatus('Generando enlace de descarga...');
+            file.getBlobURL((err,url)=>{
+              if (err){ setStatus('Error: '+err); return }
+              const a = document.createElement('a'); a.href = url; a.download = file.name; a.innerText = 'Descargar ' + file.name;
+              a.className='btn';
+              window.open(url, '_blank');
+              setStatus('Enlace abierto para: '+file.name);
+            });
+          }
+        });
+
+        dl.addEventListener('click', ()=>{
+          file.getBlobURL((err,url)=>{ if (!err) window.open(url,'_blank'); });
+        });
+
+        removeBtn.addEventListener('click', ()=>{
+          setStatus('Eliminando torrent...');
+          const magnet = torrent.magnetURI || '';
+          torrent.destroy({destroyStore:true}, ()=>{
+            row.remove();
+            setStatus('Torrent eliminado.');
+            if (magnet){
+              readdBtn.style.display='inline-block';
+              readdBtn.dataset.magnet = magnet;
+              filesDiv.appendChild(readdBtn);
+            }
+          });
+        });
+
+        readdBtn.addEventListener('click', ()=>{
+          const m = readdBtn.dataset.magnet;
+          if (m){ setStatus('Re-adding magnet...'); client.add(m,(t)=>{ handleTorrent(t); readdBtn.remove(); setStatus('Re-added'); }); }
+        });
+
+        right.appendChild(progWrap);
+        right.appendChild(play);
+        right.appendChild(dl);
+        right.appendChild(removeBtn);
+
+        row.appendChild(left); row.appendChild(right);
+        filesDiv.appendChild(row);
+
+        // update progress periodically
+        const interval = setInterval(()=>{
+          try{
+            const p = Math.round(torrent.progress * 100);
+            progFill.style.width = p + '%';
+            progText.innerText = p + '%  |  Peers: ' + (torrent.numPeers || 0) + '  |  ' + Math.round((torrent.downloadSpeed||0)/1024) + ' kB/s';
+          }catch(e){}
+        }, 500);
+        torrent.on('done', ()=>{ setStatus('Torrent completado: ' + torrent.name); clearInterval(interval); progFill.style.width='100%'; progText.innerText='100% (completado)'; });
+      });
+    }
+
+    drop.addEventListener('dragover', (e)=>{ e.preventDefault(); drop.classList.add('dragover') });
+    drop.addEventListener('dragleave', (e)=>{ drop.classList.remove('dragover') });
+    drop.addEventListener('drop', (e)=>{
+      e.preventDefault(); drop.classList.remove('dragover');
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) { addTorrentFile(f) }
+    });
+
+    fileInput.addEventListener('change', (e)=>{ const f=e.target.files[0]; if (f) addTorrentFile(f) });
+    addMagnet.addEventListener('click', ()=>{ const m=magnetInput.value.trim(); if (m) addMagnetURI(m) });
+
+    function addTorrentFile(file){ setStatus('Añadiendo .torrent...');
+      client.add(file, (torrent)=>{ handleTorrent(torrent) });
+    }
+    function addMagnetURI(magnet){ setStatus('Añadiendo magnet...'); client.add(magnet, (torrent)=>{ handleTorrent(torrent) }); }
+
+    // handle unload: destroy client
+    window.addEventListener('beforeunload', ()=>{ try{ client.destroy() }catch(e){} });
+
+    // --- Sync with bot stats API: list active torrents and allow stop ---
+    const botTorrentsDiv = document.getElementById('botTorrents');
+    function getApiKey(){ return localStorage.getItem('WEB_API_KEY') || '' }
+    async function fetchBotTorrents(){
+      const key = getApiKey();
+      try{
+        const headers = key ? { 'Authorization': 'Bearer '+key } : {};
+        const r = await fetch('http://127.0.0.1:8081/torrents',{ headers });
+        if (!r.ok) { botTorrentsDiv.innerText = 'No se pudo obtener torrents del bot ('+r.status+')'; return }
+        const data = await r.json();
+        renderBotTorrents(data.torrents || []);
+      }catch(e){ botTorrentsDiv.innerText = 'Error conectando a /torrents: '+e }
+    }
+
+    function renderBotTorrents(list){
+      botTorrentsDiv.innerHTML = '';
+      if (!list || list.length===0){ botTorrentsDiv.innerText = 'No hay torrents activos en el bot.'; return }
+      list.forEach(t => {
+        const row = document.createElement('div'); row.style.display='flex'; row.style.justifyContent='space-between'; row.style.padding='6px 8px'; row.style.borderRadius='6px'; row.style.background='rgba(255,255,255,0.02)'; row.style.marginBottom='6px';
+        const info = document.createElement('div'); info.innerText = `${t.id} — ${t.name || ''} — ${t.status || ''}`;
+        const btn = document.createElement('button'); btn.className='btn'; btn.innerText='Detener'; btn.style.background='#ef4444';
+        btn.addEventListener('click', ()=>{ stopBotTorrent(t.id) });
+        row.appendChild(info); row.appendChild(btn); botTorrentsDiv.appendChild(row);
+      });
+    }
+
+    async function stopBotTorrent(id){
+      const key = getApiKey();
+      try{
+        const headers = {'Content-Type':'application/json'}; if (key) headers['Authorization']='Bearer '+key;
+        const r = await fetch('http://127.0.0.1:8081/torrents',{ method:'POST', headers, body: JSON.stringify({ action:'stop', id }) });
+        if (!r.ok){ alert('Stop failed: '+r.status); return }
+        const j = await r.json(); alert('Bot responded: '+(j.status||j.error)); fetchBotTorrents();
+      }catch(e){ alert('Error stopping torrent: '+e) }
+    }
+
+    // poll every 5s
+    setInterval(fetchBotTorrents, 5000);
+    // initial
+    fetchBotTorrents();
+  </script>
+  <script src="shared.js"></script>
+</body>
+</html>

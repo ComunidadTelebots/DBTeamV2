@@ -1,0 +1,38 @@
+:root{
+  --bg:#1e1e1e; --panel:#2b2b2b; --text:#e6e6e6; --accent:#ff6b6b;
+}
+body{margin:0;font-family:Segoe UI,Arial;background:var(--bg);color:var(--text)}
+.obs-ui{display:grid;grid-template-columns:220fr 1fr 260fr;grid-gap:12px;padding:12px;height:100vh;box-sizing:border-box}
+.scenes,.sources{background:var(--panel);padding:10px;border-radius:6px;overflow:auto}
+.preview{display:flex;flex-direction:column;gap:8px}
+.preview-area{background:#0f0f0f;border:2px solid #222;border-radius:6px;flex:1;display:flex;align-items:center;justify-content:center;color:#888}
+.preview-area{position:relative}
+.live-overlay{position:absolute;inset:0;pointer-events:none}
+.live-source{position:absolute;pointer-events:auto}
+.live-text{color:#fff;font-family:Segoe UI,Arial;text-shadow:0 1px 2px rgba(0,0,0,0.8)}
+.live-image{max-width:100%;max-height:100%;display:block}
+.transport{display:flex;gap:8px;align-items:center}
+button{background:var(--accent);color:#111;border:none;padding:8px 12px;border-radius:4px;cursor:pointer}
+button[disabled]{opacity:.5}
+ul{list-style:none;padding:0;margin:0}
+li.scene{padding:8px;border-radius:4px;margin-bottom:6px;background:#202020;cursor:pointer}
+li.scene.active{outline:2px solid var(--accent)}
+.import{margin-top:10px}
+
+.editor{margin-top:12px}
+.editor textarea{width:100%;box-sizing:border-box;background:#0b0b0b;color:#ddd;border:1px solid #222;padding:8px;border-radius:4px;font-family:monospace}
+.editor-controls{display:flex;gap:6px;margin-top:6px}
+.editor-controls button{background:#4caf50}
+.editor-controls button#btnDelete{background:#c0392b}
+.editor-controls button#btnDuplicate{background:#2980b9}
+.editor-controls button#btnNew{background:#8e44ad}
+
+.panels{background:var(--panel);padding:10px;border-radius:6px;overflow:auto}
+.panels input{width:100%}
+.panel-preview{background:linear-gradient(180deg,#0b0b0b,#111);padding:8px;border-radius:6px;color:#fff}
+.applied-panel{position:relative}
+
+.live-settings{background:var(--panel);padding:10px;border-radius:6px}
+.live-settings label{display:block;font-size:12px;color:#bbb;margin-top:8px}
+.live-settings input, .live-settings select{background:#0b0b0b;border:1px solid #222;color:#ddd;padding:6px;border-radius:4px}
+.live-settings button{background:#ff8a65}

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Panel Demo</title>
+  <link rel="stylesheet" href="/panels/classic.css">
+  <link rel="stylesheet" href="/panels/modern.css">
+  <style>
+    body{margin:0;background:#0b0b0b;color:#fff;font-family:Segoe UI,Arial}
+    .stage{position:relative;height:80vh;background:linear-gradient(180deg,#222,#111);display:flex;align-items:center;justify-content:center}
+    .stage .content{color:#ddd}
+  </style>
+</head>
+<body>
+  <div style="padding:12px;">
+    <h2>Panel demo — Classic and Modern</h2>
+    <p>Below are two previews of panels applied over a sample stage.</p>
+    <div class="stage" id="stage">
+      <div class="content">
+        <h1>Live Stream Preview</h1>
+        <p>Sample video area</p>
+      </div>
+
+      <!-- Classic lower-third instance -->
+      <div class="panel-lower-third applied-panel" style="pointer-events:none">
+        <div class="box">
+          <div class="title">Classic Panel Title <span class="accent">LIVE</span></div>
+          <div class="subtitle">Subtitle or description goes here</div>
+        </div>
+      </div>
+
+      <!-- Modern panel instance -->
+      <div class="panel-modern applied-panel" style="pointer-events:none">
+        <h4>Modern Overlay</h4>
+        <p>Short status line or info</p>
+        <div class="tag">Panel Tag</div>
+      </div>
+    </div>
+
+    <p style="margin-top:12px">You can apply these panels to the streamer UI or import custom CSS files via the Panels section.</p>
+  </div>
+</body>
+</html>

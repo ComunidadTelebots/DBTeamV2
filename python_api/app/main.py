@@ -841,38 +841,36 @@ def status_info(request: Request):
     try:
         api_key_sessions_with_ttl = []
         for k in r.scan_iter(match='web:session:*'):
+            keyname = k.decode() if isinstance(k, bytes) else k
+            token_part = keyname.split(':', 2)[2] if ':' in keyname else keyname
+            v = r.get(k)
+            if not v:
+                continue
+            raw = v.decode() if isinstance(v, bytes) else v
+            dec = decrypt_value(raw) if FERNET else None
+            if not dec:
+                continue
             try:
-                keyname = k.decode() if isinstance(k, bytes) else k
-                token_part = keyname.split(':',2)[2] if ':' in keyname else keyname
-                v = r.get(k)
-                if not v:
-                    continue
-                raw = v.decode() if isinstance(v, bytes) else v
-                dec = decrypt_value(raw) if FERNET else None
-                if dec:
-                    try:
-                        obj = json.loads(dec)
-                        if obj and obj.get('user') == 'api_key_user':
-                            ttl = None
-                            try:
-                                ttl_val = r.ttl(k)
-                                # redis returns -2 if key missing, -1 if no expire
-                                if isinstance(ttl_val, int) and ttl_val >= 0:
-                                    ttl = int(ttl_val)
-                                else:
-                                    ttl = None
-                            except Exception:
-                                ttl = None
-                            t = token_part
-                            if not t:
-                                continue
-                            if len(t) <= 10:
-                                masked = t[:2] + '***' + t[-2:]
-                            else:
-                                masked = t[:6] + '***' + t[-4:]
-                            api_key_sessions_with_ttl.append({'id': masked, 'ttl_seconds': ttl})
-                    except Exception:
-                        continue
+                obj = json.loads(dec)
+            except Exception:
+                continue
+            if obj and obj.get('user') != 'api_key_user':
+                continue
+            ttl = None
+            try:
+                ttl_val = r.ttl(k)
+                if isinstance(ttl_val, int) and ttl_val >= 0:
+                    ttl = int(ttl_val)
+            except Exception:
+                ttl = None
+            t = token_part or ''
+            if not t:
+                continue
+            if len(t) <= 10:
+                masked = t[:2] + '***' + t[-2:]
+            else:
+                masked = t[:6] + '***' + t[-4:]
+            api_key_sessions_with_ttl.append({'id': masked, 'ttl_seconds': ttl})
     except Exception:
         api_key_sessions_with_ttl = None
 
