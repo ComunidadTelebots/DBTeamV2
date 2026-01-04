@@ -49,6 +49,13 @@
         <button id="btnLoginViaBot" class="btn" style="background:#5a2">Entrar vía Bot</button>
         <button id="btnUseKey" class="btn" style="background:#666;margin-left:8px">Usar API Key</button>
         <button id="btnRegister" class="btn" style="background:#0a8;margin-left:8px">Registrarse</button>
+            <script>
+              // Deshabilitar registro si GITHUB_PUBLIC=1
+              if (window.GITHUB_PUBLIC === true || (typeof GITHUB_PUBLIC !== 'undefined' && GITHUB_PUBLIC === '1')) {
+                document.getElementById('btnRegister').disabled = true;
+                document.getElementById('btnRegister').textContent = 'Registro deshabilitado';
+              }
+            </script>
         <button id="btnForgot" class="btn ghost" style="background:#f44;margin-left:8px">¿Olvidaste tu contraseña?</button>
       </div>
 

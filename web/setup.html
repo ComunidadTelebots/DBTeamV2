@@ -6,6 +6,46 @@
   <title>Instalador DBTeam</title>
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="shared.css" />
+    <style>
+    .setup-container { max-width: 420px; margin: 3.5rem auto; background: #fff; border-radius: 1.2rem; box-shadow: 0 4px 32px #0001; padding: 2.2rem 2.2rem 1.5rem 2.2rem; }
+    .setup-title { font-size: 2rem; font-weight: 700; margin-bottom: 1.2rem; }
+    .setup-btn { width: 100%; margin: 0.7rem 0; font-size: 1.1em; }
+    .setup-status { margin: 1.2rem 0 0.7rem 0; color: #333; min-height: 2em; }
+    .owner-form { margin-top: 2.2rem; }
+    .owner-form input { width: 100%; margin-bottom: 0.7rem; }
+    .form-row { display:flex; align-items:center; margin-bottom:1em; }
+    .form-row label { min-width:180px; margin-right:10px; font-weight:500; color:#222; }
+    .form-row input {
+      flex:1;
+      padding:7px 10px;
+      border:1.5px solid #444;
+      border-radius:5px;
+      font-size:1em;
+      background:#f9f9f9;
+      color:#222;
+      box-shadow:0 1px 3px rgba(0,0,0,0.07);
+    }
+    .help-inline {
+      background: var(--primary, #1976d2);
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 1.7em;
+      height: 1.7em;
+      font-size: 1.1em;
+      cursor: pointer;
+      margin-left: 8px;
+      vertical-align: middle;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px #0002;
+      transition: background 0.2s;
+    }
+    .help-inline:hover {
+      background: var(--primary-dark, #115293);
+    }
+    </style>
   <style>
     .setup-container { max-width: 420px; margin: 3.5rem auto; background: var(--card); border-radius: 1.2rem; box-shadow: 0 4px 32px #0001; padding: 2.2rem 2.2rem 1.5rem 2.2rem; }
     .setup-title { font-size: 2rem; font-weight: 700; margin-bottom: 1.2rem; }
@@ -23,37 +63,225 @@
   </header>
   <main>
     <div class="setup-container">
+        <button class="btn setup-btn" id="helpBtn" style="background:#ffc107;color:#222;margin-bottom:1rem;float:right;width:2.5em;height:2.5em;border-radius:50%;font-size:1.5em;">?</button>
       <div class="setup-title">Instalador DBTeam</div>
-      <p>Instala la web y todos los componentes necesarios en tu sistema con un solo clic.</p>
+      <p>Configura todos los componentes necesarios en tu sistema desde esta web.</p>
+      <form id="configForm" autocomplete="off" style="margin-bottom:1.5rem;">
+        <div class="form-row"><label>BOT_TOKEN (de @BotFather): <button type="button" class="help-inline" onclick="alert('Token del bot de Telegram, lo obtienes en @BotFather.')">?</button></label><input type="text" id="BOT_TOKEN" required /></div>
+          <button type="button" id="botFatherBtn" style="margin-bottom:0.7rem;" onclick="window.open('https://t.me/BotFather', '_blank')">Ir a BotFather</button>
+        <div class="form-row"><label>WEB_API_SECRET (cadena segura): <button type="button" class="help-inline" onclick="alert('Cadena secreta para proteger la API web, usa algo largo y seguro.')">?</button></label><input type="password" id="WEB_API_SECRET" required /></div>
+          <button type="button" id="genApiSecretBtn" style="margin-bottom:0.7rem;">Generar API Secret</button>
+        <div class="form-row"><label>Admin User ID (Telegram): <button type="button" class="help-inline" onclick="alert('Tu ID de usuario de Telegram para ser administrador. Puedes obtenerlo con @userinfobot.')">?</button></label><input type="text" id="ADMIN_USER" required /></div>
+        <div class="form-row"><label>Owner User ID (Telegram): <button type="button" class="help-inline" onclick="alert('ID de usuario propietario, normalmente el creador o responsable principal.')">?</button></label><input type="text" id="OWNER_USER" required /></div>
+        <div class="form-row"><label>Redis URL: <button type="button" class="help-inline" onclick="alert('Dirección de tu servidor Redis, por defecto local. Si no sabes cuál poner, deja el valor por defecto.')">?</button></label><input type="text" id="REDIS_URL" value="redis://127.0.0.1:6379/0" /></div>
+        <button class="btn setup-btn" type="submit">Guardar y Instalar</button>
+        <div class="setup-status" id="setupStatus"></div>
+      </form>
       <button class="btn setup-btn" id="btnWin">Instalar en Windows</button>
       <button class="btn setup-btn" id="btnUbuntu">Instalar en Ubuntu</button>
-      <div class="setup-status" id="setupStatus"></div>
+      <button class="btn setup-btn" id="btnAutoInstall" style="background:var(--primary,#1976d2);color:#fff;">Auto-instalación completa</button>
+        <button class="btn setup-btn" id="btnStartBackend" style="background:var(--primary,#1976d2);color:#fff;">Iniciar backend automáticamente</button>
       <form class="owner-form" id="ownerForm" autocomplete="off">
         <h2>Crear usuario Owner</h2>
+        <div id="githubDemoBlock" style="color:#c00; font-weight:bold; margin-bottom:1em; display:none;">La creación de cuentas está deshabilitada en la compilación para GitHub.<br>Usuario demo: <span style="color:#1976d2;font-weight:bold;">demo</span> / <span style="color:#1976d2;font-weight:bold;">demo1234</span></div>
         <input type="text" id="ownerUser" placeholder="Usuario / Email" required />
         <input type="password" id="ownerPass" placeholder="Contraseña" required />
+        <button type="button" id="genPassBtn" style="margin-bottom:0.7rem;">Generar contraseña segura</button>
         <button class="btn" type="submit">Crear Owner</button>
         <div class="setup-status" id="ownerStatus"></div>
       </form>
     </div>
   </main>
   <script>
+                            // Detectar compilación para GitHub por variable de entorno (simulada en frontend)
+                            // Detectar variable de entorno GITHUB_PUBLIC (inyectada por backend)
+                            if (window.GITHUB_PUBLIC === true || (typeof GITHUB_PUBLIC !== 'undefined' && GITHUB_PUBLIC === '1')) {
+                              document.getElementById('githubDemoBlock').style.display = 'block';
+                              document.getElementById('ownerUser').disabled = true;
+                              document.getElementById('ownerPass').disabled = true;
+                              document.getElementById('genPassBtn').disabled = true;
+                              document.querySelector('#ownerForm button[type="submit"]').disabled = true;
+                            }
+                        // Botón para iniciar el backend automáticamente
+                        document.getElementById('btnStartBackend').onclick = async function() {
+                          status.textContent = 'Intentando iniciar el backend...';
+                          try {
+                            const resp = await fetch('/start_backend', { method: 'POST' });
+                            if (resp.ok) {
+                              status.textContent = 'Backend iniciado correctamente.';
+                            } else {
+                              let msg = 'No se pudo iniciar el backend.';
+                              try {
+                                const err = await resp.json();
+                                if (err.detail) msg += '\nDetalle: ' + err.detail;
+                                if (err.traceback) msg += '\nTraza: ' + err.traceback;
+                              } catch {}
+                              status.textContent = msg + '\nVerifica permisos y configuración.';
+                            }
+                          } catch (e) {
+                            status.textContent = 'No se pudo contactar con el backend para iniciarlo.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+                          }
+                        };
+                    // Botón de auto-instalación
+                    document.getElementById('btnAutoInstall').onclick = async function() {
+                      status.textContent = 'Iniciando auto-instalación completa...';
+                      // Detectar y validar todos los campos requeridos
+                      const requiredFields = [
+                        { id: 'BOT_TOKEN', name: 'BOT_TOKEN' },
+                        { id: 'WEB_API_SECRET', name: 'WEB_API_SECRET' },
+                        { id: 'ADMIN_USER', name: 'ADMIN_USER' },
+                        { id: 'OWNER_USER', name: 'OWNER_USER' },
+                        { id: 'REDIS_URL', name: 'REDIS_URL' }
+                      ];
+                      let missing = [];
+                      let config = {};
+                      requiredFields.forEach(f => {
+                        const el = document.getElementById(f.id);
+                        if (!el || !el.value.trim()) missing.push(f.name);
+                        else config[f.name] = el.value.trim();
+                      });
+                      if (missing.length) {
+                        status.textContent = 'Faltan campos obligatorios: ' + missing.join(', ') + '. Por favor, complétalos antes de continuar.';
+                        return;
+                      }
+                      // Guardar configuración
+                      try {
+                        const resp = await fetch('/run_setup_general', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(config)
+                        });
+                        if (!resp.ok) throw new Error('Error al guardar configuración.');
+                      } catch (e) {
+                        status.textContent = 'Error en la auto-instalación: no se pudo guardar la configuración.\n' + (e.message || '');
+                        return;
+                      }
+                      // Instalar en el sistema operativo detectado
+                      let os = '';
+                      if (navigator.userAgent.indexOf('Windows') !== -1) os = 'windows';
+                      else if (navigator.userAgent.indexOf('Linux') !== -1) os = 'ubuntu';
+                      else os = '';
+                      try {
+                        let resp;
+                        if (os === 'windows') resp = await fetch('/run_setup_windows', { method: 'POST' });
+                        else if (os === 'ubuntu') resp = await fetch('/run_setup_ubuntu', { method: 'POST' });
+                        else resp = null;
+                        if (resp && resp.ok) {
+                          status.textContent = 'Auto-instalación completa iniciada. Sigue las instrucciones en la terminal.';
+                        } else {
+                          status.textContent = 'Configuración guardada, pero no se pudo iniciar la instalación automática para tu sistema operativo.';
+                        }
+                      } catch (e) {
+                        status.textContent = 'Configuración guardada, pero no se pudo iniciar la instalación automática.\n' + (e.message || '');
+                      }
+                    };
+                // Generador para API Secret
+                document.getElementById('genApiSecretBtn').onclick = function() {
+                  const secret = generatePassword(24);
+                  const secretInput = document.getElementById('WEB_API_SECRET');
+                  secretInput.value = secret;
+                  secretInput.type = 'text';
+                  setTimeout(() => { secretInput.type = 'password'; }, 2500);
+                  navigator.clipboard.writeText(secret).catch(()=>{});
+                  alert('API Secret generado y copiado al portapapeles.');
+                };
+            // Generador de contraseñas seguras
+            function generatePassword(length = 16) {
+              const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?';
+              let pass = '';
+              for (let i = 0; i < length; i++) {
+                pass += chars.charAt(Math.floor(Math.random() * chars.length));
+              }
+              return pass;
+            }
+            document.getElementById('genPassBtn').onclick = function() {
+              const pass = generatePassword(16);
+              const passInput = document.getElementById('ownerPass');
+              passInput.value = pass;
+              passInput.type = 'text';
+              setTimeout(() => { passInput.type = 'password'; }, 2000); // Mostrar 2s y ocultar
+              navigator.clipboard.writeText(pass).catch(()=>{});
+              alert('Contraseña generada y copiada al portapapeles.');
+            };
+        document.getElementById('helpBtn').onclick = function() {
+          alert(
+            'Ayuda de instalación:\n\n' +
+            'BOT_TOKEN: Token del bot de Telegram, lo obtienes en @BotFather.\n' +
+            'WEB_API_SECRET: Cadena secreta para proteger la API web, usa algo largo y seguro.\n' +
+            'Admin User ID: Tu ID de usuario de Telegram para ser administrador.\n' +
+            'Owner User ID: ID de usuario propietario, normalmente el creador.\n' +
+            'Redis URL: Dirección de tu servidor Redis, por defecto local.\n\n' +
+            'Completa los campos y pulsa "Guardar y Instalar" para iniciar la configuración.\n' +
+            'Puedes crear el usuario owner y lanzar instaladores específicos para Windows o Ubuntu si lo necesitas.'
+          );
+        };
     const status = document.getElementById('setupStatus');
+    document.getElementById('configForm').onsubmit = async function(e) {
+      e.preventDefault();
+      status.textContent = 'Guardando configuración e iniciando instalación...';
+      const BOT_TOKEN = document.getElementById('BOT_TOKEN').value;
+      const WEB_API_SECRET = document.getElementById('WEB_API_SECRET').value;
+      const ADMIN_USER = document.getElementById('ADMIN_USER').value;
+      const OWNER_USER = document.getElementById('OWNER_USER').value;
+      const REDIS_URL = document.getElementById('REDIS_URL').value;
+      try {
+        const resp = await fetch('/run_setup_general', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ BOT_TOKEN, WEB_API_SECRET, ADMIN_USER, OWNER_USER, REDIS_URL })
+        });
+        if (resp.ok) {
+          status.textContent = 'Configuración guardada e instalación iniciada. Revisa la terminal para detalles.';
+        } else {
+          let msg = 'Error al iniciar la instalación.';
+          try {
+            const err = await resp.json();
+            if (err.detail) msg += '\nDetalle: ' + err.detail;
+            if (err.traceback) msg += '\nTraza: ' + err.traceback;
+          } catch {}
+          status.textContent = msg + '\nVerifica que los datos sean correctos, que el backend esté activo y que tienes permisos suficientes.';
+        }
+      } catch (e) {
+        status.textContent = 'No se pudo contactar con el backend.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+      }
+    };
     document.getElementById('btnWin').onclick = async function() {
       status.textContent = 'Ejecutando instalador para Windows...';
       try {
         const resp = await fetch('/run_setup_windows', { method: 'POST' });
-        if (resp.ok) status.textContent = 'Instalación iniciada en Windows. Sigue las instrucciones en la terminal.';
-        else status.textContent = 'Error al iniciar la instalación en Windows.';
-      } catch { status.textContent = 'No se pudo contactar con el backend.'; }
+        if (resp.ok) {
+          status.textContent = 'Instalación iniciada en Windows. Sigue las instrucciones en la terminal.';
+        } else {
+          let msg = 'Error al iniciar la instalación en Windows.';
+          try {
+            const err = await resp.json();
+            if (err.detail) msg += '\nDetalle: ' + err.detail;
+            if (err.traceback) msg += '\nTraza: ' + err.traceback;
+          } catch {}
+          status.textContent = msg + '\nVerifica que tienes permisos de administrador y que el backend está activo.';
+        }
+      } catch (e) {
+        status.textContent = 'No se pudo contactar con el backend.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+      }
     };
     document.getElementById('btnUbuntu').onclick = async function() {
       status.textContent = 'Ejecutando instalador para Ubuntu...';
       try {
         const resp = await fetch('/run_setup_ubuntu', { method: 'POST' });
-        if (resp.ok) status.textContent = 'Instalación iniciada en Ubuntu. Sigue las instrucciones en la terminal.';
-        else status.textContent = 'Error al iniciar la instalación en Ubuntu.';
-      } catch { status.textContent = 'No se pudo contactar con el backend.'; }
+        if (resp.ok) {
+          status.textContent = 'Instalación iniciada en Ubuntu. Sigue las instrucciones en la terminal.';
+        } else {
+          let msg = 'Error al iniciar la instalación en Ubuntu.';
+          try {
+            const err = await resp.json();
+            if (err.detail) msg += '\nDetalle: ' + err.detail;
+            if (err.traceback) msg += '\nTraza: ' + err.traceback;
+          } catch {}
+          status.textContent = msg + '\nVerifica que tienes permisos de sudo y que el backend está activo.';
+        }
+      } catch (e) {
+        status.textContent = 'No se pudo contactar con el backend.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+      }
     };
     document.getElementById('ownerForm').onsubmit = async function(e) {
       e.preventDefault();
@@ -67,12 +295,20 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ user, pass })
         });
-        if (resp.ok) ownerStatus.textContent = 'Usuario owner creado correctamente.';
-        else {
-          const err = await resp.json();
-          ownerStatus.textContent = err.detail || 'Error al crear owner.';
+        if (resp.ok) {
+          ownerStatus.textContent = 'Usuario owner creado correctamente.';
+        } else {
+          let msg = 'Error al crear owner.';
+          try {
+            const err = await resp.json();
+            if (err.detail) msg += '\nDetalle: ' + err.detail;
+            if (err.traceback) msg += '\nTraza: ' + err.traceback;
+          } catch {}
+          ownerStatus.textContent = msg + '\nVerifica que los datos sean correctos y que el backend esté activo.';
         }
-      } catch { ownerStatus.textContent = 'No se pudo contactar con el backend.'; }
+      } catch (e) {
+        ownerStatus.textContent = 'No se pudo contactar con el backend.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+      }
     };
   </script>
 </body>

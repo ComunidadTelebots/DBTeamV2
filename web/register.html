@@ -34,24 +34,35 @@
       <h1>Registro de usuario</h1>
       <p>Crea una cuenta para acceder al panel o usa una API key.</p>
       <form id="registerForm">
+          <div id="githubDemoBlock" style="color:#c00; font-weight:bold; margin-bottom:1em; display:none;">El registro está deshabilitado en la versión pública de GitHub.<br>Usuario demo: <span style="color:#1976d2;font-weight:bold;">demo</span> / <span style="color:#1976d2;font-weight:bold;">demo1234</span></div>
         <div class="login-row">
           <label for="user">Usuario / Email</label>
-          <input id="user" name="user" required />
+          <input id="user" name="user" required disabled />
         </div>
         <div class="login-row">
           <label for="pass">Contraseña</label>
-          <input id="pass" name="pass" type="password" required />
+          <input id="pass" name="pass" type="password" required disabled />
         </div>
         <div class="login-row">
-          <button type="submit" class="btn">Registrarse</button>
+          <button type="submit" class="btn" disabled>Registrarse</button>
           <a href="login.html" class="btn ghost" style="margin-left:8px">Ir a Login</a>
         </div>
+        <div style="color:#c00; font-weight:bold; margin-top:1em;">El registro está deshabilitado en la versión pública de GitHub.</div>
       </form>
       <div id="msg" class="msg" aria-live="polite"></div>
     </div>
   </main>
 
   <script src="register.js"></script>
+    <script>
+      // Bloquear registro y mostrar usuario demo si GITHUB_PUBLIC=1
+      if (window.GITHUB_PUBLIC === true || (typeof GITHUB_PUBLIC !== 'undefined' && GITHUB_PUBLIC === '1')) {
+        document.getElementById('githubDemoBlock').style.display = 'block';
+        document.getElementById('user').disabled = true;
+        document.getElementById('pass').disabled = true;
+        document.querySelector('#registerForm button[type="submit"]').disabled = true;
+      }
+    </script>
   <script src="shared.js"></script>
   <script src="owner.js"></script>
 </body>
