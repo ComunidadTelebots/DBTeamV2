@@ -1,0 +1,19 @@
+# Dockerfile for GitHub Actions and CI
+# Multi-stage build for smaller images and CI compatibility
+
+FROM python:3.11-slim as builder
+WORKDIR /app
+COPY . .
+RUN python -m venv /opt/venv \
+    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
+    && if [ -f projects/bot/python_bot/requirements.txt ]; then /opt/venv/bin/pip install -r projects/bot/python_bot/requirements.txt; fi \
+    && if [ -f projects/python_api/python_api/requirements.txt ]; then /opt/venv/bin/pip install -r projects/python_api/python_api/requirements.txt; fi
+
+FROM python:3.11-slim
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+WORKDIR /app
+COPY --from=builder /opt/venv /opt/venv
+COPY . .
+EXPOSE 8000 8081
+CMD ["python", "projects/bot/python_bot/main.py"]

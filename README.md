@@ -1,5 +1,29 @@
 # **DBTeamV2** #
 
+## Despliegue rápido con Docker y GitHub Actions
+
+Puedes construir y probar DBTeamV2 fácilmente usando Docker, incluyendo soporte para CI/CD en GitHub:
+
+### Build local con Docker
+
+```bash
+docker build -f Dockerfile.github -t dbteamv2:ci .
+docker run -it --rm -p 8000:8000 -p 8081:8081 dbteamv2:ci
+```
+
+### CI/CD en GitHub
+
+Incluye un Dockerfile.github optimizado para pipelines de GitHub Actions y despliegue automatizado. Puedes usarlo en tu workflow de GitHub Actions para testear o publicar imágenes.
+
+Variables de entorno requeridas (ejemplo .env):
+```
+BOT_TOKEN=<tu_token>
+WEB_API_SECRET=<secreto>
+REDIS_URL=redis://127.0.0.1:6379/0
+```
+
+Consulta README_DOCKER.md para detalles avanzados y scripts útiles.
+
 [![Library](https://img.shields.io/badge/TDLib-beta-brightgreen.svg)](https://core.telegram.org/tdlib)
 [![Telegram-cli](https://img.shields.io/badge/TDCli-Bitbucket-green.svg)](https://bitbucket.org/vysheng/tdcli)
 [![Lua](https://img.shields.io/badge/Lua-5.2-blue.svg)](https://www.lua.org/)
