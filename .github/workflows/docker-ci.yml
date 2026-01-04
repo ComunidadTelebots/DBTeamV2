@@ -19,7 +19,6 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
           sudo docker system prune -af || true
-          sudo rm -rf /var/lib/docker || true
           echo "[DESPUÉS] Espacio libre:"
           df -h
       - name: Checkout code
