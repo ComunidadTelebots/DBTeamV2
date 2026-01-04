@@ -1,4 +1,106 @@
 # **DBTeamV2** #
+#
+# ---
+#
+# ## Instalación automática con script
+#
+# Para facilitar la instalación y configuración de todas las dependencias, el repositorio incluye el script `install.sh` en la raíz del proyecto.
+#
+# Este script detecta tu sistema operativo, instala todos los paquetes necesarios (Python, Node.js, ffmpeg, aria2, etc.), configura los entornos y deja el proyecto listo para usar.
+#
+# ### Uso:
+#
+# ```bash
+# git clone https://github.com/Josepdal/DBTeamV2.git
+# cd DBTeamV2
+# chmod +x install.sh
+# ./install.sh
+# ```
+#
+# Tras finalizar, puedes iniciar el bot y la web siguiendo las instrucciones del README.
+#
+# ---
+#
+# ## Novedades Docker y Web (2026)
+#
+# ...existing code...
+#
+# ---
+#
+# ## Dependencias nuevas y su instalación
+#
+# DBTeamV2 ahora incluye dependencias modernas para nuevas funciones:
+#
+# - **Python 3** y librerías (FastAPI, requests, etc.)
+# - **Node.js** y paquetes globales (webtorrent-hybrid, node-pre-gyp)
+# - **FFmpeg** para procesamiento multimedia
+# - **Aria2, curl, wget** para descargas avanzadas
+# - **FastAPI** para la API REST
+# - **webtorrent-hybrid** para gestión de torrents desde Node.js
+#
+# ### Instalación automática (Docker)
+#
+# Al usar la imagen Docker oficial, todas estas dependencias se instalan automáticamente. No necesitas instalar nada manualmente, solo asegúrate de tener Docker instalado en tu sistema.
+#
+# ### Instalación manual
+#
+# Si instalas manualmente, asegúrate de instalar también:
+#
+# - Python 3 y pip (`sudo apt-get install python3 python3-pip`)
+# - Node.js y npm (`curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && sudo apt-get install -y nodejs`)
+# - webtorrent-hybrid y node-pre-gyp (`npm install -g webtorrent-hybrid node-pre-gyp`)
+# - FastAPI y dependencias Python (`pip install fastapi requests`)
+# - ffmpeg, aria2, curl, wget (`sudo apt-get install ffmpeg aria2 curl wget`)
+#
+# Consulta los archivos `requirements.txt` en los subproyectos para instalar dependencias Python específicas:
+#
+# ```bash
+# pip install -r projects/bot/python_bot/requirements.txt
+# pip install -r projects/python_api/python_api/requirements.txt
+# ```
+#
+# Si tienes dudas sobre alguna dependencia, revisa el Dockerfile y los scripts de instalación incluidos en el repositorio.
+#
+# ---
+#
+# ## Novedades Docker y Web (2026)
+#
+# Ahora puedes ejecutar DBTeamV2 directamente usando la imagen oficial:
+#
+# ```bash
+# docker pull ghcr.io/comunidadtelebots/dbteamv2:alfa
+# docker run -it --rm -p 8000:8000 -p 8081:8081 ghcr.io/comunidadtelebots/dbteamv2:alfa
+# ```
+#
+# Esto inicia el bot y expone los puertos 8000 (API/web) y 8081 (web/monitor). La interfaz web está incluida en la imagen y accesible tras iniciar el contenedor:
+#
+# - http://localhost:8000/
+# - http://localhost:8081/
+#
+# Puedes personalizar variables de entorno usando un archivo `.env`:
+#
+# ```
+# BOT_TOKEN=<tu_token>
+# WEB_API_SECRET=<secreto>
+# REDIS_URL=redis://127.0.0.1:6379/0
+# ```
+#
+# Consulta README_DOCKER.md para detalles avanzados y scripts útiles.
+#
+# ---
+#
+# ## Estructura actual del proyecto
+#
+# El repositorio está organizado en carpetas principales:
+#
+# - `projects/bot/python_bot/` — Bot en Python y plugins.
+# - `projects/web/` — Interfaz web (HTML, JS, CSS, i18n).
+# - `projects/python_api/python_api/` — Backend FastAPI (API REST, TDLib helpers).
+# - `tools/` — Scripts de administración y utilidades.
+# - `data/` — Archivos de datos y configuraciones.
+# - `deploy/` — Configuración para despliegues avanzados (nginx, docker-compose, etc).
+#
+# La imagen Docker incluye todos estos componentes y permite acceder a la web y API directamente.
 
 ## Despliegue rápido con Docker y GitHub Actions
 
