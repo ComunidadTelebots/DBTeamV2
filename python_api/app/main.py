@@ -42,7 +42,7 @@ def get_applied_translations(request: Request):
             continue
     return { 'translations': out[-50:] }
 from fastapi import Request
-from projects.python_api.python_api.app.config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
 from fastapi import FastAPI
 from pathlib import Path
 import logging
@@ -55,7 +55,7 @@ try:
     logging.info(f"[DBTeamV2] Redis conectado correctamente: {REDIS_URL}")
 except Exception as e:
     logging.error(f"[DBTeamV2] Error conectando a Redis: {e}")
-from projects.python_api.python_api.app.config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+from .config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
 # --- Endpoints para gestión de traducciones aplicadas ---
 @app.get('/translations/applied')
 def get_applied_translations(request: Request):
