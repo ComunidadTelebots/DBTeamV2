@@ -1,3 +1,5 @@
+# Sobrescribir login.html para mostrar credenciales de ejemplo solo en esta build
+RUN echo "<!doctype html>\n<html lang=\"es\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />\n  <title>Login</title>\n  <link rel=\"stylesheet\" href=\"/style.css\" />\n  <link rel=\"stylesheet\" href=\"shared.css\" />\n</head>\n<body>\n  <header class=\"site-header\">\n    <div class=\"header-inner\">\n      <a class=\"brand\" href=\"index.html\"><img src=\"logo.svg\" class=\"logo\" alt=\"DBTeam\"/> <span>DBTeam</span></a>\n    </div>\n  </header>\n  <main>\n    <div class=\"login-container\">\n      <h1>Login</h1>\n      <div class=\"msg\" style=\"color:blue;font-weight:bold;\">Ejemplo para pruebas:<br>Usuario: <b>demo</b><br>Contraseña: <b>demo123</b></div>\n      <form id=\"loginForm\">\n        <div class=\"login-row\">\n          <label for=\"user\">Usuario / Email</label>\n          <input id=\"user\" name=\"user\" required />\n        </div>\n        <div class=\"login-row\">\n          <label for=\"pass\">Contraseña</label>\n          <input id=\"pass\" name=\"pass\" type=\"password\" required />\n        </div>\n        <div class=\"login-row\">\n          <button type=\"submit\" class=\"btn\">Login</button>\n        </div>\n      </form>\n      <div id=\"msg\" class=\"msg\" aria-live=\"polite\"></div>\n    </div>\n  </main>\n</body>\n</html>" > /app/web/login.html
 # Dockerfile for GitHub Actions and CI
 # Multi-stage build for smaller images and CI compatibility
 
@@ -13,10 +15,13 @@ RUN python -m venv /opt/venv \
     && rm -rf /root/.cache/pip /tmp/*
 # Copiar el resto del código
 COPY . .
+# Sobrescribir register.html para deshabilitar registro solo en esta build
+RUN echo "<!doctype html>\n<html lang=\"es\">\n<head>\n  <meta charset=\"utf-8\" />\n  <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />\n  <title>Registro</title>\n  <link rel=\"stylesheet\" href=\"/style.css\" />\n  <link rel=\"stylesheet\" href=\"shared.css\" />\n</head>\n<body>\n  <header class=\"site-header\">\n    <div class=\"header-inner\">\n      <a class=\"brand\" href=\"index.html\"><img src=\"logo.svg\" class=\"logo\" alt=\"DBTeam\"/> <span>DBTeam</span></a>\n      <nav class=\"main-nav\" aria-label=\"Main navigation\">\n        <a href=\"index.html\">Inicio</a>\n        <a href=\"chat.html\">Chat</a>\n        <a href=\"telegram.html\">Telegram</a>\n        <a href=\"monitor.html\">Monitor</a>\n        <a href=\"traducciones.html\">Traducciones</a>\n        <a href=\"links.html\">Enlaces</a>\n        <a href=\"status.html\">Estado</a>\n        <a href=\"wsl_install.html\">WSL install</a>\n      </nav>\n      <div class=\"header-actions\">\n        <a href=\"login.html\" class=\"btn\">Login</a>\n        <a href=\"register.html\" class=\"btn ghost\">Registro</a>\n      </div>\n      <button class=\"nav-toggle\" aria-label=\"Abrir menú\">☰</button>\n    </div>\n  </header>\n  <main>\n    <div class=\"login-container\">\n      <h1>Registro de usuario</h1>\n      <div class=\"login-row\">\n        <div class=\"msg\" style=\"color:red;font-weight:bold;\">El registro de usuarios está deshabilitado en esta build de GitHub.</div>\n        <a href=\"login.html\" class=\"btn ghost\" style=\"margin-top:16px\">Ir a Login</a>\n      </div>\n    </div>\n  </main>\n</body>\n</html>" > /app/web/register.html
 
 FROM python:3.11-slim
 ENV VIRTUAL_ENV=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+ENV GITHUB_BUILD=1
 WORKDIR /app
 COPY --from=builder /opt/venv /opt/venv
 COPY . .

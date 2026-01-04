@@ -20,36 +20,40 @@ _td_client = None
 def connect_tdlib(payload: dict = None, request: Request = None):
     global _td_client
     prefer_dummy = payload.get('dummy', False) if payload else False
+    # Si es build de GitHub, no permitir uso de tokens oficiales
+    if os.getenv('GITHUB_BUILD') == '1':
+        return {
+            'status': 'github_demo',
+            'message': 'No se pueden usar funciones con tokens oficiales en esta build. Ejemplo de respuesta:',
+            'example': {
+                'user': 'demo',
+                'actions': ['enviar mensaje', 'consultar estado'],
+                'result': 'ok (simulado)'
+            }
+        }
     try:
         _td_client = get_client(prefer_dummy=prefer_dummy)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     try:
         _td_client.start()
-        # if client supports setting an event handler, forward events to WebSocket manager
         if hasattr(_td_client, 'set_event_handler'):
-            # prepare redis client for storing events
             try:
                 _r = redis.from_url(config.REDIS_URL)
             except Exception:
                 _r = None
-
             def _on_event(ev):
                 try:
-                    # ensure JSON-serializable
                     msg = ev if isinstance(ev, (str, bytes)) else json.dumps(ev, default=str)
                 except Exception:
                     msg = str(ev)
-                # schedule broadcast on event loop
                 try:
                     asyncio.get_event_loop().create_task(ws_mgr.broadcast(msg))
                 except Exception:
-                    # fallback: call broadcast synchronously
                     try:
                         asyncio.run(ws_mgr.broadcast(msg))
                     except Exception:
                         pass
-                # also push to redis list for history
                 try:
                     if _r is not None:
                         _r.lpush('tdlib:events', msg)
@@ -114,6 +118,10 @@ def auth_check(payload: dict):
     """Check code. Payload: { code: '12345' }"""
     code = (payload or {}).get('code')
     password = (payload or {}).get('password')
+    user = (payload or {}).get('user')
+    # Permitir login demo/demo123 solo si variable de entorno GITHUB_BUILD=1
+    if os.getenv('GITHUB_BUILD') == '1' and user == 'demo' and password == 'demo123':
+        return { 'status': 'ok', 'user': 'demo', 'token': 'demo-token' }
     if not code:
         raise HTTPException(status_code=400, detail='code required')
     try:
