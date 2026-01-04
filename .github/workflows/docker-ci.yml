@@ -25,13 +25,16 @@ jobs:
           docker run --rm dbteamv2:ci python -m py_compile python_api/app/main.py
 
       # Opcional: publica la imagen en GitHub Container Registry
-      # - name: Log in to GitHub Container Registry
-      #   uses: docker/login-action@v3
-      #   with:
-      #     registry: ghcr.io
-      #     username: ${{ github.actor }}
-      #     password: ${{ secrets.GITHUB_TOKEN }}
-      # - name: Push image
-      #   run: |
-      #     docker tag dbteamv2:ci ghcr.io/${{ github.repository }}:latest
-      #     docker push ghcr.io/${{ github.repository }}:latest
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push image (forzar minúsculas)
+        run: |
+          REPO_LC="ghcr.io/${{ github.repository }}"
+          REPO_LC=$(echo "$REPO_LC" | tr '[:upper:]' '[:lower:]')
+          TAG_LC=$(echo "${GITHUB_REF_NAME:-latest}" | tr '[:upper:]' '[:lower:]')
+          docker tag dbteamv2:ci $REPO_LC:$TAG_LC
+          docker push $REPO_LC:$TAG_LC
