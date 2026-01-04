@@ -116,6 +116,26 @@
   </header>
 
   <main class="container">
+                                                            <!-- Panel de gestión de grupos y chats del bot -->
+                                                            <section id="botGroupsPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:700px;">
+                                                              <h2>Grupos y chats del bot</h2>
+                                                              <div id="botGroupsList">Cargando...</div>
+                                                            </section>
+                                                            <!-- Panel de mensajes recibidos por el bot -->
+                                                            <section id="botMessagesPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:700px;">
+                                                              <h2>Mensajes recibidos por el bot</h2>
+                                                              <div id="botMessagesList">Cargando...</div>
+                                                            </section>
+                                                        <!-- Panel de gestión de traducciones aplicadas -->
+                                                        <section id="appliedTranslationsPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:600px;">
+                                                          <h2>Traducciones aplicadas</h2>
+                                                          <div id="appliedTranslationsList">Cargando...</div>
+                                                        </section>
+                                                    <!-- Panel de solicitudes de admin de traducciones (solo owner) -->
+                                                    <section id="transAdminRequestsPanel" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;">
+                                                      <h2>Solicitudes de admin de traducciones</h2>
+                                                      <!-- Aquí se cargan las solicitudes y botones de aprobar/rechazar -->
+                                                    </section>
                                                 <!-- Modal edición bot usuario -->
                                                 <div id="editUserBotModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#1e2338e0;z-index:2100;align-items:center;justify-content:center">
                                                   <div style="background:#f5f8ff;padding:36px 40px;border-radius:22px;max-width:420px;box-shadow:0 8px 36px #1e2338cc;display:flex;flex-direction:column;align-items:center;gap:20px">
@@ -206,7 +226,36 @@
     <h1>Panel Owner</h1>
     <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
 
-    <section class="card">
+    <!-- NUEVO BLOQUE DE CREACIÓN DE USUARIOS Y ADMINISTRADORES -->
+    <section class="card" style="margin-bottom:18px;padding:18px;background:#181818;border-radius:10px;border:1px solid #444;">
+      <h2 style="margin-bottom:12px">Crear usuarios y administradores</h2>
+      <div style="display:flex;flex-wrap:wrap;gap:32px">
+        <!-- Usuario normal -->
+        <div style="min-width:260px">
+          <h3 style="margin-bottom:8px">Usuario normal</h3>
+          <input id="userUserInput" type="text" placeholder="Usuario" style="width:120px;margin-bottom:6px" />
+          <input id="userPassInput" type="password" placeholder="Contraseña" style="width:120px;margin-bottom:6px" />
+          <button id="userCreateBtn">Crear</button>
+          <span id="userCreateMsg" style="margin-left:10px;color:#6c6"> </span>
+        </div>
+        <!-- Administrador -->
+        <div style="min-width:260px">
+          <h3 style="margin-bottom:8px">Administrador</h3>
+          <input id="adminUserInput" type="text" placeholder="Usuario" style="width:120px;margin-bottom:6px" />
+          <input id="adminPassInput" type="password" placeholder="Contraseña" style="width:120px;margin-bottom:6px" />
+          <button id="adminCreateBtn">Crear</button>
+          <span id="adminCreateMsg" style="margin-left:10px;color:#6c6"> </span>
+        </div>
+        <!-- Admin de traducciones -->
+        <div style="min-width:260px">
+          <h3 style="margin-bottom:8px">Admin de traducciones</h3>
+          <input id="transAdminUserInput" type="text" placeholder="Usuario" style="width:120px;margin-bottom:6px" />
+          <input id="transAdminPassInput" type="password" placeholder="Contraseña" style="width:120px;margin-bottom:6px" />
+          <button id="transAdminCreateBtn">Crear</button>
+          <span id="transAdminCreateMsg" style="margin-left:10px;color:#6c6"> </span>
+        </div>
+      </div>
+    </section>
           <section class="card">
             <div style="display:flex;align-items:center;gap:12px">
               <h2 style="margin:0">Grupos bloqueados (solo owner puede usar comandos)</h2>

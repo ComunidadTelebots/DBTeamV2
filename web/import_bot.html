@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Importar Bot Externo</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    form { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; padding: 2em; max-width: 400px; margin: auto; }
+    label { display: block; margin-top: 1em; color: #34495e; }
+    input, textarea { width: 100%; padding: 0.5em; margin-top: 0.3em; border-radius: 5px; border: 1px solid #ccc; }
+    button { background: #16a085; color: #fff; border: none; border-radius: 5px; padding: 0.7em 1.5em; margin-top: 1.5em; cursor: pointer; }
+    button:hover { background: #138d75; }
+    .msg { margin-top: 1em; color: #27ae60; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Importar Bot Externo</h1>
+  <form id="importForm">
+    <label for="token">Token del Bot</label>
+    <input type="text" id="token" name="token" required>
+    <label for="name">Nombre del Bot</label>
+    <input type="text" id="name" name="name" required>
+    <label for="info">Información (opcional)</label>
+    <textarea id="info" name="info"></textarea>
+    <label for="avatar">Avatar (URL opcional)</label>
+    <input type="text" id="avatar" name="avatar">
+    <label for="bot_file">Archivo del Bot (.py, .zip, etc.)</label>
+    <input type="file" id="bot_file" name="bot_file" accept=".py,.zip,.tar,.gz,.rar,.7z">
+    <label for="expected_hash">Hash esperado (SHA256 o MD5)</label>
+    <input type="text" id="expected_hash" name="expected_hash">
+    <button type="submit">Importar Bot</button>
+    <div class="msg" id="msg"></div>
+    <div class="msg" id="hash_msg"></div>
+  </form>
+  <script>
+    function calcHash(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const bytes = new Uint8Array(e.target.result);
+        // SHA256
+        window.crypto.subtle.digest('SHA-256', bytes).then(shaBuf => {
+          const shaArr = Array.from(new Uint8Array(shaBuf));
+          const shaHex = shaArr.map(b => b.toString(16).padStart(2, '0')).join('');
+          // MD5 (usando librería externa)
+          if (window.SparkMD5) {
+            const md5Hex = window.SparkMD5.ArrayBuffer.hash(bytes.buffer);
+            callback(shaHex, md5Hex);
+          } else {
+            callback(shaHex, null);
+          }
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    }
+    document.getElementById('bot_file').onchange = function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      document.getElementById('hash_msg').textContent = 'Calculando hash...';
+      calcHash(file, (sha, md5) => {
+        let msg = `SHA256: ${sha}`;
+        if (md5) msg += `\nMD5: ${md5}`;
+        document.getElementById('hash_msg').textContent = msg;
+        // Validar automáticamente si el hash coincide con el campo esperado
+        const expected = document.getElementById('expected_hash').value.trim().toLowerCase();
+        if (expected && (expected === sha || expected === md5)) {
+          document.getElementById('hash_msg').textContent += '\n✔ Hash válido';
+        } else if (expected) {
+          document.getElementById('hash_msg').textContent += '\n✖ Hash no coincide';
+        }
+      });
+    };
+    document.getElementById('expected_hash').oninput = function() {
+      // Recalcular validación si el usuario cambia el hash esperado
+      const file = document.getElementById('bot_file').files[0];
+      if (file) document.getElementById('bot_file').onchange({ target: { files: [file] } });
+    };
+    document.getElementById('importForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const token = document.getElementById('token').value.trim();
+      const name = document.getElementById('name').value.trim();
+      const info = document.getElementById('info').value.trim();
+      const avatar = document.getElementById('avatar').value.trim();
+      const expected_hash = document.getElementById('expected_hash').value.trim();
+      const fileInput = document.getElementById('bot_file');
+      let bot_file = '';
+      if (fileInput.files[0]) {
+        const file = fileInput.files[0];
+        bot_file = await new Promise(res => {
+          const reader = new FileReader();
+          reader.onload = e => res(btoa(String.fromCharCode(...new Uint8Array(e.target.result))));
+          reader.readAsArrayBuffer(file);
+        });
+      }
+      const res = await fetch('/bot/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, name, info, avatar, bot_file, expected_hash })
+      });
+      const data = await res.json();
+      document.getElementById('msg').textContent = data.ok ? 'Bot importado correctamente.' : (data.detail || 'Error al importar bot');
+    };
+    // Cargar librería MD5 si no está
+    if (!window.SparkMD5) {
+      const script = document.createElement('script');
+      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/spark-md5/3.0.2/spark-md5.min.js';
+      document.head.appendChild(script);
+    }
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Blog de novedades</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { background: #181818; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; }
+    .container { max-width: 700px; margin: 40px auto; background: #222; border-radius: 12px; box-shadow: 0 2px 16px #0006; padding: 32px; }
+    h1 { color: #6cf; margin-bottom: 24px; }
+    .post { background: #232a; border-radius: 8px; margin-bottom: 24px; padding: 20px; box-shadow: 0 1px 6px #0003; }
+    .post-title { font-size: 1.3em; color: #fff; margin-bottom: 8px; }
+    .post-date { color: #6cf; font-size: 0.95em; margin-bottom: 12px; }
+    .post-content { color: #eee; font-size: 1.08em; }
+    @media (max-width: 600px) { .container { padding: 12px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Blog de novedades</h1>
+      <div id="editorPanel" style="background:#232a;padding:18px 16px 20px 16px;border-radius:8px;margin-bottom:28px;display:none;">
+      <h2 style="color:#6cf;font-size:1.1em;margin-bottom:10px;">Nuevo post</h2>
+      <input id="postTitle" type="text" placeholder="Título" style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px;border:none;font-size:1em;background:#222;color:#fff;">
+      <textarea id="postContent" rows="4" placeholder="Contenido" style="width:100%;margin-bottom:8px;padding:8px;border-radius:6px;border:none;font-size:1em;background:#222;color:#fff;"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;">
+        <button id="previewBtn" style="background:#6cf;color:#222;padding:8px 18px;border-radius:6px;border:none;font-weight:bold;">Previsualizar</button>
+        <button id="publishBtn" style="background:#2f6;color:#222;padding:8px 18px;border-radius:6px;border:none;font-weight:bold;">Publicar</button>
+        <span id="editorMsg" style="color:#f44;margin-left:10px;"></span>
+      </div>
+      <div id="previewPanel" style="margin-top:18px;display:none;background:#222;border-radius:8px;padding:16px;box-shadow:0 1px 6px #0003;"></div>
+    </div>
+    <div id="posts">
+      <!-- Las novedades se mostrarán aquí -->
+    </div>
+  </div>
+  <script>
+    let posts = [];
+    async function fetchPosts() {
+      try {
+        const resp = await fetch('/blog/posts');
+        if (resp.ok) {
+          const js = await resp.json();
+          posts = js.posts || [];
+        } else {
+          posts = [];
+        }
+      } catch (e) {
+        posts = [];
+      }
+      renderPosts();
+    }
+
+    function renderPosts() {
+      const postsDiv = document.getElementById('posts');
+      postsDiv.innerHTML = '';
+      posts.forEach(post => {
+        const el = document.createElement('div');
+        el.className = 'post';
+        el.innerHTML = `<div class='post-title'>${post.title}</div><div class='post-date'>${post.date}</div><div class='post-content'>${post.content}</div>`;
+        if (isOwner()) {
+          const editBtn = document.createElement('button');
+          editBtn.textContent = 'Editar';
+          editBtn.className = 'ghost';
+          editBtn.style.marginLeft = '12px';
+          editBtn.onclick = () => startEditPost(post);
+          el.appendChild(editBtn);
+
+          const sendBtn = document.createElement('button');
+          sendBtn.textContent = 'Enviar al bot';
+          sendBtn.className = 'ghost';
+          sendBtn.style.marginLeft = '8px';
+          sendBtn.onclick = async () => {
+            sendBtn.disabled = true;
+            sendBtn.textContent = 'Enviando...';
+            try {
+              const resp = await fetch('/blog/publish', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '')
+                },
+                body: JSON.stringify({ title: post.title, content: post.content, date: post.date, id: post.id, resend: true })
+              });
+              if (resp.ok) {
+                sendBtn.textContent = '¡Enviado!';
+                setTimeout(()=>{ sendBtn.textContent = 'Enviar al bot'; sendBtn.disabled = false; }, 1800);
+              } else {
+                sendBtn.textContent = 'Error';
+                setTimeout(()=>{ sendBtn.textContent = 'Enviar al bot'; sendBtn.disabled = false; }, 1800);
+              }
+            } catch (e) {
+              sendBtn.textContent = 'Error';
+              setTimeout(()=>{ sendBtn.textContent = 'Enviar al bot'; sendBtn.disabled = false; }, 1800);
+            }
+          };
+          el.appendChild(sendBtn);
+        }
+        postsDiv.appendChild(el);
+      });
+    }
+
+    // Mostrar editor solo si es owner
+    const editorPanel = document.getElementById('editorPanel');
+    function isOwner() {
+      return localStorage.getItem('role') === 'owner';
+    }
+    if (isOwner()) {
+      editorPanel.style.display = '';
+    }
+
+    // Editor y previsualización
+    const postTitle = document.getElementById('postTitle');
+    const postContent = document.getElementById('postContent');
+    const previewBtn = document.getElementById('previewBtn');
+    const publishBtn = document.getElementById('publishBtn');
+    const previewPanel = document.getElementById('previewPanel');
+    const editorMsg = document.getElementById('editorMsg');
+    let editingId = null;
+
+    previewBtn.onclick = () => {
+      const title = postTitle.value.trim();
+      const content = postContent.value.trim();
+      if (!title || !content) {
+        editorMsg.textContent = 'Completa título y contenido.';
+        previewPanel.style.display = 'none';
+        return;
+      }
+      editorMsg.textContent = '';
+      previewPanel.innerHTML = `<div class='post-title'>${title}</div><div class='post-date'>${new Date().toISOString().slice(0,10)}</div><div class='post-content'>${content}</div>`;
+      previewPanel.style.display = 'block';
+    };
+
+    publishBtn.onclick = async () => {
+      const title = postTitle.value.trim();
+      const content = postContent.value.trim();
+      if (!title || !content) {
+        editorMsg.textContent = 'Completa título y contenido.';
+        return;
+      }
+      let url = '/blog/publish';
+      let body = { title, content };
+      if (editingId) {
+        url = '/blog/edit';
+        body.id = editingId;
+      }
+      try {
+        const resp = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '')
+          },
+          body: JSON.stringify(body)
+        });
+        if (resp.ok) {
+          await fetchPosts();
+          postTitle.value = '';
+          postContent.value = '';
+          previewPanel.style.display = 'none';
+          editorMsg.textContent = editingId ? '¡Editado!' : '¡Publicado!';
+          editingId = null;
+          setTimeout(()=>{ editorMsg.textContent = ''; }, 1800);
+        } else {
+          const err = await resp.json();
+          editorMsg.textContent = err.detail || 'Error al publicar.';
+        }
+      } catch (e) {
+        editorMsg.textContent = 'Error de red.';
+      }
+    };
+
+    function startEditPost(post) {
+      postTitle.value = post.title;
+      postContent.value = post.content;
+      editingId = post.id;
+      previewPanel.style.display = 'none';
+      editorMsg.textContent = 'Editando post...';
+    }
+
+    fetchPosts();
+  </script>
+</body>
+</html>

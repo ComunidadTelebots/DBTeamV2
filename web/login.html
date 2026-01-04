@@ -49,6 +49,7 @@
         <button id="btnLoginViaBot" class="btn" style="background:#5a2">Entrar vía Bot</button>
         <button id="btnUseKey" class="btn" style="background:#666;margin-left:8px">Usar API Key</button>
         <button id="btnRegister" class="btn" style="background:#0a8;margin-left:8px">Registrarse</button>
+        <button id="btnForgot" class="btn ghost" style="background:#f44;margin-left:8px">¿Olvidaste tu contraseña?</button>
       </div>
 
       <div class="login-row" style="margin-top:12px">
@@ -62,7 +63,7 @@
         <input id="apiBaseLogin" type="text" value="http://127.0.0.1:8081" />
       </div>
       <div class="login-row" id="registerRow" style="display:none">
-        <label><input id="isAdmin" type="checkbox" /> Crear como administrador</label>
+        <!-- Opción de crear como administrador eliminada por seguridad -->
       </div>
 
       <div id="msg" class="msg" aria-live="polite"></div>
@@ -70,6 +71,29 @@
   </main>
 
   <script src="login.js"></script>
+    <script>
+      document.getElementById('btnForgot').onclick = function() {
+        const user = prompt('Introduce tu usuario para recuperar la contraseña:');
+        if (!user) return;
+        const msg = document.getElementById('msg');
+        msg.textContent = 'Procesando...';
+        fetch('/auth/request_reset', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user })
+        }).then(async resp => {
+          if (resp.ok) {
+            msg.textContent = 'Solicitud enviada. Revisa tu email o Telegram.';
+          } else {
+            const err = await resp.json();
+            msg.textContent = err.detail || 'Error al solicitar.';
+          }
+        }).catch(()=>{
+          msg.textContent = 'Error de red.';
+        });
+      };
+    </script>
   <script src="shared.js"></script>
+  <script src="owner.js"></script>
 </body>
 </html>

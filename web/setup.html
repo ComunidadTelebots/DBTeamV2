@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Instalador DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    .setup-container { max-width: 420px; margin: 3.5rem auto; background: var(--card); border-radius: 1.2rem; box-shadow: 0 4px 32px #0001; padding: 2.2rem 2.2rem 1.5rem 2.2rem; }
+    .setup-title { font-size: 2rem; font-weight: 700; margin-bottom: 1.2rem; }
+    .setup-btn { width: 100%; margin: 0.7rem 0; font-size: 1.1em; }
+    .setup-status { margin: 1.2rem 0 0.7rem 0; color: var(--primary-dark); min-height: 2em; }
+    .owner-form { margin-top: 2.2rem; }
+    .owner-form input { width: 100%; margin-bottom: 0.7rem; }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+    </div>
+  </header>
+  <main>
+    <div class="setup-container">
+      <div class="setup-title">Instalador DBTeam</div>
+      <p>Instala la web y todos los componentes necesarios en tu sistema con un solo clic.</p>
+      <button class="btn setup-btn" id="btnWin">Instalar en Windows</button>
+      <button class="btn setup-btn" id="btnUbuntu">Instalar en Ubuntu</button>
+      <div class="setup-status" id="setupStatus"></div>
+      <form class="owner-form" id="ownerForm" autocomplete="off">
+        <h2>Crear usuario Owner</h2>
+        <input type="text" id="ownerUser" placeholder="Usuario / Email" required />
+        <input type="password" id="ownerPass" placeholder="Contraseña" required />
+        <button class="btn" type="submit">Crear Owner</button>
+        <div class="setup-status" id="ownerStatus"></div>
+      </form>
+    </div>
+  </main>
+  <script>
+    const status = document.getElementById('setupStatus');
+    document.getElementById('btnWin').onclick = async function() {
+      status.textContent = 'Ejecutando instalador para Windows...';
+      try {
+        const resp = await fetch('/run_setup_windows', { method: 'POST' });
+        if (resp.ok) status.textContent = 'Instalación iniciada en Windows. Sigue las instrucciones en la terminal.';
+        else status.textContent = 'Error al iniciar la instalación en Windows.';
+      } catch { status.textContent = 'No se pudo contactar con el backend.'; }
+    };
+    document.getElementById('btnUbuntu').onclick = async function() {
+      status.textContent = 'Ejecutando instalador para Ubuntu...';
+      try {
+        const resp = await fetch('/run_setup_ubuntu', { method: 'POST' });
+        if (resp.ok) status.textContent = 'Instalación iniciada en Ubuntu. Sigue las instrucciones en la terminal.';
+        else status.textContent = 'Error al iniciar la instalación en Ubuntu.';
+      } catch { status.textContent = 'No se pudo contactar con el backend.'; }
+    };
+    document.getElementById('ownerForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const user = document.getElementById('ownerUser').value;
+      const pass = document.getElementById('ownerPass').value;
+      const ownerStatus = document.getElementById('ownerStatus');
+      ownerStatus.textContent = 'Creando usuario owner...';
+      try {
+        const resp = await fetch('/create_owner', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user, pass })
+        });
+        if (resp.ok) ownerStatus.textContent = 'Usuario owner creado correctamente.';
+        else {
+          const err = await resp.json();
+          ownerStatus.textContent = err.detail || 'Error al crear owner.';
+        }
+      } catch { ownerStatus.textContent = 'No se pudo contactar con el backend.'; }
+    };
+  </script>
+</body>
+</html>

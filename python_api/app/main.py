@@ -1,3 +1,390 @@
+from fastapi import FastAPI
+app = FastAPI()
+from fastapi.responses import RedirectResponse
+
+# Redirección de la raíz a index.html
+@app.get("/")
+def root_redirect():
+    return RedirectResponse(url="/index.html")
+from fastapi import Request
+# Estado de traducciones aplicadas (para owner)
+from fastapi import HTTPException
+import json
+@app.get('/translations/applied')
+def get_applied_translations(request: Request):
+    # Solo owner puede ver traducciones aplicadas
+    sess = None
+    try:
+        if hasattr(request, 'session'):
+            sess = request.session
+        else:
+            # Intentar obtener sesión por header
+            auth = request.headers.get('authorization')
+            if auth and auth.lower().startswith('bearer '):
+                token = auth.split(None, 1)[1]
+                v = r.get(f'web:session:{token}')
+                if v:
+                    dec = v.decode() if isinstance(v, bytes) else v
+                    try:
+                        sess = json.loads(dec)
+                    except Exception:
+                        pass
+    except Exception:
+        sess = None
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede ver traducciones aplicadas')
+    out = []
+    for m in r.lrange('web:applied_translations', 0, -1) or []:
+        try:
+            obj = json.loads(m)
+            out.append(obj)
+        except Exception:
+            continue
+    return { 'translations': out[-50:] }
+from fastapi import Request
+from projects.python_api.python_api.app.config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+from fastapi import FastAPI
+from pathlib import Path
+import logging
+app = FastAPI()
+logging.basicConfig(level=logging.INFO)
+try:
+    import redis
+    r = redis.from_url(REDIS_URL)
+    r.ping()
+    logging.info(f"[DBTeamV2] Redis conectado correctamente: {REDIS_URL}")
+except Exception as e:
+    logging.error(f"[DBTeamV2] Error conectando a Redis: {e}")
+from projects.python_api.python_api.app.config import BOT_TOKEN, WEB_API_KEY, WEB_API_SECRET, WEB_API_ORIGIN, REDIS_URL
+# --- Endpoints para gestión de traducciones aplicadas ---
+@app.get('/translations/applied')
+def get_applied_translations(request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede ver traducciones aplicadas')
+    out = []
+    for m in r.lrange('web:applied_translations', 0, -1) or []:
+        try:
+            obj = json.loads(m)
+            out.append(obj)
+        except Exception:
+            continue
+    return { 'translations': out[-50:] }
+
+@app.post('/translations/reject')
+def reject_translation(payload: dict, request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede rechazar traducciones')
+    tid = payload.get('id')
+    if not tid:
+        raise HTTPException(status_code=400, detail='ID requerido')
+    items = r.lrange('web:applied_translations', 0, -1) or []
+    new_items = [m for m in items if not (json.loads(m).get('id') == tid)]
+    r.delete('web:applied_translations')
+    for m in new_items:
+        r.rpush('web:applied_translations', m)
+    return { 'status': 'rejected' }
+# --- Endpoint para enviar traducción por Telegram ---
+@app.post('/translations/send_telegram')
+def send_translation_telegram(payload: dict, request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_trans_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin de traducciones puede enviar')
+    txt = payload.get('text')
+    mode = payload.get('mode', 'group')
+    user = payload.get('user', '').strip()
+    if not txt:
+        raise HTTPException(status_code=400, detail='Texto requerido')
+    token = os.environ.get('BOT_TOKEN', None) or BOT_TOKEN
+    if mode == 'private':
+        if not user or not user.startswith('@'):
+            raise HTTPException(status_code=400, detail='Usuario Telegram inválido')
+        # Obtener el user_id por username (requiere método extra si no está en caché)
+        # Aquí se asume que el bot puede enviar por username
+        chat_id = user
+    else:
+        chat_id = os.environ.get('TRANSLATION_TELEGRAM_ID', None) or '-100123456789'
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+    body = { 'chat_id': chat_id, 'text': f"Traducción enviada: {txt}" }
+    resp = requests.post(url, json=body)
+    if not resp.ok:
+        raise HTTPException(status_code=500, detail=resp.text)
+    return { 'status': 'sent' }
+# --- Endpoints de notificación manual minichat ---
+@app.post('/mini_chat/notify_telegram')
+def mini_chat_notify_telegram(payload: dict, request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin puede notificar')
+    txt = payload.get('text')
+    if not txt:
+        raise HTTPException(status_code=400, detail='Texto requerido')
+    # Enviar mensaje por Telegram al creador
+    creator_chat_id = os.environ.get('CREATOR_TELEGRAM_ID', None) or '-100123456789'  # Cambia por el chat real
+    token = os.environ.get('BOT_TOKEN', None) or BOT_TOKEN
+    url = f'https://api.telegram.org/bot{token}/sendMessage'
+    body = { 'chat_id': creator_chat_id, 'text': f"Mensaje minichat: {txt}" }
+    resp = requests.post(url, json=body)
+    if not resp.ok:
+        raise HTTPException(status_code=500, detail=resp.text)
+    return { 'status': 'notified' }
+
+@app.post('/mini_chat/notify_email')
+def mini_chat_notify_email(payload: dict, request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin puede notificar')
+    txt = payload.get('text')
+    if not txt:
+        raise HTTPException(status_code=400, detail='Texto requerido')
+    # Enviar email al creador (ajusta email y método)
+    import smtplib
+    from email.mime.text import MIMEText
+    creator_email = os.environ.get('CREATOR_EMAIL', None) or 'admin@tudominio.com'
+    msg = MIMEText(f"Mensaje minichat: {txt}")
+    msg['Subject'] = 'Nuevo mensaje minichat DBTeam'
+    msg['From'] = 'noreply@tudominio.com'
+    msg['To'] = creator_email
+    try:
+        s = smtplib.SMTP('localhost')
+        s.sendmail(msg['From'], [creator_email], msg.as_string())
+        s.quit()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    return { 'status': 'notified' }
+# --- Endpoints minichat admin-creador ---
+@app.get('/mini_chat/messages')
+def mini_chat_messages(request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin puede ver el chat')
+    msgs = []
+    for m in r.lrange('web:mini_chat', 0, -1) or []:
+        try:
+            obj = json.loads(m)
+            msgs.append(obj)
+        except Exception:
+            continue
+    return { 'messages': msgs[-40:] }
+
+@app.post('/mini_chat/send')
+def mini_chat_send(payload: dict, request: Request):
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin puede enviar mensajes')
+    txt = payload.get('text')
+    if not txt:
+        raise HTTPException(status_code=400, detail='Texto requerido')
+    msg = { 'from': sess.get('user'), 'text': txt, 'ts': int(time.time()) }
+    r.rpush('web:mini_chat', json.dumps(msg))
+    # Opcional: notificar al creador por Telegram, email, etc.
+    return { 'status': 'sent' }
+# --- Solicitudes de admin de traducciones ---
+from fastapi import Request, HTTPException
+import uuid
+
+def is_owner_request(request: Request) -> bool:
+    sess = request.session if hasattr(request, 'session') else None
+    return bool(sess and sess.get('is_owner'))
+
+@app.post('/trans_admin/request')
+def request_trans_admin(payload: dict, request: Request):
+    """Solicita crear un nuevo admin de traducciones. Solo admins de traducciones pueden solicitar."""
+    sess = request.session if hasattr(request, 'session') else None
+    if not sess or not sess.get('is_trans_admin'):
+        raise HTTPException(status_code=403, detail='Solo admin de traducciones puede solicitar')
+    user = payload.get('user')
+    pw = payload.get('pass')
+    if not user or not pw:
+        raise HTTPException(status_code=400, detail='user y pass requeridos')
+    req_id = str(uuid.uuid4())
+    obj = { 'id': req_id, 'user': user, 'pass': pw, 'by': sess.get('user'), 'ts': int(time.time()), 'status': 'pending' }
+    r.hset('web:trans_admin_requests', req_id, json.dumps(obj))
+    return { 'status': 'pending', 'id': req_id }
+
+@app.get('/trans_admin/requests')
+def list_trans_admin_requests(request: Request):
+    """Lista solicitudes pendientes de admin de traducciones. Solo owner puede verlas."""
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner puede ver solicitudes')
+    out = []
+    for k, v in (r.hgetall('web:trans_admin_requests') or {}).items():
+        try:
+            obj = json.loads(v)
+            out.append(obj)
+        except Exception:
+            continue
+    return { 'requests': out }
+
+@app.post('/trans_admin/approve')
+def approve_trans_admin(payload: dict, request: Request):
+    """Aprueba o rechaza una solicitud de admin de traducciones. Solo owner puede aprobar/rechazar."""
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner puede aprobar')
+    req_id = payload.get('id')
+    approve = bool(payload.get('approve'))
+    v = r.hget('web:trans_admin_requests', req_id)
+    if not v:
+        raise HTTPException(status_code=404, detail='Solicitud no encontrada')
+    obj = json.loads(v)
+    if obj.get('status') != 'pending':
+        raise HTTPException(status_code=409, detail='Ya procesada')
+    if approve:
+        # Crear el usuario como admin de traducciones
+        user_key = f'web:user:{obj["user"]}'
+        if r.exists(user_key):
+            obj['status'] = 'rejected'
+            r.hset('web:trans_admin_requests', req_id, json.dumps(obj))
+            return { 'status': 'rejected', 'reason': 'Usuario ya existe' }
+        def hash_password(password: str) -> str:
+            import secrets, hashlib
+            salt = secrets.token_bytes(16)
+            dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+            return salt.hex() + ':' + dk.hex()
+        hashed = hash_password(obj['pass'])
+        user_obj = { 'pw': hashed, 'created_at': int(time.time()), 'is_admin': False, 'is_trans_admin': True }
+        r.set(user_key, json.dumps(user_obj))
+        obj['status'] = 'approved'
+        r.hset('web:trans_admin_requests', req_id, json.dumps(obj))
+        return { 'status': 'approved', 'user': obj['user'] }
+    else:
+        obj['status'] = 'rejected'
+        r.hset('web:trans_admin_requests', req_id, json.dumps(obj))
+        return { 'status': 'rejected' }
+# Endpoint para crear administradores desde la web
+@app.post('/admin/create')
+def admin_create(payload: dict, request: Request):
+    if not is_owner_request(request):
+        return JSONResponse({'error': 'Unauthorized'}, status_code=403)
+    user = (payload.get('user') or '').strip()
+    passwd = (payload.get('pass') or '')
+    if not user or not passwd:
+        return JSONResponse({'error': 'Usuario y contraseña requeridos'}, status_code=400)
+    # Guardar en Redis como admin
+    key = f'web:admin:{user.lower()}'
+    obj = { 'user': user, 'pass': passwd, 'is_admin': True }
+    r.set(key, json.dumps(obj))
+    return { 'status': 'ok', 'user': user }
+# --- Middleware global para control de IP y auditoría de accesos ---
+from fastapi.responses import JSONResponse
+@app.middleware('http')
+async def ip_whitelist_and_audit(request: Request, call_next):
+    allowed = {'127.0.0.1', '::1', '192.168.1.1'} # Personaliza según tu red
+    ip = request.client.host if request and request.client else None
+    user = None
+    try:
+        user = get_session_from_request(request)
+    except Exception:
+        user = None
+    path = request.url.path
+    # Registrar acceso en el log de auditoría
+    try:
+        from pathlib import Path
+        import time
+        _audit_log_path = Path(__file__).resolve().parents[2] / 'logs' / 'lang_audit.log'
+        _audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(_audit_log_path, 'a', encoding='utf-8') as f:
+            ts = int(time.time())
+            f.write(f"{ts}|ACCESS|{(user.get('username') if user else '-')}|{ip}|{path}\n")
+    except Exception:
+        pass
+    if ip not in allowed:
+        return JSONResponse({'error': 'IP no autorizada'}, status_code=403)
+    response = await call_next(request)
+    return response
+# Auditoría de acciones sensibles
+import threading
+_audit_lock = threading.Lock()
+_audit_log_path = Path(__file__).resolve().parents[2] / 'logs' / 'lang_audit.log'
+def log_lang_action(action, user, ip):
+    with _audit_lock:
+        try:
+            _audit_log_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(_audit_log_path, 'a', encoding='utf-8') as f:
+                ts = int(time.time())
+                f.write(f"{ts}|{action}|{user}|{ip}\n")
+        except Exception:
+            pass
+
+def get_audit_logs():
+    logs = []
+    if not _audit_log_path.exists():
+        return logs
+    with open(_audit_log_path, encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split('|')
+            if len(parts) == 4:
+                ts, action, user, ip = parts
+                logs.append({ 'ts': int(ts), 'action': action, 'user': user, 'ip': ip })
+            elif len(parts) == 5:
+                ts, action, user, ip, path = parts
+                logs.append({ 'ts': int(ts), 'action': action, 'user': user, 'ip': ip, 'path': path })
+    return logs[::-1][:100]
+
+@app.get('/audit/lang_actions')
+def audit_lang_actions(request: Request):
+    if not is_owner_request(request):
+        return JSONResponse({'error': 'Unauthorized'}, status_code=403)
+    return get_audit_logs()
+# Endpoint para listar idiomas disponibles en un scope
+@app.get('/i18n/list/{scope}')
+def is_owner_request(request: Request) -> bool:
+    # Puedes mejorar esto con tu lógica de owner/admin
+    user = get_session_from_request(request)
+    return user and (user.get('is_owner') or user.get('is_admin'))
+
+def allowed_ip(request: Request) -> bool:
+    # Whitelist de IPs permitidas (puedes personalizar)
+    allowed = {'127.0.0.1', '::1', '192.168.1.1'}
+    ip = request.client.host if request and request.client else None
+    return ip in allowed
+
+@app.get('/i18n/list/{scope}')
+def list_langs(scope: str, request: Request):
+    user = get_session_from_request(request)
+    ip = request.client.host if request and request.client else '-'
+    if not is_owner_request(request) or not allowed_ip(request):
+        log_lang_action('DENIED_LIST', user.get('username') if user else '-', ip)
+        return JSONResponse({'error': 'Unauthorized'}, status_code=403)
+    repo_root = Path(__file__).resolve().parents[2]
+    i18n_dir = repo_root / 'web' / 'i18n' / scope
+    if not i18n_dir.exists():
+        return []
+    langs = []
+    for f in i18n_dir.glob('*.json'):
+        code = f.stem.lower()
+        if code.isalpha() and 2 <= len(code) <= 5:
+            langs.append(code)
+    log_lang_action('LIST', user.get('username') if user else '-', ip)
+    return sorted(langs)
+# Endpoint para crear un nuevo archivo de idioma (bot o web)
+from fastapi import Body
+@app.post('/translations/create_lang')
+def create_lang(payload: dict = Body(...), request: Request = None):
+    user = get_session_from_request(request)
+    ip = request.client.host if request and request.client else '-'
+    if not is_owner_request(request) or not allowed_ip(request):
+        log_lang_action('DENIED_CREATE', user.get('username') if user else '-', ip)
+        return JSONResponse({'error': 'Unauthorized'}, status_code=403)
+    lang = (payload.get('lang') or '').strip().lower()
+    scope = (payload.get('scope') or 'bot').strip().lower()
+    if not lang or not lang.isalpha() or not (2 <= len(lang) <= 5):
+        return JSONResponse({'error': 'Código de idioma inválido'}, status_code=400)
+    repo_root = Path(__file__).resolve().parents[2]
+    i18n_dir = repo_root / 'web' / 'i18n' / scope
+    i18n_dir.mkdir(parents=True, exist_ok=True)
+    lang_file = i18n_dir / f"{lang}.json"
+    if lang_file.exists():
+        return JSONResponse({'error': 'El archivo ya existe'}, status_code=409)
+    base_file = i18n_dir / 'en.json'
+    if base_file.exists():
+        import shutil
+        shutil.copy(str(base_file), str(lang_file))
+    else:
+        lang_file.write_text(json.dumps({"_note": "Traducción inicial generada"}, ensure_ascii=False, indent=2), encoding='utf-8')
+    log_lang_action('CREATE', user.get('username') if user else '-', ip)
+    return { 'status': 'ok', 'file': str(lang_file) }
 from fastapi import APIRouter
 router = APIRouter()
 
@@ -140,7 +527,6 @@ async def set_tg_channel(request: Request):
             return JSONResponse({'ok': False, 'error': 'Solo el dueño o administrador del canal puede configurar esto.'}, status_code=403)
         with open(tg_path, 'w', encoding='utf-8') as f:
             f.write(channel)
-        log_notification(f'Canal Telegram para notificaciones guardado: {channel}', 'info')
         return JSONResponse({'ok': True, 'channel': channel})
     except Exception as e:
         return JSONResponse({'ok': False, 'error': str(e)}, status_code=500)
@@ -273,7 +659,7 @@ START_TIME = int(time.time())
 TDLIB_AVAILABLE = True
 try:
 #     from .tdlib_router import router as tdlib_router
-    app.include_router(tdlib_router, prefix='/tdlib')
+    # app.include_router(tdlib_router, prefix='/tdlib')
     print('tdlib router included')
 except Exception as _e:
     TDLIB_AVAILABLE = False
@@ -1336,3 +1722,42 @@ try:
         app.mount('/', StaticFiles(directory=str(web_dir), html=True), name='web')
 except Exception:
     pass
+
+from fastapi import BackgroundTasks
+
+@app.post('/run_setup_windows')
+def run_setup_windows(background_tasks: BackgroundTasks):
+    import subprocess
+    try:
+        background_tasks.add_task(subprocess.Popen, ["powershell", "./quick_setup_windows.ps1"], shell=True)
+        return { 'status': 'started' }
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.post('/run_setup_ubuntu')
+def run_setup_ubuntu(background_tasks: BackgroundTasks):
+    import subprocess
+    try:
+        background_tasks.add_task(subprocess.Popen, ["bash", "./scripts/setup_ubuntu.sh"], shell=True)
+        return { 'status': 'started' }
+    except Exception as e:
+        return JSONResponse({'error': str(e)}, status_code=500)
+
+@app.post('/create_owner')
+def create_owner(payload: dict):
+    """Crea el usuario owner si no existe."""
+    user = (payload.get('user') or '').strip()
+    passwd = (payload.get('pass') or '')
+    if not user or not passwd:
+        return JSONResponse({'detail': 'Usuario y contraseña requeridos'}, status_code=400)
+    user_key = f'web:user:{user}'
+    if r.exists(user_key):
+        return JSONResponse({'detail': 'El usuario ya existe'}, status_code=409)
+    def _hash_password(password: str) -> str:
+        salt = secrets.token_bytes(16)
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        return salt.hex() + ':' + dk.hex()
+    hashed = _hash_password(passwd)
+    obj = { 'pw': hashed, 'created_at': int(time.time()), 'is_owner': True, 'is_admin': True }
+    r.set(user_key, json.dumps(obj))
+    return { 'status': 'created', 'user': user }

@@ -3,11 +3,74 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>DBTeam - IA (PoC)</title>
+  <title>DBTeam - Plataforma de Bots</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="shared.css" />
   <link rel="icon" href="/logo.svg">
+  <style>
+    .landing-main {
+      min-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2.5rem 1rem 1.5rem 1rem;
+    }
+    .landing-card {
+      background: var(--card);
+      border-radius: 18px;
+      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
+      padding: 2.5rem 2rem;
+      max-width: 420px;
+      width: 100%;
+      text-align: center;
+      margin-bottom: 2rem;
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .landing-card h2 {
+      margin-top: 0;
+      font-size: 1.7rem;
+      font-weight: 700;
+      color: var(--accent-2);
+    }
+    .landing-card p {
+      color: var(--muted);
+      font-size: 1.1rem;
+      margin-bottom: 1.5rem;
+    }
+    .landing-actions {
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .landing-actions a {
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      padding: 0.8rem 2.2rem;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      transition: background 0.2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+      border: none;
+      margin-bottom: 0.5rem;
+    }
+    .landing-actions a.secondary {
+      background: transparent;
+      color: var(--accent-2);
+      border: 1px solid var(--accent-2);
+    }
+    .landing-actions a:hover {
+      background: var(--accent-2);
+      color: #fff;
+    }
+    @media (max-width: 600px) {
+      .landing-card { padding: 1.2rem 0.5rem; }
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
@@ -30,150 +93,34 @@
       <button class="nav-toggle" aria-label="Abrir menú">☰</button>
     </div>
   </header>
-  <main class="container">
-    <h1>Interfaz IA — Prueba de concepto</h1>
-    <p style="margin-top:6px;color:var(--muted);">Ver actividad en vivo: <a href="monitor.html">Monitor de bots</a></p>
-    <p style="margin-top:6px;color:var(--muted);">Interacción: <a href="chat.html">Chat UI (enviar/recibir)</a></p>
-
-    <section>
-      <h2>Login Telegram</h2>
-      <div id="tg-login">
-        <!-- Replace data-telegram-login value with your bot username -->
-        <script async src="https://telegram.org/js/telegram-widget.js?15" data-telegram-login="YOUR_BOT_USERNAME" data-size="large" data-userpic="false" data-request-access="write" data-on-auth="onTelegramAuth"></script>
+  <main class="landing-main">
+    <div class="landing-card">
+      <h2>Bienvenido a DBTeam</h2>
+      <p>Gestiona tus bots, accede a recursos, solicita soporte o explora las herramientas disponibles.<br><br>
+      Si eres nuevo, puedes registrarte para comenzar a usar la plataforma.</p>
+      <div class="landing-actions">
+        <a href="login.html">Iniciar sesión</a>
+        <a href="register.html" class="secondary">Registrarse</a>
+        <a href="help.html" class="secondary">Ayuda</a>
+        <a href="tutorial.html" class="btn ghost">Tutorial</a>
+        <a href="setup.html" id="setupLink" class="btn ghost" style="display:none">Instalar DBTeam</a>
       </div>
-    </section>
-
-    <label for="endpoint">Endpoint (POST JSON -> {prompt, provider}):</label>
-    <input id="endpoint" type="text" value="http://localhost:8081/ai" />
-
-    <label for="provider">Proveedor (opcional):</label>
-    <select id="provider">
-      <option value="">(usar por defecto)</option>
-      <option value="openai">openai</option>
-      <option value="huggingface">huggingface</option>
-      <option value="azure">azure</option>
-      <option value="local">local</option>
-      <option value="groq">groq</option>
-    </select>
-
-    <label for="chat_id">Chat ID (para enviar mensajes):</label>
-    <input id="chat_id" type="text" placeholder="123456789" />
-
-    <label for="deviceSelect">Dispositivo (opcional, para multi-dispositivo):</label>
-    <div class="device-row">
-      <select id="deviceSelect">
-        <option value="">(usar BOT_TOKEN por defecto)</option>
-      </select>
-      <button id="refreshDevices" type="button">Actualizar dispositivos</button>
     </div>
-
-    <label for="sendAs">Enviar como:</label>
-    <select id="sendAs">
-      <option value="ai">(LLM / IA)</option>
-      <option value="bot">Bot API (usar BOT_TOKEN)</option>
-      <option value="user">Usuario (cuenta que ejecuta el bot)</option>
-    </select>
-
-    <label for="apiBase">API base (web API para enviar/listar):</label>
-    <input id="apiBase" type="text" value="http://localhost:8081" />
-
-    <label for="apiKey">API Key (Authorization: Bearer &lt;key&gt;):</label>
-    <input id="apiKey" type="text" placeholder="Introduce API key (opcional)" />
-
-    <section>
-      <h2>Configuración</h2>
-      <p class="hint">Sube/descarga tus settings de la interfaz y personaliza tu favicon de usuario.</p>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button id="downloadSettings">Descargar settings</button>
-        <input id="uploadSettingsFile" type="file" accept="application/json" />
-        <button id="uploadSettings" class="secondary">Subir settings</button>
-      </div>
-
-      <div class="api-status" style="margin-top:12px">
-        <div style="display:flex;align-items:center;gap:8px">
-          <div id="apiStatusLight" style="width:12px;height:12px;border-radius:50%;background:#6b7280"></div>
-          <div id="apiStatusText" style="font-size:0.95rem;color:var(--muted)">Estado API: desconocido</div>
-          <button id="checkApiBtn" class="secondary" style="margin-left:auto">Comprobar API</button>
-          <button id="apiStatusHelp" class="secondary" title="Ver estados" style="width:36px;height:36px;border-radius:8px;margin-left:8px">?</button>
-        </div>
-        <div id="apiStatusTime" style="font-size:0.8rem;color:var(--muted);margin-top:6px">Última comprobación: nunca</div>
-      </div>
-
-      <!-- Help panel for API status (hidden by default) -->
-      <div id="apiStatusHelpPanel" style="display:none;max-width:520px;margin-top:8px;padding:12px;background:rgba(255,255,255,0.02);border-radius:8px;border:1px solid rgba(255,255,255,0.03);color:var(--text);font-size:0.9rem">
-        <strong>Estados que puede devolver la comprobación de la API</strong>
-        <ul style="margin:8px 0 0 18px;padding:0">
-          <li><strong style="color:#22c55e">OK</strong>: la API responde correctamente (200).</li>
-          <li><strong style="color:#f59e0b">Autenticación requerida</strong>: la API respondió 401/403 — la key no está presente o no tiene permisos.</li>
-          <li><strong style="color:#f59e0b">Disponible (error cliente)</strong>: respuesta 4xx distinta de 401/403 — la API está accesible pero hay un error en la petición.</li>
-          <li><strong style="color:#ef4444">No accesible / Error servidor</strong>: no se pudo conectar, timeout o la API respondió 5xx.</li>
-          <li><strong style="color:#6b7280">Desconocido</strong>: la comprobación no se ha realizado todavía.</li>
-        </ul>
-        <div style="margin-top:8px;color:var(--muted)">Sugerencia: introduce la <em>API base</em> y, si procede, la <em>API Key</em> antes de comprobar.</div>
-      </div>
-
-      <label for="faviconInput">Favicon (PNG, base64):</label>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <input id="faviconInput" type="file" accept="image/png,image/*" />
-        <img id="userFavicon" src="" alt="favicon" style="width:36px;height:36px;border-radius:6px;display:none;border:1px solid rgba(255,255,255,0.04)" />
-        <button id="uploadFavicon" class="secondary">Subir favicon</button>
-      </div>
-    </section>
-
-    <label for="prompt">Prompt:</label>
-    <textarea id="prompt" rows="6" placeholder="Escribe el prompt aquí..."></textarea>
-
-    <div class="controls">
-      <button id="submit">Enviar</button>
-      <button id="clear">Limpiar</button>
-    </div>
-
-    <section>
-      <h2>Administrar Dispositivos</h2>
-      <label for="new_device_id">ID del dispositivo:</label>
-      <input id="new_device_id" type="text" placeholder="bot1" />
-      <label for="new_device_name">Nombre (opcional):</label>
-      <input id="new_device_name" type="text" placeholder="Bot principal" />
-      <label for="new_device_token">Token del bot:</label>
-      <input id="new_device_token" type="text" placeholder="123:ABC" />
-      <div class="controls">
-        <button id="addDevice">Añadir dispositivo</button>
-      </div>
-    </section>
-
-    <section id="result">
-      <h2>Respuesta</h2>
-      <pre id="response">(esperando)</pre>
-    </section>
-
-    <footer>
-      <small>Nota: el servidor destino debe aceptar POST JSON y soportar CORS para llamadas directas desde el navegador.</small>
-    </footer>
   </main>
-  <script src="app.js"></script>
-  <script src="shared.js"></script>
-  <!-- Bubble side panel -->
-  <aside class="bubble-panel" id="bubblePanel" aria-hidden="true">
-    <button class="bubble-toggle" id="bubbleToggle" aria-label="Abrir panel">
-      <img src="logo.svg" alt="logo" class="bubble-logo"/>
-    </button>
-    <div class="bubble-body" id="bubbleBody">
-      <div class="bubble-header">
-        <div class="bubble-title">DBTeam</div>
-        <button id="bubbleClose" class="bubble-close" aria-label="Cerrar">✕</button>
-      </div>
-      <nav class="bubble-nav">
-        <a href="chat.html">Chat</a>
-        <a href="monitor.html">Monitor</a>
-        <a href="#" id="linkSettings">Ajustes</a>
-        <a href="#" id="linkAI">IA (endpoint)</a>
-        <a href="#" id="linkDevices">Dispositivos</a>
-        <a href="#" id="linkBackup">Backup/Restore</a>
-      </nav>
-      <div class="bubble-footer">
-        <button id="logoutBtn" class="secondary">Salir</button>
-      </div>
-    </div>
-  </aside>
+  <footer style="text-align:center;color:var(--muted);padding:1.2rem 0 0.7rem 0;font-size:1rem;letter-spacing:1px;">
+    &copy; 2026 DBTeam. Todos los derechos reservados.
+  </footer>
+  <script>
+    // Responsive nav toggle
+    document.querySelector('.nav-toggle').onclick = function() {
+      document.querySelector('.main-nav').classList.toggle('open');
+    };
+    // Mostrar acceso a setup solo si no hay owner
+    fetch('/status').then(r=>r.json()).then(js=>{
+      if(js.counts && js.counts.users === 0) {
+        document.getElementById('setupLink').style.display = 'inline-block';
+      }
+    });
+  </script>
 </body>
 </html>

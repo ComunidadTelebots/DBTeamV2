@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Alertas de Límite de Mensajes por Grupo</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #c0392b; }
+    .alert-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 1em; padding: 1em; }
+    .group-id { font-weight: bold; color: #34495e; }
+    .timestamp { color: #888; }
+  </style>
+</head>
+<body>
+  <h1>Alertas de Límite de Mensajes por Grupo</h1>
+  <div id="alerts"></div>
+  <script>
+    async function fetchAlerts() {
+      const res = await fetch('/group/rate_limit_alerts');
+      const data = await res.json();
+      renderAlerts(data.alerts || []);
+    }
+    function renderAlerts(alerts) {
+      const container = document.getElementById('alerts');
+      container.innerHTML = '';
+      if (!alerts.length) {
+        container.innerHTML = '<p>No hay alertas recientes.</p>';
+        return;
+      }
+      alerts.slice().reverse().forEach(alert => {
+        const html = `<div class="alert-card">
+          <span class="group-id">Grupo: ${alert.group_id}</span><br>
+          <span class="timestamp">${new Date(alert.timestamp * 1000).toLocaleString()}</span>
+          <button onclick="setReadLimit('${alert.group_id}')">Limitar lectura</button>
+          <button onclick="banGroup('${alert.group_id}')">Banear grupo</button>
+        </div>`;
+        container.innerHTML += html;
+      });
+    }
+    async function setReadLimit(group_id) {
+      const limit = prompt('Nuevo límite de mensajes/segundo para este grupo:', 5);
+      if (!limit) return;
+      await fetch('/group/set_read_limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id, read_limit: Number(limit) })
+      });
+      alert('Límite actualizado');
+      fetchAlerts();
+    }
+    async function banGroup(group_id) {
+      if (!confirm('¿Seguro que quieres banear este grupo?')) return;
+      await fetch('/group/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id })
+      });
+      alert('Grupo baneado');
+      fetchAlerts();
+    }
+    setInterval(fetchAlerts, 5000);
+    fetchAlerts();
+  </script>
+</body>
+</html>

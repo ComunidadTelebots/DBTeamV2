@@ -60,6 +60,53 @@
     <div id="process_res"></div>
   </div>
 
+  <div class="card">
+    <div><strong>Acciones rápidas para el grupo/bot</strong></div>
+    <div class="row">
+      <input id="quick_user_id" type="text" placeholder="ID usuario" />
+      <button id="quick_ban">Banear</button>
+      <button id="quick_mute">Mutear</button>
+      <button id="quick_promote">Promover a admin</button>
+      <button id="quick_perms">Editar permisos</button>
+      <button id="quick_reply">Responder intervención</button>
+    </div>
+    <div id="quick_res"></div>
+  </div>
+
+  <div id="command_warning" style="display:none;color:red;font-weight:bold;margin:10px 0;"></div>
+
+  <div id="block_command_panel" style="margin:15px 0;">
+    <h3>Bloquear comando por usuario</h3>
+    <input id="block_user_id" placeholder="ID de usuario" style="width:120px;">
+    <input id="block_command_name" placeholder="Comando a bloquear" style="width:120px;">
+    <button id="block_command_btn">Bloquear comando</button>
+    <span id="block_command_res" style="margin-left:10px;color:darkred;"></span>
+  </div>
+
+  <div id="blocked_commands_panel" style="margin:15px 0;">
+    <h3>Comandos bloqueados por usuario</h3>
+    <table id="blocked_commands_table" border="1" style="width:100%;background:#fff;">
+      <thead><tr><th>Usuario</th><th>Comando</th><th>Desbloquea en</th><th>Acción</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <span id="unblock_command_res" style="color:green;"></span>
+  </div>
+
+  <div id="telegram_stats_panel" style="margin:15px 0;">
+    <h3>Estadísticas de mensajes a Telegram</h3>
+    <div id="telegram_stats_content">Cargando...</div>
+    <canvas id="telegram_stats_graph" width="300" height="60" style="border:1px solid #ccc;margin-top:10px;"></canvas>
+  </div>
+
+  <div id="bots_limits_panel" style="margin:15px 0;">
+    <h3>Límites y uso de mensajes por bot</h3>
+    <table id="bots_limits_table" border="1" style="width:100%;background:#fff;">
+      <thead><tr><th>Bot</th><th>Mensajes último segundo</th><th>Límite (msg/seg)</th><th>Porcentaje usado</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <script src="/bot_control.js"></script>
+  <script src="owner.js"></script>
 </body>
 </html>

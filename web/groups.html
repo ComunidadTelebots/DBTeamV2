@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Grupos y Chats Integrados del Bot</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .group-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .group-header { display: flex; align-items: center; justify-content: space-between; }
+    .group-title { font-size: 1.3em; font-weight: bold; color: #34495e; }
+    .group-id { font-size: 0.95em; color: #888; }
+    .group-type { font-size: 0.95em; color: #16a085; margin-left: 1em; }
+    .group-meta { font-size: 0.95em; color: #888; margin-top: 0.5em; }
+    .members, .messages { margin-top: 1em; }
+    .members-list, .messages-list { list-style: none; padding: 0; }
+    .members-list li, .messages-list li { background: #f0f4f8; margin-bottom: 0.3em; padding: 0.5em 1em; border-radius: 5px; }
+    .actions { margin-top: 1em; }
+    button { background: #16a085; color: #fff; border: none; border-radius: 5px; padding: 0.5em 1.2em; cursor: pointer; }
+    button:hover { background: #138d75; }
+  </style>
+</head>
+<body>
+  <h1>Grupos y Chats Integrados del Bot</h1>
+  <div id="groups"></div>
+  <script>
+    async function fetchGroups() {
+      const res = await fetch('/bot/groups');
+      const data = await res.json();
+      renderGroups(data.groups || []);
+    }
+    function renderGroups(groups) {
+      const container = document.getElementById('groups');
+      container.innerHTML = '';
+      if (!groups.length) {
+        container.innerHTML = '<p>No hay grupos/chats integrados.</p>';
+        return;
+      }
+      groups.forEach(gr => {
+        const type = gr.type || (gr.is_channel ? 'Canal' : gr.is_supergroup ? 'Supergrupo' : 'Grupo/Chat');
+        const fecha = gr.created_at ? new Date(gr.created_at * 1000).toLocaleString() : 'Desconocida';
+        const actividad = gr.last_activity ? new Date(gr.last_activity * 1000).toLocaleString() : 'N/A';
+        const miembros = gr.members || [];
+        const mensajes = gr.messages || [];
+        const html = `
+          <div class="group-card">
+            <div class="group-header">
+              <span class="group-title">${gr.title || 'Sin nombre'}</span>
+              <span class="group-id">ID: ${gr.id}</span>
+              <span class="group-type">${type}</span>
+            </div>
+            <div class="group-meta">
+              Fecha integración: ${fecha} &nbsp;|&nbsp; Última actividad: ${actividad}
+            </div>
+            <div class="members">
+              <strong>Miembros (${miembros.length}):</strong>
+              <ul class="members-list">
+                ${miembros.map(m => `<li>${m.name || m.username || m.id}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="messages">
+              <strong>Mensajes recientes (${mensajes.length}):</strong>
+              <ul class="messages-list">
+                ${mensajes.map(msg => `<li>${msg.text || msg.content || '[Sin texto]'}</li>`).join('')}
+              </ul>
+            </div>
+            <div class="actions">
+              <button onclick="leaveGroup('${gr.id}')">Salir de grupo/chat</button>
+            </div>
+          </div>
+        `;
+        container.innerHTML += html;
+      });
+    }
+    async function leaveGroup(id) {
+      if (!confirm('¿Seguro que quieres que el bot salga de este grupo/chat?')) return;
+      const res = await fetch('/bot/groups/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        alert('El bot ha salido del grupo/chat.');
+        fetchGroups();
+      } else {
+        alert('No se pudo salir del grupo/chat.');
+      }
+    }
+    fetchGroups();
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Uso de Recursos de Bots</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .bot-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .bot-header { display: flex; align-items: center; justify-content: space-between; }
+    .bot-title { font-size: 1.2em; font-weight: bold; color: #34495e; }
+    .bot-token { font-size: 0.95em; color: #16a085; margin-left: 1em; }
+    .stat { font-size: 1.1em; margin-top: 0.7em; }
+    .top-group { color: #c0392b; font-weight: bold; }
+    .max-usage { background: #f9e79f; padding: 1em; border-radius: 8px; margin-bottom: 2em; }
+  </style>
+</head>
+<body>
+  <h1>Uso de Recursos de Bots</h1>
+  <div id="max-usage"></div>
+  <div id="bots"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    async function fetchUsage() {
+      const res = await fetch('/bot/resources_usage');
+      const data = await res.json();
+      renderMaxUsage(data.max_usage);
+      renderBots(data.bots_usage || []);
+      renderCharts(data.bots_usage || []);
+    }
+    function renderMaxUsage(max) {
+      const div = document.getElementById('max-usage');
+      if (!max || !max.bot) {
+        div.innerHTML = '';
+        return;
+      }
+      div.innerHTML = `<div class="max-usage">
+        <strong>Mayor consumo:</strong><br>
+        Bot: <span class="bot-token">${max.bot}</span><br>
+        Grupo/Canal: <span class="top-group">${max.group}</span><br>
+        Tipo: <strong>${max.type}</strong><br>
+        Valor: <strong>${max.value}</strong>
+      </div>`;
+    }
+    function renderBots(bots) {
+      const container = document.getElementById('bots');
+      container.innerHTML = '';
+      if (!bots.length) {
+        container.innerHTML = '<p>No hay bots registrados.</p>';
+        return;
+      }
+      bots.forEach(bot => {
+        const html = `<div class="bot-card">
+          <div class="bot-header">
+            <span class="bot-title">${bot.name || bot.token.slice(0,8)+'...*'}</span>
+            <span class="bot-token">Token: ${bot.token.slice(0,8)}...*</span>
+          </div>
+          <div class="stat">
+            <strong>Chats:</strong> ${bot.total_chats} &nbsp;|&nbsp; <strong>Miembros:</strong> ${bot.total_members} &nbsp;|&nbsp; <strong>Mensajes:</strong> ${bot.total_messages}
+          </div>
+          <div class="stat">
+            <strong>Grupo/Canal más activo:</strong> <span class="top-group">${bot.top_group || '-'}</span> (${bot.top_type || '-'}, ${bot.top_value || 0})
+          </div>
+        </div>`;
+        container.innerHTML += html;
+      });
+    }
+    function renderCharts(bots) {
+      if (!bots.length) return;
+      // Gráfico de miembros por bot
+      const miembrosData = {
+        labels: bots.map(b => b.name || b.token.slice(0,8)+'...*'),
+        datasets: [{
+          label: 'Miembros',
+          data: bots.map(b => b.total_members),
+          backgroundColor: '#16a08588',
+        }]
+      };
+      // Gráfico de mensajes por bot
+      const mensajesData = {
+        labels: bots.map(b => b.name || b.token.slice(0,8)+'...*'),
+        datasets: [{
+          label: 'Mensajes',
+          data: bots.map(b => b.total_messages),
+          backgroundColor: '#2980b988',
+        }]
+      };
+      // Gráfico de chats por bot
+      const chatsData = {
+        labels: bots.map(b => b.name || b.token.slice(0,8)+'...*'),
+        datasets: [{
+          label: 'Chats',
+          data: bots.map(b => b.total_chats),
+          backgroundColor: '#f39c1288',
+        }]
+      };
+      const container = document.getElementById('bots');
+      container.innerHTML += `
+        <h2>Gráficos de uso</h2>
+        <div style="max-width:600px;margin-bottom:2em;"><canvas id="miembrosChart"></canvas></div>
+        <div style="max-width:600px;margin-bottom:2em;"><canvas id="mensajesChart"></canvas></div>
+        <div style="max-width:600px;"><canvas id="chatsChart"></canvas></div>
+      `;
+      new Chart(document.getElementById('miembrosChart').getContext('2d'), {
+        type: 'bar',
+        data: miembrosData,
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+      new Chart(document.getElementById('mensajesChart').getContext('2d'), {
+        type: 'bar',
+        data: mensajesData,
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+      new Chart(document.getElementById('chatsChart').getContext('2d'), {
+        type: 'bar',
+        data: chatsData,
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+    fetchUsage();
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

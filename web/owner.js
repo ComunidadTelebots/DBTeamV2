@@ -1,4 +1,833 @@
 document.addEventListener('DOMContentLoaded', ()=>{
+                                                                                                                      // Panel de recuperación de contraseña para usuarios
+                                                                                                                      if (localStorage.getItem('role') === 'user') {
+                                                                                                                        const pwResetPanel = document.createElement('div');
+                                                                                                                        pwResetPanel.id = 'pwResetPanel';
+                                                                                                                        pwResetPanel.style.margin = '32px 0';
+                                                                                                                        pwResetPanel.innerHTML = `<h2 style='color:#6cf'>¿Olvidaste tu contraseña?</h2><div><input type='text' id='pwResetUser' placeholder='Usuario' style='margin-right:8px;'><button id='pwResetBtn'>Solicitar nueva contraseña</button> <span id='pwResetMsg' style='color:#f44;margin-left:10px;'></span></div>`;
+                                                                                                                        document.body.appendChild(pwResetPanel);
+                                                                                                                        document.getElementById('pwResetBtn').onclick = async () => {
+                                                                                                                          const user = document.getElementById('pwResetUser').value.trim();
+                                                                                                                          const msgSpan = document.getElementById('pwResetMsg');
+                                                                                                                          if (!user) { msgSpan.textContent = 'Introduce tu usuario.'; return; }
+                                                                                                                          msgSpan.textContent = 'Procesando...';
+                                                                                                                          try {
+                                                                                                                            const resp = await fetch('/auth/request_reset', {
+                                                                                                                              method: 'POST',
+                                                                                                                              headers: { 'Content-Type': 'application/json' },
+                                                                                                                              body: JSON.stringify({ user })
+                                                                                                                            });
+                                                                                                                            if (resp.ok) {
+                                                                                                                              msgSpan.textContent = 'Solicitud enviada. Revisa tu email o Telegram.';
+                                                                                                                            } else {
+                                                                                                                              const err = await resp.json();
+                                                                                                                              msgSpan.textContent = err.detail || 'Error al solicitar.';
+                                                                                                                            }
+                                                                                                                          } catch (e) {
+                                                                                                                            msgSpan.textContent = 'Error de red.';
+                                                                                                                          }
+                                                                                                                        };
+                                                                                                                      }
+                                                                                                                    // Panel de bots y ajustes para usuario normal (no owner)
+                                                                                                                    if (localStorage.getItem('role') === 'user') {
+                                                                                                                      const myBotsPanel = document.createElement('div');
+                                                                                                                      myBotsPanel.id = 'myBotsPanel';
+                                                                                                                      myBotsPanel.style.margin = '32px 0';
+                                                                                                                      myBotsPanel.innerHTML = `<h2 style='color:#6cf'>Mis bots y ajustes</h2><div id='myBotsList'>Cargando...</div>`;
+                                                                                                                      document.body.appendChild(myBotsPanel);
+                                                                                                                      async function loadMyBots() {
+                                                                                                                        const listDiv = document.getElementById('myBotsList');
+                                                                                                                        listDiv.innerHTML = 'Cargando...';
+                                                                                                                        try {
+                                                                                                                          const resp = await fetch('/bot/mybots', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                          if (resp.ok) {
+                                                                                                                            const js = await resp.json();
+                                                                                                                            const list = js.bots || [];
+                                                                                                                            if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No tienes bots registrados.</span>'; return; }
+                                                                                                                            const frag = document.createDocumentFragment();
+                                                                                                                            list.forEach(bot => {
+                                                                                                                              const botDiv = document.createElement('div');
+                                                                                                                              botDiv.style.background = '#222';
+                                                                                                                              botDiv.style.marginBottom = '16px';
+                                                                                                                              botDiv.style.padding = '12px';
+                                                                                                                              botDiv.style.borderRadius = '8px';
+                                                                                                                              botDiv.innerHTML = `<b>Bot:</b> ${bot.name || bot.id}`;
+                                                                                                                              const settingsDiv = document.createElement('div');
+                                                                                                                              settingsDiv.style.fontSize = '0.97em';
+                                                                                                                              settingsDiv.style.color = '#ccc';
+                                                                                                                              settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings)}`;
+                                                                                                                              botDiv.appendChild(settingsDiv);
+                                                                                                                              frag.appendChild(botDiv);
+                                                                                                                            });
+                                                                                                                            listDiv.innerHTML = '';
+                                                                                                                            listDiv.appendChild(frag);
+                                                                                                                          }
+                                                                                                                        } catch (e) {
+                                                                                                                          listDiv.innerHTML = '<span style="color:#f44">Error cargando bots.</span>';
+                                                                                                                        }
+                                                                                                                      }
+                                                                                                                      loadMyBots();
+                                                                                                                    }
+                                                                                                                  // Panel de bots de usuarios y sus ajustes (solo owner)
+                                                                                                                  if (localStorage.getItem('role') === 'owner') {
+                                                                                                                    const userBotsPanel = document.createElement('div');
+                                                                                                                    userBotsPanel.id = 'userBotsPanel';
+                                                                                                                    userBotsPanel.style.margin = '32px 0';
+                                                                                                                    userBotsPanel.innerHTML = `<h2 style='color:#6cf'>Bots de usuarios y ajustes</h2><div id='userBotsList'>Cargando...</div>`;
+                                                                                                                    document.body.appendChild(userBotsPanel);
+                                                                                                                    async function loadUserBots() {
+                                                                                                                      const listDiv = document.getElementById('userBotsList');
+                                                                                                                      listDiv.innerHTML = 'Cargando...';
+                                                                                                                      try {
+                                                                                                                        const resp = await fetch('/bot/userbots', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                        if (resp.ok) {
+                                                                                                                          const js = await resp.json();
+                                                                                                                          const list = js.bots || [];
+                                                                                                                          if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay bots de usuarios.</span>'; return; }
+                                                                                                                          const frag = document.createDocumentFragment();
+                                                                                                                          list.forEach(bot => {
+                                                                                                                            const botDiv = document.createElement('div');
+                                                                                                                            botDiv.style.background = '#222';
+                                                                                                                            botDiv.style.marginBottom = '16px';
+                                                                                                                            botDiv.style.padding = '12px';
+                                                                                                                            botDiv.style.borderRadius = '8px';
+                                                                                                                            botDiv.innerHTML = `<b>Usuario:</b> ${bot.owner} <span style='color:#6cf'>Bot: ${bot.name || bot.id}</span>`;
+                                                                                                                            const settingsDiv = document.createElement('div');
+                                                                                                                            settingsDiv.style.fontSize = '0.97em';
+                                                                                                                            settingsDiv.style.color = '#ccc';
+                                                                                                                            settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings)}`;
+                                                                                                                            botDiv.appendChild(settingsDiv);
+                                                                                                                            frag.appendChild(botDiv);
+                                                                                                                          });
+                                                                                                                          listDiv.innerHTML = '';
+                                                                                                                          listDiv.appendChild(frag);
+                                                                                                                        }
+                                                                                                                      } catch (e) {
+                                                                                                                        listDiv.innerHTML = '<span style="color:#f44">Error cargando bots.</span>';
+                                                                                                                      }
+                                                                                                                    }
+                                                                                                                    loadUserBots();
+                                                                                                                  }
+                                                                                                                // Panel de historial de acciones de ban para owner
+                                                                                                                if (localStorage.getItem('role') === 'owner') {
+                                                                                                                  const banHistoryPanel = document.createElement('div');
+                                                                                                                  banHistoryPanel.id = 'banHistoryPanel';
+                                                                                                                  banHistoryPanel.style.margin = '32px 0';
+                                                                                                                  banHistoryPanel.innerHTML = `<h2 style='color:#6cf'>Historial de acciones de ban</h2><div id='banHistoryList'>Cargando...</div>`;
+                                                                                                                  document.body.appendChild(banHistoryPanel);
+                                                                                                                  async function loadBanHistory() {
+                                                                                                                    const listDiv = document.getElementById('banHistoryList');
+                                                                                                                    listDiv.innerHTML = 'Cargando...';
+                                                                                                                    try {
+                                                                                                                      const resp = await fetch('/bot/group/ban_history', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                      if (resp.ok) {
+                                                                                                                        const js = await resp.json();
+                                                                                                                        const list = js.history || [];
+                                                                                                                        if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay historial.</span>'; return; }
+                                                                                                                        const frag = document.createDocumentFragment();
+                                                                                                                        list.forEach((h, idx) => {
+                                                                                                                          const hDiv = document.createElement('div');
+                                                                                                                          hDiv.style.background = '#222';
+                                                                                                                          hDiv.style.marginBottom = '12px';
+                                                                                                                          hDiv.style.padding = '10px';
+                                                                                                                          hDiv.style.borderRadius = '8px';
+                                                                                                                          hDiv.innerHTML = `<b>Acción:</b> ${h.action} <span style='color:#6cf'>IDs: ${h.ids.length}</span> <span style='color:#888'>De: ${h.from}</span> <span style='color:#aaa'>${new Date(h.ts*1000).toLocaleString()}</span>`;
+                                                                                                                          frag.appendChild(hDiv);
+                                                                                                                        });
+                                                                                                                        // Botón exportar historial
+                                                                                                                        const exportBtn = document.createElement('button');
+                                                                                                                        exportBtn.textContent = 'Exportar historial';
+                                                                                                                        exportBtn.className = 'ghost';
+                                                                                                                        exportBtn.style.marginTop = '12px';
+                                                                                                                        exportBtn.onclick = () => {
+                                                                                                                          const data = list.map(h => `${h.action} | ${h.ids.join(',')} | ${h.from} | ${new Date(h.ts*1000).toLocaleString()}`).join('\n');
+                                                                                                                          const blob = new Blob([data], { type: 'text/plain' });
+                                                                                                                          const a = document.createElement('a');
+                                                                                                                          a.href = URL.createObjectURL(blob);
+                                                                                                                          a.download = 'ban_historial.txt';
+                                                                                                                          a.click();
+                                                                                                                        };
+                                                                                                                        frag.appendChild(exportBtn);
+                                                                                                                        listDiv.innerHTML = '';
+                                                                                                                        listDiv.appendChild(frag);
+                                                                                                                      }
+                                                                                                                    } catch (e) {
+                                                                                                                      listDiv.innerHTML = '<span style="color:#f44">Error cargando historial.</span>';
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                                  loadBanHistory();
+                                                                                                                }
+
+                                                                                                                // Panel de notificaciones de ban para admin de grupo
+                                                                                                                if (localStorage.getItem('role') === 'admin') {
+                                                                                                                  const banNotifPanel = document.createElement('div');
+                                                                                                                  banNotifPanel.id = 'banNotifPanel';
+                                                                                                                  banNotifPanel.style.margin = '32px 0';
+                                                                                                                  banNotifPanel.innerHTML = `<h2 style='color:#6cf'>Notificaciones de ban</h2><div id='banNotifList'>Cargando...</div>`;
+                                                                                                                  document.body.appendChild(banNotifPanel);
+                                                                                                                  async function loadBanNotifs() {
+                                                                                                                    const listDiv = document.getElementById('banNotifList');
+                                                                                                                    listDiv.innerHTML = 'Cargando...';
+                                                                                                                    try {
+                                                                                                                      const resp = await fetch('/bot/group/ban_notifications', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                      if (resp.ok) {
+                                                                                                                        const js = await resp.json();
+                                                                                                                        const list = js.notifications || [];
+                                                                                                                        if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay notificaciones.</span>'; return; }
+                                                                                                                        const frag = document.createDocumentFragment();
+                                                                                                                        list.forEach((n, idx) => {
+                                                                                                                          const nDiv = document.createElement('div');
+                                                                                                                          nDiv.style.background = '#222';
+                                                                                                                          nDiv.style.marginBottom = '12px';
+                                                                                                                          nDiv.style.padding = '10px';
+                                                                                                                          nDiv.style.borderRadius = '8px';
+                                                                                                                          nDiv.innerHTML = `<b>Acción:</b> ${n.action} <span style='color:#6cf'>IDs: ${n.ids.length}</span> <span style='color:#aaa'>${new Date(n.ts*1000).toLocaleString()}</span>`;
+                                                                                                                          frag.appendChild(nDiv);
+                                                                                                                        });
+                                                                                                                        // Botón exportar notificaciones
+                                                                                                                        const exportBtn = document.createElement('button');
+                                                                                                                        exportBtn.textContent = 'Exportar notificaciones';
+                                                                                                                        exportBtn.className = 'ghost';
+                                                                                                                        exportBtn.style.marginTop = '12px';
+                                                                                                                        exportBtn.onclick = () => {
+                                                                                                                          const data = list.map(n => `${n.action} | ${n.ids.join(',')} | ${new Date(n.ts*1000).toLocaleString()}`).join('\n');
+                                                                                                                          const blob = new Blob([data], { type: 'text/plain' });
+                                                                                                                          const a = document.createElement('a');
+                                                                                                                          a.href = URL.createObjectURL(blob);
+                                                                                                                          a.download = 'ban_notificaciones.txt';
+                                                                                                                          a.click();
+                                                                                                                        };
+                                                                                                                        frag.appendChild(exportBtn);
+                                                                                                                        listDiv.innerHTML = '';
+                                                                                                                        listDiv.appendChild(frag);
+                                                                                                                      }
+                                                                                                                    } catch (e) {
+                                                                                                                      listDiv.innerHTML = '<span style="color:#f44">Error cargando notificaciones.</span>';
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                                  loadBanNotifs();
+                                                                                                                }
+                                                                                                              // Panel de sugerencias de ban para owner
+                                                                                                              if (localStorage.getItem('role') === 'owner') {
+                                                                                                                const banSuggestPanel = document.createElement('div');
+                                                                                                                banSuggestPanel.id = 'banSuggestPanel';
+                                                                                                                banSuggestPanel.style.margin = '32px 0';
+                                                                                                                banSuggestPanel.innerHTML = `<h2 style='color:#6cf'>Sugerencias de ban de admins</h2><div id='banSuggestList'>Cargando...</div>`;
+                                                                                                                document.body.appendChild(banSuggestPanel);
+                                                                                                                async function loadBanSuggestions() {
+                                                                                                                  const listDiv = document.getElementById('banSuggestList');
+                                                                                                                  listDiv.innerHTML = 'Cargando...';
+                                                                                                                  try {
+                                                                                                                    const resp = await fetch('/bot/group/ban_suggestions', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                    if (resp.ok) {
+                                                                                                                      const js = await resp.json();
+                                                                                                                      const list = js.suggestions || [];
+                                                                                                                      if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay sugerencias.</span>'; return; }
+                                                                                                                      const frag = document.createDocumentFragment();
+                                                                                                                      list.forEach((sug, idx) => {
+                                                                                                                        const sugDiv = document.createElement('div');
+                                                                                                                        sugDiv.style.background = '#222';
+                                                                                                                        sugDiv.style.marginBottom = '16px';
+                                                                                                                        sugDiv.style.padding = '12px';
+                                                                                                                        sugDiv.style.borderRadius = '8px';
+                                                                                                                        sugDiv.innerHTML = `<b>Sugerencia #${idx+1}</b> <span style='color:#6cf'>IDs: ${sug.ids.length}</span> <span style='color:#888'>De: ${sug.from}</span>`;
+                                                                                                                        const idsList = document.createElement('div');
+                                                                                                                        idsList.style.fontSize = '0.97em';
+                                                                                                                        idsList.style.color = '#ccc';
+                                                                                                                        idsList.textContent = sug.ids.join(', ');
+                                                                                                                        sugDiv.appendChild(idsList);
+                                                                                                                        const btns = document.createElement('div'); btns.style.marginTop = '8px';
+                                                                                                                        const approveBtn = document.createElement('button'); approveBtn.textContent = 'Aprobar'; approveBtn.className = 'ghost';
+                                                                                                                        approveBtn.onclick = async () => {
+                                                                                                                          approveBtn.disabled = true;
+                                                                                                                          await fetch('/bot/group/importban', {
+                                                                                                                            method: 'POST',
+                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                            body: JSON.stringify({ ids: sug.ids, global: true })
+                                                                                                                          });
+                                                                                                                          await fetch(`/bot/group/ban_suggestions/${idx}/delete`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                          await loadBanSuggestions();
+                                                                                                                        };
+                                                                                                                        btns.appendChild(approveBtn);
+                                                                                                                        const rejectBtn = document.createElement('button'); rejectBtn.textContent = 'Rechazar'; rejectBtn.className = 'ghost'; rejectBtn.style.marginLeft = '8px';
+                                                                                                                        rejectBtn.onclick = async () => {
+                                                                                                                          rejectBtn.disabled = true;
+                                                                                                                          await fetch(`/bot/group/ban_suggestions/${idx}/delete`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                          await loadBanSuggestions();
+                                                                                                                        };
+                                                                                                                        btns.appendChild(rejectBtn);
+                                                                                                                        sugDiv.appendChild(btns);
+                                                                                                                        frag.appendChild(sugDiv);
+                                                                                                                      });
+                                                                                                                      listDiv.innerHTML = '';
+                                                                                                                      listDiv.appendChild(frag);
+                                                                                                                    }
+                                                                                                                  } catch (e) {
+                                                                                                                    listDiv.innerHTML = '<span style="color:#f44">Error cargando sugerencias.</span>';
+                                                                                                                  }
+                                                                                                                }
+                                                                                                                loadBanSuggestions();
+                                                                                                              }
+                                                                                                            // Panel de grupos y chats del bot
+                                                                                                            const botGroupsPanel = document.getElementById('botGroupsPanel');
+                                                                                                            const botGroupsList = document.getElementById('botGroupsList');
+                                                                                                            async function loadBotGroups() {
+                                                                                                                      // Panel para bans globales (owner)
+                                                                                                                      if (botGroupsPanel && localStorage.getItem('role') === 'owner') {
+                                                                                                                        let globalBanDiv = document.getElementById('globalBanPanel');
+                                                                                                                        if (!globalBanDiv) {
+                                                                                                                          globalBanDiv = document.createElement('div');
+                                                                                                                          globalBanDiv.id = 'globalBanPanel';
+                                                                                                                          globalBanDiv.style.margin = '18px 0 24px 0';
+                                                                                                                          globalBanDiv.innerHTML = `<b>Ban global (todos los bots):</b> <input type='file' id='globalBanFileInput' accept='.txt'> <select id='globalBanApiType'><option value=''>Local</option><option value='cas.ban'>CAS</option></select> <button id='globalBanImportBtn'>Aplicar</button> <span id='globalBanImportMsg' style='color:#f44;margin-left:10px;'></span>`;
+                                                                                                                          botGroupsPanel.insertBefore(globalBanDiv, botGroupsPanel.firstChild);
+                                                                                                                          document.getElementById('globalBanImportBtn').onclick = async () => {
+                                                                                                                            const fileInput = document.getElementById('globalBanFileInput');
+                                                                                                                            const msgSpan = document.getElementById('globalBanImportMsg');
+                                                                                                                            if (!fileInput.files.length) { msgSpan.textContent = 'Selecciona un archivo.'; return; }
+                                                                                                                            const file = fileInput.files[0];
+                                                                                                                            const text = await file.text();
+                                                                                                                            const ids = text.split(/\r?\n/).map(x => x.trim()).filter(x => x);
+                                                                                                                            const apiType = document.getElementById('globalBanApiType').value;
+                                                                                                                            if (!ids.length) { msgSpan.textContent = 'Archivo vacío.'; return; }
+                                                                                                                            msgSpan.textContent = 'Aplicando...';
+                                                                                                                            try {
+                                                                                                                              const resp = await fetch('/bot/group/importban', {
+                                                                                                                                method: 'POST',
+                                                                                                                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                                body: JSON.stringify({ ids, api: apiType, global: true })
+                                                                                                                              });
+                                                                                                                              if (resp.ok) {
+                                                                                                                                msgSpan.textContent = '¡Aplicado!';
+                                                                                                                                setTimeout(()=>{ msgSpan.textContent = ''; }, 1800);
+                                                                                                                                await loadBotGroups();
+                                                                                                                              } else {
+                                                                                                                                msgSpan.textContent = 'Error al aplicar.';
+                                                                                                                              }
+                                                                                                                            } catch (e) {
+                                                                                                                              msgSpan.textContent = 'Error de red.';
+                                                                                                                            }
+                                                                                                                          };
+                                                                                                                        }
+                                                                                                                      }
+
+                                                                                                                      // Panel para sugerencias de ban por admin de grupo
+                                                                                                                      if (botGroupsPanel && localStorage.getItem('role') === 'admin') {
+                                                                                                                        let suggestBanDiv = document.getElementById('suggestBanPanel');
+                                                                                                                        if (!suggestBanDiv) {
+                                                                                                                          suggestBanDiv = document.createElement('div');
+                                                                                                                          suggestBanDiv.id = 'suggestBanPanel';
+                                                                                                                          suggestBanDiv.style.margin = '18px 0 24px 0';
+                                                                                                                          suggestBanDiv.innerHTML = `<b>Sugerir lista de ban al owner:</b> <input type='file' id='suggestBanFileInput' accept='.txt'> <button id='suggestBanBtn'>Sugerir</button> <span id='suggestBanMsg' style='color:#f44;margin-left:10px;'></span>`;
+                                                                                                                          botGroupsPanel.insertBefore(suggestBanDiv, botGroupsPanel.firstChild);
+                                                                                                                          document.getElementById('suggestBanBtn').onclick = async () => {
+                                                                                                                            const fileInput = document.getElementById('suggestBanFileInput');
+                                                                                                                            const msgSpan = document.getElementById('suggestBanMsg');
+                                                                                                                            if (!fileInput.files.length) { msgSpan.textContent = 'Selecciona un archivo.'; return; }
+                                                                                                                            const file = fileInput.files[0];
+                                                                                                                            const text = await file.text();
+                                                                                                                            const ids = text.split(/\r?\n/).map(x => x.trim()).filter(x => x);
+                                                                                                                            if (!ids.length) { msgSpan.textContent = 'Archivo vacío.'; return; }
+                                                                                                                            msgSpan.textContent = 'Enviando sugerencia...';
+                                                                                                                            try {
+                                                                                                                              const resp = await fetch('/bot/group/suggestban', {
+                                                                                                                                method: 'POST',
+                                                                                                                                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                                body: JSON.stringify({ ids })
+                                                                                                                              });
+                                                                                                                              if (resp.ok) {
+                                                                                                                                msgSpan.textContent = '¡Sugerido!';
+                                                                                                                                setTimeout(()=>{ msgSpan.textContent = ''; }, 1800);
+                                                                                                                              } else {
+                                                                                                                                msgSpan.textContent = 'Error al sugerir.';
+                                                                                                                              }
+                                                                                                                            } catch (e) {
+                                                                                                                              msgSpan.textContent = 'Error de red.';
+                                                                                                                            }
+                                                                                                                          };
+                                                                                                                        }
+                                                                                                                      }
+                                                                                                                  // Opción para importar lista de ban
+                                                                                                                  if (botGroupsPanel) {
+                                                                                                                    let importDiv = document.getElementById('banImportPanel');
+                                                                                                                    if (!importDiv) {
+                                                                                                                      importDiv = document.createElement('div');
+                                                                                                                      importDiv.id = 'banImportPanel';
+                                                                                                                      importDiv.style.margin = '18px 0 24px 0';
+                                                                                                                      importDiv.innerHTML = `<b>Importar lista de ban:</b> <input type='file' id='banFileInput' accept='.txt'> <button id='banImportBtn'>Importar</button> <span id='banImportMsg' style='color:#f44;margin-left:10px;'></span>`;
+                                                                                                                        importDiv.innerHTML = `<b>Importar lista de ban:</b> <input type='file' id='banFileInput' accept='.txt'> <select id='banApiType'><option value=''>Local</option><option value='cas.ban'>CAS</option></select> <button id='banImportBtn'>Importar</button> <span id='banImportMsg' style='color:#f44;margin-left:10px;'></span>`;
+                                                                                                                      botGroupsPanel.insertBefore(importDiv, botGroupsPanel.firstChild);
+                                                                                                                      document.getElementById('banImportBtn').onclick = async () => {
+                                                                                                                        const fileInput = document.getElementById('banFileInput');
+                                                                                                                        const msgSpan = document.getElementById('banImportMsg');
+                                                                                                                        if (!fileInput.files.length) { msgSpan.textContent = 'Selecciona un archivo.'; return; }
+                                                                                                                        const file = fileInput.files[0];
+                                                                                                                        const text = await file.text();
+                                                                                                                        const ids = text.split(/\r?\n/).map(x => x.trim()).filter(x => x);
+                                                                                                                        const apiType = document.getElementById('banApiType').value;
+                                                                                                                        if (!ids.length) { msgSpan.textContent = 'Archivo vacío.'; return; }
+                                                                                                                        msgSpan.textContent = 'Importando...';
+                                                                                                                        // Enviar lista de ban al backend
+                                                                                                                        try {
+                                                                                                                          const resp = await fetch('/bot/group/importban', {
+                                                                                                                            method: 'POST',
+                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                            body: JSON.stringify({ ids, api: apiType })
+                                                                                                                          });
+                                                                                                                          if (resp.ok) {
+                                                                                                                            msgSpan.textContent = '¡Importado!';
+                                                                                                                            setTimeout(()=>{ msgSpan.textContent = ''; }, 1800);
+                                                                                                                            await loadBotGroups();
+                                                                                                                          } else {
+                                                                                                                            msgSpan.textContent = 'Error al importar.';
+                                                                                                                          }
+                                                                                                                        } catch (e) {
+                                                                                                                          msgSpan.textContent = 'Error de red.';
+                                                                                                                        }
+                                                                                                                      };
+                                                                                                                    }
+                                                                                                                  }
+                                                                                                              if (!botGroupsList) return;
+                                                                                                              botGroupsList.innerHTML = 'Cargando...';
+                                                                                                              try {
+                                                                                                                const resp = await fetch('/bot/groups', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                if (resp.ok) {
+                                                                                                                  const js = await resp.json();
+                                                                                                                  const list = js.groups || [];
+                                                                                                                  if (!list.length) {
+                                                                                                                    botGroupsList.innerHTML = '<div style="color:#888">No hay grupos/chats.</div>';
+                                                                                                                    return;
+                                                                                                                  }
+                                                                                                                  const frag = document.createDocumentFragment();
+                                                                                                                  list.forEach(gr => {
+                                                                                                                    const row = document.createElement('div');
+                                                                                                                    row.style.padding = '10px';
+                                                                                                                    row.style.marginBottom = '18px';
+                                                                                                                    row.style.borderRadius = '8px';
+                                                                                                                    row.style.background = '#222';
+                                                                                                                    row.innerHTML = `<b>${gr.title || gr.id}</b> <span style='color:#6cf'>ID: ${gr.id}</span> <span style='color:#888'>${gr.type}</span>`;
+                                                                                                                    const leaveBtn = document.createElement('button'); leaveBtn.className = 'ghost'; leaveBtn.textContent = 'Salir';
+                                                                                                                    leaveBtn.onclick = async () => {
+                                                                                                                      leaveBtn.disabled = true;
+                                                                                                                      await fetch('/bot/groups/leave', {
+                                                                                                                        method: 'POST',
+                                                                                                                        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                        body: JSON.stringify({ id: gr.id })
+                                                                                                                      });
+                                                                                                                      await loadBotGroups();
+                                                                                                                    };
+                                                                                                                    row.appendChild(leaveBtn);
+
+
+                                                                                                                    // Miembros con opciones extra
+                                                                                                                    if (gr.members && gr.members.length) {
+                                                                                                                      const membersDiv = document.createElement('div');
+                                                                                                                      membersDiv.style.marginTop = '10px';
+                                                                                                                      membersDiv.innerHTML = `<b>Miembros (${gr.members.length}):</b>`;
+                                                                                                                      gr.members.forEach(m => {
+                                                                                                                        const mrow = document.createElement('div');
+                                                                                                                        mrow.style.fontSize = '0.98em';
+                                                                                                                        mrow.style.color = '#ccc';
+                                                                                                                        mrow.style.display = 'flex';
+                                                                                                                        mrow.style.alignItems = 'center';
+                                                                                                                        mrow.textContent = `${m.name || m.username || m.id}`;
+                                                                                                                        // Expulsar
+                                                                                                                        const kickBtn = document.createElement('button');
+                                                                                                                        kickBtn.textContent = 'Expulsar';
+                                                                                                                        kickBtn.className = 'ghost';
+                                                                                                                        kickBtn.style.marginLeft = '8px';
+                                                                                                                        kickBtn.onclick = async () => {
+                                                                                                                          kickBtn.disabled = true;
+                                                                                                                          await fetch('/bot/group/kick', {
+                                                                                                                            method: 'POST',
+                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                            body: JSON.stringify({ group_id: gr.id, user_id: m.id })
+                                                                                                                          });
+                                                                                                                          await loadBotGroups();
+                                                                                                                        };
+                                                                                                                        mrow.appendChild(kickBtn);
+                                                                                                                        // Silenciar
+                                                                                                                        const muteBtn = document.createElement('button');
+                                                                                                                        muteBtn.textContent = 'Silenciar';
+                                                                                                                        muteBtn.className = 'ghost';
+                                                                                                                        muteBtn.style.marginLeft = '6px';
+                                                                                                                        muteBtn.onclick = async () => {
+                                                                                                                          muteBtn.disabled = true;
+                                                                                                                          await fetch('/bot/group/mute', {
+                                                                                                                            method: 'POST',
+                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                            body: JSON.stringify({ group_id: gr.id, user_id: m.id })
+                                                                                                                          });
+                                                                                                                          muteBtn.textContent = 'Silenciado';
+                                                                                                                          setTimeout(()=>{ muteBtn.textContent = 'Silenciar'; muteBtn.disabled = false; }, 1800);
+                                                                                                                        };
+                                                                                                                        mrow.appendChild(muteBtn);
+                                                                                                                        membersDiv.appendChild(mrow);
+                                                                                                                      });
+                                                                                                                      // Exportar miembros
+                                                                                                                      const exportBtn = document.createElement('button');
+                                                                                                                      exportBtn.textContent = 'Exportar miembros';
+                                                                                                                      exportBtn.className = 'ghost';
+                                                                                                                      exportBtn.style.marginTop = '8px';
+                                                                                                                      exportBtn.onclick = () => {
+                                                                                                                        const data = gr.members.map(m => m.name || m.username || m.id).join('\n');
+                                                                                                                        const blob = new Blob([data], { type: 'text/plain' });
+                                                                                                                        const a = document.createElement('a');
+                                                                                                                        a.href = URL.createObjectURL(blob);
+                                                                                                                        a.download = `miembros_${gr.id}.txt`;
+                                                                                                                        a.click();
+                                                                                                                      };
+                                                                                                                      membersDiv.appendChild(exportBtn);
+                                                                                                                      row.appendChild(membersDiv);
+                                                                                                                    }
+
+                                                                                                                    // Mensajes recientes con opciones extra
+                                                                                                                    if (gr.messages && gr.messages.length) {
+                                                                                                                      const msgsDiv = document.createElement('div');
+                                                                                                                      msgsDiv.style.marginTop = '10px';
+                                                                                                                      msgsDiv.innerHTML = `<b>Mensajes recientes:</b>`;
+                                                                                                                      gr.messages.forEach(msg => {
+                                                                                                                        const msgrow = document.createElement('div');
+                                                                                                                        msgrow.style.fontSize = '0.97em';
+                                                                                                                        msgrow.style.color = '#aaf';
+                                                                                                                        msgrow.style.display = 'flex';
+                                                                                                                        msgrow.style.alignItems = 'center';
+                                                                                                                        msgrow.textContent = `[${new Date(msg.ts*1000).toLocaleString()}] ${msg.from}: ${msg.text}`;
+                                                                                                                        // Borrar mensaje
+                                                                                                                        const delBtn = document.createElement('button');
+                                                                                                                        delBtn.textContent = 'Borrar';
+                                                                                                                        delBtn.className = 'ghost';
+                                                                                                                        delBtn.style.marginLeft = '8px';
+                                                                                                                        delBtn.onclick = async () => {
+                                                                                                                          delBtn.disabled = true;
+                                                                                                                          await fetch('/bot/group/delmsg', {
+                                                                                                                            method: 'POST',
+                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                            body: JSON.stringify({ group_id: gr.id, msg_id: msg.id })
+                                                                                                                          });
+                                                                                                                          await loadBotGroups();
+                                                                                                                        };
+                                                                                                                        msgrow.appendChild(delBtn);
+                                                                                                                        msgsDiv.appendChild(msgrow);
+                                                                                                                      });
+                                                                                                                      // Exportar mensajes
+                                                                                                                      const exportBtn = document.createElement('button');
+                                                                                                                      exportBtn.textContent = 'Exportar mensajes';
+                                                                                                                      exportBtn.className = 'ghost';
+                                                                                                                      exportBtn.style.marginTop = '8px';
+                                                                                                                      exportBtn.onclick = () => {
+                                                                                                                        const data = gr.messages.map(msg => `[${new Date(msg.ts*1000).toLocaleString()}] ${msg.from}: ${msg.text}`).join('\n');
+                                                                                                                        const blob = new Blob([data], { type: 'text/plain' });
+                                                                                                                        const a = document.createElement('a');
+                                                                                                                        a.href = URL.createObjectURL(blob);
+                                                                                                                        a.download = `mensajes_${gr.id}.txt`;
+                                                                                                                        a.click();
+                                                                                                                      };
+                                                                                                                      msgsDiv.appendChild(exportBtn);
+                                                                                                                      row.appendChild(msgsDiv);
+                                                                                                                    }
+
+                                                                                                                    frag.appendChild(row);
+                                                                                                                  });
+                                                                                                                  botGroupsList.innerHTML = '';
+                                                                                                                  botGroupsList.appendChild(frag);
+                                                                                                                }
+                                                                                                              } catch (e) {
+                                                                                                                botGroupsList.innerHTML = '<span style="color:#f44">Error cargando grupos.</span>';
+                                                                                                              }
+                                                                                                            }
+                                                                                                            if (botGroupsPanel) loadBotGroups();
+
+                                                                                                            // Panel de mensajes recibidos por el bot
+                                                                                                            const botMessagesPanel = document.getElementById('botMessagesPanel');
+                                                                                                            const botMessagesList = document.getElementById('botMessagesList');
+                                                                                                            async function loadBotMessages() {
+                                                                                                              if (!botMessagesList) return;
+                                                                                                              botMessagesList.innerHTML = 'Cargando...';
+                                                                                                              try {
+                                                                                                                const resp = await fetch('/bot/messages', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                if (resp.ok) {
+                                                                                                                  const js = await resp.json();
+                                                                                                                  const list = js.messages || [];
+                                                                                                                  if (!list.length) {
+                                                                                                                    botMessagesList.innerHTML = '<div style="color:#888">No hay mensajes.</div>';
+                                                                                                                    return;
+                                                                                                                  }
+                                                                                                                  const frag = document.createDocumentFragment();
+                                                                                                                  list.forEach(msg => {
+                                                                                                                    const row = document.createElement('div');
+                                                                                                                    row.style.padding = '10px';
+                                                                                                                    row.style.marginBottom = '8px';
+                                                                                                                    row.style.borderRadius = '8px';
+                                                                                                                    row.style.background = '#222';
+                                                                                                                    row.innerHTML = `<b>${msg.text}</b> <span style='color:#6cf'>de ${msg.from}</span> <span style='color:#888'>${new Date(msg.ts*1000).toLocaleString()}</span>`;
+                                                                                                                    frag.appendChild(row);
+                                                                                                                  });
+                                                                                                                  botMessagesList.innerHTML = '';
+                                                                                                                  botMessagesList.appendChild(frag);
+                                                                                                                }
+                                                                                                              } catch (e) {
+                                                                                                                botMessagesList.innerHTML = '<span style="color:#f44">Error cargando mensajes.</span>';
+                                                                                                              }
+                                                                                                            }
+                                                                                                            if (botMessagesPanel) loadBotMessages();
+                                                                                                          // Panel de traducciones aplicadas
+                                                                                                          const appliedTranslationsPanel = document.getElementById('appliedTranslationsPanel');
+                                                                                                          const appliedTranslationsList = document.getElementById('appliedTranslationsList');
+
+                                                                                                          async function loadAppliedTranslations() {
+                                                                                                            if (!appliedTranslationsList) return;
+                                                                                                            appliedTranslationsList.innerHTML = 'Cargando...';
+                                                                                                            try {
+                                                                                                              const resp = await fetch('/translations/applied', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                              if (resp.ok) {
+                                                                                                                const js = await resp.json();
+                                                                                                                const list = js.translations || [];
+                                                                                                                if (!list.length) {
+                                                                                                                  appliedTranslationsList.innerHTML = '<div style="color:#888">No hay traducciones aplicadas.</div>';
+                                                                                                                  return;
+                                                                                                                }
+                                                                                                                const frag = document.createDocumentFragment();
+                                                                                                                list.forEach(tr => {
+                                                                                                                  const row = document.createElement('div');
+                                                                                                                  row.style.padding = '10px';
+                                                                                                                  row.style.marginBottom = '8px';
+                                                                                                                  row.style.borderRadius = '8px';
+                                                                                                                  row.style.background = '#222';
+                                                                                                                  row.innerHTML = `<b>${tr.text}</b> <span style='color:#6cf'>por ${tr.by}</span> <span style='color:#888'>${new Date(tr.ts*1000).toLocaleString()}</span>`;
+                                                                                                                  const rejectBtn = document.createElement('button'); rejectBtn.className = 'ghost'; rejectBtn.textContent = 'Rechazar';
+                                                                                                                  rejectBtn.onclick = async () => {
+                                                                                                                    rejectBtn.disabled = true;
+                                                                                                                    await fetch('/translations/reject', {
+                                                                                                                      method: 'POST',
+                                                                                                                      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                                      body: JSON.stringify({ id: tr.id })
+                                                                                                                    });
+                                                                                                                    await loadAppliedTranslations();
+                                                                                                                  };
+                                                                                                                  row.appendChild(rejectBtn);
+                                                                                                                  frag.appendChild(row);
+                                                                                                                });
+                                                                                                                appliedTranslationsList.innerHTML = '';
+                                                                                                                appliedTranslationsList.appendChild(frag);
+                                                                                                              }
+                                                                                                            } catch (e) {
+                                                                                                              appliedTranslationsList.innerHTML = '<span style="color:#f44">Error cargando traducciones.</span>';
+                                                                                                            }
+                                                                                                          }
+                                                                                                          if (appliedTranslationsPanel) loadAppliedTranslations();
+                                                                                                        // --- Minichat y notificación para owner ---
+                                                                                                        const ownerMiniChatPanel = document.getElementById('ownerMiniChatPanel');
+                                                                                                        const ownerMiniChatMessages = document.getElementById('ownerMiniChatMessages');
+                                                                                                        const ownerMiniChatInput = document.getElementById('ownerMiniChatInput');
+                                                                                                        const ownerMiniChatSendBtn = document.getElementById('ownerMiniChatSendBtn');
+                                                                                                        const ownerMiniChatStatus = document.getElementById('ownerMiniChatStatus');
+                                                                                                        const ownerNotifyCreatorTelegramBtn = document.getElementById('ownerNotifyCreatorTelegramBtn');
+                                                                                                        const ownerNotifyCreatorEmailBtn = document.getElementById('ownerNotifyCreatorEmailBtn');
+
+                                                                                                        async function loadOwnerMiniChat() {
+                                                                                                          if (!ownerMiniChatMessages) return;
+                                                                                                          try {
+                                                                                                            const resp = await fetch('/mini_chat/messages', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                            if (resp.ok) {
+                                                                                                              const js = await resp.json();
+                                                                                                              ownerMiniChatMessages.innerHTML = '';
+                                                                                                              (js.messages || []).forEach(msg => {
+                                                                                                                const div = document.createElement('div');
+                                                                                                                div.style.marginBottom = '6px';
+                                                                                                                div.innerHTML = `<span style='color:#6cf'>${msg.from}</span>: ${msg.text} <span style='color:#888;font-size:0.92em'>${new Date(msg.ts*1000).toLocaleString()}</span>`;
+                                                                                                                ownerMiniChatMessages.appendChild(div);
+                                                                                                              });
+                                                                                                            }
+                                                                                                          } catch (e) {
+                                                                                                            ownerMiniChatMessages.innerHTML = '<span style="color:#f44">Error cargando mensajes.</span>';
+                                                                                                          }
+                                                                                                        }
+                                                                                                        async function sendOwnerMiniChat() {
+                                                                                                          const txt = ownerMiniChatInput.value.trim();
+                                                                                                          if (!txt) return;
+                                                                                                          ownerMiniChatSendBtn.disabled = true;
+                                                                                                          ownerMiniChatStatus.textContent = 'Enviando...';
+                                                                                                          try {
+                                                                                                            const resp = await fetch('/mini_chat/send', {
+                                                                                                              method: 'POST',
+                                                                                                              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                              body: JSON.stringify({ text: txt })
+                                                                                                            });
+                                                                                                            if (resp.ok) {
+                                                                                                              ownerMiniChatInput.value = '';
+                                                                                                              ownerMiniChatStatus.textContent = 'Mensaje enviado.';
+                                                                                                              await loadOwnerMiniChat();
+                                                                                                            } else {
+                                                                                                              ownerMiniChatStatus.textContent = 'Error al enviar.';
+                                                                                                            }
+                                                                                                          } catch (e) {
+                                                                                                            ownerMiniChatStatus.textContent = 'Error de conexión.';
+                                                                                                          }
+                                                                                                          ownerMiniChatSendBtn.disabled = false;
+                                                                                                          setTimeout(() => { ownerMiniChatStatus.textContent = ''; }, 2500);
+                                                                                                        }
+                                                                                                        if (ownerMiniChatSendBtn) ownerMiniChatSendBtn.onclick = sendOwnerMiniChat;
+                                                                                                        if (ownerMiniChatPanel) loadOwnerMiniChat();
+                                                                                                        if (ownerNotifyCreatorTelegramBtn) ownerNotifyCreatorTelegramBtn.onclick = async () => {
+                                                                                                          const lastMsg = ownerMiniChatInput.value.trim();
+                                                                                                          if (!lastMsg) { alert('Escribe un mensaje para notificar.'); return; }
+                                                                                                          ownerNotifyCreatorTelegramBtn.disabled = true;
+                                                                                                          try {
+                                                                                                            await fetch('/mini_chat/notify_telegram', {
+                                                                                                              method: 'POST',
+                                                                                                              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                              body: JSON.stringify({ text: lastMsg })
+                                                                                                            });
+                                                                                                            alert('Notificado por Telegram');
+                                                                                                          } catch (e) { alert('Error al notificar.'); }
+                                                                                                          ownerNotifyCreatorTelegramBtn.disabled = false;
+                                                                                                        };
+                                                                                                        if (ownerNotifyCreatorEmailBtn) ownerNotifyCreatorEmailBtn.onclick = async () => {
+                                                                                                          const lastMsg = ownerMiniChatInput.value.trim();
+                                                                                                          if (!lastMsg) { alert('Escribe un mensaje para notificar.'); return; }
+                                                                                                          ownerNotifyCreatorEmailBtn.disabled = true;
+                                                                                                          try {
+                                                                                                            await fetch('/mini_chat/notify_email', {
+                                                                                                              method: 'POST',
+                                                                                                              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                                                                                                              body: JSON.stringify({ text: lastMsg })
+                                                                                                            });
+                                                                                                            alert('Notificado por Email');
+                                                                                                          } catch (e) { alert('Error al notificar.'); }
+                                                                                                          ownerNotifyCreatorEmailBtn.disabled = false;
+                                                                                                        };
+                                                                                                      // --- Solicitudes de admin de traducciones ---
+                                                                                                      const transAdminCreateBtn = document.getElementById('transAdminCreateBtn');
+                                                                                                      const transAdminUserInput = document.getElementById('transAdminUserInput');
+                                                                                                      const transAdminPassInput = document.getElementById('transAdminPassInput');
+                                                                                                      const transAdminCreateMsg = document.getElementById('transAdminCreateMsg');
+                                                                                                      const transAdminRequestsPanel = document.getElementById('transAdminRequestsPanel');
+
+                                                                                                      async function submitTransAdminRequest() {
+                                                                                                        const user = transAdminUserInput.value.trim();
+                                                                                                        const pass = transAdminPassInput.value.trim();
+                                                                                                        if (!user || !pass) {
+                                                                                                          transAdminCreateMsg.textContent = 'Usuario y contraseña requeridos.';
+                                                                                                          return;
+                                                                                                        }
+                                                                                                        transAdminCreateMsg.textContent = 'Enviando solicitud...';
+                                                                                                        try {
+                                                                                                          await request('/trans_admin/request', { method: 'POST', body: JSON.stringify({ user, pass }) });
+                                                                                                          transAdminCreateMsg.textContent = 'Solicitud enviada. Espera aprobación del owner.';
+                                                                                                          transAdminPassInput.value = '';
+                                                                                                        } catch (e) {
+                                                                                                          transAdminCreateMsg.textContent = 'Error: ' + (e.message || e);
+                                                                                                        }
+                                                                                                        setTimeout(() => { transAdminCreateMsg.textContent = ''; }, 3500);
+                                                                                                      }
+                                                                                                      if (transAdminCreateBtn) transAdminCreateBtn.onclick = submitTransAdminRequest;
+
+                                                                                                      // Panel para owner: ver y aprobar/rechazar solicitudes
+                                                                                                      async function loadTransAdminRequests() {
+                                                                                                        if (!transAdminRequestsPanel) return;
+                                                                                                        transAdminRequestsPanel.innerHTML = '<div style="color:var(--muted)">Cargando solicitudes...</div>';
+                                                                                                        try {
+                                                                                                          const res = await request('/trans_admin/requests', { method: 'GET' });
+                                                                                                          const list = res.requests || [];
+                                                                                                          if (!list.length) {
+                                                                                                            transAdminRequestsPanel.innerHTML = '<div style="color:var(--muted)">Sin solicitudes pendientes.</div>';
+                                                                                                            return;
+                                                                                                          }
+                                                                                                          const frag = document.createDocumentFragment();
+                                                                                                          list.forEach(req => {
+                                                                                                            const row = document.createElement('div');
+                                                                                                            row.style.padding = '10px';
+                                                                                                            row.style.marginBottom = '8px';
+                                                                                                            row.style.borderRadius = '8px';
+                                                                                                            row.style.background = '#181818';
+                                                                                                            row.style.color = '#fff';
+                                                                                                            row.innerHTML = `<b>${req.user}</b> solicitado por <span style='color:#6cf'>${req.by}</span> <span style='color:#888'>${new Date(req.ts*1000).toLocaleString()}</span> <span style='color:#fc0'>[${req.status}]</span>`;
+                                                                                                            if (req.status === 'pending') {
+                                                                                                              const approveBtn = document.createElement('button'); approveBtn.className = 'btn'; approveBtn.textContent = 'Aprobar';
+                                                                                                              approveBtn.onclick = async () => {
+                                                                                                                approveBtn.disabled = true;
+                                                                                                                await request('/trans_admin/approve', { method: 'POST', body: JSON.stringify({ id: req.id, approve: true }) });
+                                                                                                                await loadTransAdminRequests();
+                                                                                                              };
+                                                                                                              const rejectBtn = document.createElement('button'); rejectBtn.className = 'ghost'; rejectBtn.textContent = 'Rechazar';
+                                                                                                              rejectBtn.onclick = async () => {
+                                                                                                                rejectBtn.disabled = true;
+                                                                                                                await request('/trans_admin/approve', { method: 'POST', body: JSON.stringify({ id: req.id, approve: false }) });
+                                                                                                                await loadTransAdminRequests();
+                                                                                                              };
+                                                                                                              row.appendChild(approveBtn); row.appendChild(rejectBtn);
+                                                                                                            }
+                                                                                                            frag.appendChild(row);
+                                                                                                          });
+                                                                                                          transAdminRequestsPanel.innerHTML = '';
+                                                                                                          transAdminRequestsPanel.appendChild(frag);
+                                                                                                        } catch (e) {
+                                                                                                          transAdminRequestsPanel.innerHTML = '<div style="color:#f44">Error: ' + (e.message || e) + '</div>';
+                                                                                                        }
+                                                                                                      }
+
+                                                                                                      // Llamar loadTransAdminRequests si el usuario es owner (puedes mejorar con tu lógica de sesión)
+                                                                                                      if (window._isOwner && transAdminRequestsPanel) {
+                                                                                                        loadTransAdminRequests();
+                                                                                                      }
+                                                                                                    // --- NUEVOS FORMULARIOS DE CREACIÓN DE USUARIOS Y ADMINISTRADORES ---
+                                                                                                    const userCreateBtn = document.getElementById('userCreateBtn');
+                                                                                                    const userUserInput = document.getElementById('userUserInput');
+                                                                                                    const userPassInput = document.getElementById('userPassInput');
+                                                                                                    const userCreateMsg = document.getElementById('userCreateMsg');
+
+                                                                                                    const adminCreateBtn = document.getElementById('adminCreateBtn');
+                                                                                                    const adminUserInput = document.getElementById('adminUserInput');
+                                                                                                    const adminPassInput = document.getElementById('adminPassInput');
+                                                                                                    const adminCreateMsg = document.getElementById('adminCreateMsg');
+
+                                                                                                    const transAdminCreateBtn = document.getElementById('transAdminCreateBtn');
+                                                                                                    const transAdminUserInput = document.getElementById('transAdminUserInput');
+                                                                                                    const transAdminPassInput = document.getElementById('transAdminPassInput');
+                                                                                                    const transAdminCreateMsg = document.getElementById('transAdminCreateMsg');
+
+                                                                                                    async function createUser(type) {
+                                                                                                      let user = '', pass = '', msgEl = null, endpoint = '', body = {};
+                                                                                                      if (type === 'normal') {
+                                                                                                        user = userUserInput.value.trim();
+                                                                                                        pass = userPassInput.value.trim();
+                                                                                                        msgEl = userCreateMsg;
+                                                                                                        endpoint = '/admin/users';
+                                                                                                        body = { user, pass, is_admin: false, is_trans_admin: false };
+                                                                                                      } else if (type === 'admin') {
+                                                                                                        user = adminUserInput.value.trim();
+                                                                                                        pass = adminPassInput.value.trim();
+                                                                                                        msgEl = adminCreateMsg;
+                                                                                                        endpoint = '/admin/users';
+                                                                                                        body = { user, pass, is_admin: true, is_trans_admin: false };
+                                                                                                      } else if (type === 'trans_admin') {
+                                                                                                        user = transAdminUserInput.value.trim();
+                                                                                                        pass = transAdminPassInput.value.trim();
+                                                                                                        msgEl = transAdminCreateMsg;
+                                                                                                        endpoint = '/admin/users';
+                                                                                                        body = { user, pass, is_admin: false, is_trans_admin: true };
+                                                                                                      }
+                                                                                                      if (!user || !pass) {
+                                                                                                        if (msgEl) msgEl.textContent = 'Usuario y contraseña requeridos.';
+                                                                                                        return;
+                                                                                                      }
+                                                                                                      msgEl.textContent = 'Creando...';
+                                                                                                      try {
+                                                                                                        await request(endpoint, { method: 'POST', body: JSON.stringify(body) });
+                                                                                                        msgEl.textContent = 'Usuario creado correctamente.';
+                                                                                                        if (type === 'normal') userPassInput.value = '';
+                                                                                                        if (type === 'admin') adminPassInput.value = '';
+                                                                                                        if (type === 'trans_admin') transAdminPassInput.value = '';
+                                                                                                      } catch (e) {
+                                                                                                        msgEl.textContent = 'Error: ' + (e.message || e);
+                                                                                                      }
+                                                                                                      setTimeout(() => { msgEl.textContent = ''; }, 3500);
+                                                                                                    }
+
+                                                                                                    if (userCreateBtn) userCreateBtn.onclick = () => createUser('normal');
+                                                                                                    if (adminCreateBtn) adminCreateBtn.onclick = () => createUser('admin');
+                                                                                                    if (transAdminCreateBtn) transAdminCreateBtn.onclick = () => createUser('trans_admin');
                                                                                                   const editBotToken = document.getElementById('editBotToken');
                                                                                     // --- Modal edición bot usuario ---
                                                                                     const editUserBotModal = document.getElementById('editUserBotModal');
@@ -1092,7 +1921,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
             if(c.status) parts.push(c.status)
             if(c.cpu_percent!=null) parts.push('CPU '+(Number(c.cpu_percent).toFixed?Number(c.cpu_percent).toFixed(1):c.cpu_percent)+'%')
             if(c.memory_rss!=null) parts.push('Mem '+humanFileSize(c.memory_rss))
-            body.textContent = parts.join(' | ')
             row.appendChild(title); row.appendChild(body); container.appendChild(row)
           })
         }
@@ -1418,4 +2246,283 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const url = '/torrents_user.html?user='+encodeURIComponent(u)
     window.open(url, '_blank')
   })
+  // Panel de usuarios expulsados y regiones bloqueadas
+  if (localStorage.getItem('role') === 'owner') {
+    const bannedPanel = document.createElement('div');
+    bannedPanel.id = 'bannedPanel';
+    bannedPanel.style.margin = '32px 0';
+    bannedPanel.innerHTML = `<h2 style='color:#c0392b'>Usuarios expulsados y regiones bloqueadas</h2><div id='bannedList'>Cargando...</div><div id='regionStatsOwner'></div>`;
+    document.body.appendChild(bannedPanel);
+    async function loadBannedUsers() {
+      const listDiv = document.getElementById('bannedList');
+      const regionDiv = document.getElementById('regionStatsOwner');
+      listDiv.innerHTML = 'Cargando...';
+      try {
+        const resp = await fetch('/admin/banned_users', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        if (resp.ok) {
+          const data = await resp.json();
+          const users = data.users || [];
+          if (!users.length) { listDiv.innerHTML = '<span style="color:#888">No hay usuarios expulsados.</span>'; regionDiv.innerHTML = ''; return; }
+          let html = '<table style="width:100%;margin-top:12px"><thead><tr><th>Usuario</th><th>Motivo</th><th>Región</th></tr></thead><tbody>';
+          users.forEach(u => {
+            html += `<tr><td>${u.user}</td><td>${u.reason}</td><td>${u.region || 'unknown'}</td></tr>`;
+          });
+          html += '</tbody></table>';
+          listDiv.innerHTML = html;
+          if (data.top_regions && data.top_regions.length) {
+            let rhtml = '<h3>Regiones más bloqueadas</h3><ul>';
+            for (const [region, count] of data.top_regions) {
+              rhtml += `<li><strong>${region}</strong>: ${count} expulsados</li>`;
+            }
+            rhtml += '</ul>';
+            regionDiv.innerHTML = rhtml;
+          } else {
+            regionDiv.innerHTML = '';
+          }
+        }
+      } catch (e) {
+        listDiv.innerHTML = '<span style="color:#f44">Error cargando expulsados.</span>';
+        regionDiv.innerHTML = '';
+      }
+    }
+    loadBannedUsers();
+  }
+  // Panel de gestión de grupos para owner/admin
+  if (["owner","admin"].includes(localStorage.getItem('role'))) {
+    const TG_PERMISSIONS = [
+      'can_send_messages',
+      'can_send_media_messages',
+      'can_send_polls',
+      'can_send_other_messages',
+      'can_add_web_page_previews',
+      'can_change_info',
+      'can_invite_users',
+      'can_pin_messages',
+      'can_manage_topics',
+      'can_manage_video_chats',
+      'can_manage_chat',
+      'can_delete_messages',
+      'can_restrict_members',
+      'can_promote_members',
+      'can_manage_voice_chats'
+    ];
+    const groupAdminPanel = document.createElement('div');
+    groupAdminPanel.id = 'groupAdminPanel';
+    groupAdminPanel.style.margin = '32px 0';
+    groupAdminPanel.innerHTML = `<h2 style='color:#6cf'>Administrar grupos</h2><div id='groupAdminList'>Cargando...</div>`;
+    document.body.appendChild(groupAdminPanel);
+    async function loadGroupAdmin() {
+      const listDiv = document.getElementById('groupAdminList');
+      listDiv.innerHTML = 'Cargando...';
+      try {
+        const resp = await fetch('/bot/groups', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        if (resp.ok) {
+          const js = await resp.json();
+          const groups = js.groups || [];
+          if (!groups.length) { listDiv.innerHTML = '<span style="color:#888">No hay grupos.</span>'; return; }
+          const frag = document.createDocumentFragment();
+          for (const g of groups) {
+            // Verificar permisos del usuario logueado en el grupo
+            let canEdit = false;
+            try {
+              const userId = localStorage.getItem('userId');
+              const pResp = await fetch(`/bot/get_permissions/${g.id}/${userId}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+              if (pResp.ok) {
+                const perms = (await pResp.json()).permissions || {};
+                if (TG_PERMISSIONS.some(p => perms[p])) canEdit = true;
+              }
+            } catch {}
+            const gDiv = document.createElement('div');
+            gDiv.style.background = '#222';
+            gDiv.style.marginBottom = '16px';
+            gDiv.style.padding = '12px';
+            gDiv.style.borderRadius = '8px';
+            gDiv.innerHTML = `<b>Grupo:</b> ${g.title || g.id}`;
+            // Miembros y acciones
+            const membersDiv = document.createElement('div');
+            membersDiv.style.fontSize = '0.97em';
+            membersDiv.style.color = '#ccc';
+            membersDiv.innerHTML = 'Miembros: Cargando...';
+            gDiv.appendChild(membersDiv);
+            frag.appendChild(gDiv);
+            // Cargar miembros y bans
+            fetch(`/bot/group_bans/${g.id}`, { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } })
+              .then(r => r.json())
+              .then(data => {
+                const bans = data.bans || [];
+                const members = data.members || [];
+                let html = '<b>Baneados:</b><br>';
+                for (const b of bans) html += `- ${b.user_id} (${b.reason || ''})<br>`;
+                html += '<b>Miembros:</b><br>';
+                for (const m of members) {
+                  html += `<span>${m.user_id} ${m.name || ''}</span> `;
+                  html += `<button onclick="banUser('${g.id}','${m.user_id}')">Banear</button> `;
+                  html += `<button onclick="muteUser('${g.id}','${m.user_id}')">Mutear</button> `;
+                  // Permisos individuales
+                  const perms = m.permissions || {};
+                  html += '<span style="margin-left:8px">Permisos:</span>';
+                  TG_PERMISSIONS.forEach(p => {
+                    html += `<label style='margin-left:4px'><input type='checkbox' ${perms[p] ? 'checked' : ''} ${canEdit ? '' : 'disabled'} onchange="changePerm('${g.id}','${m.user_id}','${p}',this.checked)">${p.replace(/_/g,' ')}</label>`;
+                  });
+                  // Subir a admin si tiene permisos
+                  if (Object.values(perms).filter(Boolean).length >= 3 && m.role !== 'admin' && canEdit) {
+                    html += `<button onclick="changeRole('${g.id}','${m.user_id}','admin')" style='margin-left:8px'>Subir a admin</button>`;
+                  }
+                  html += `<select onchange="changeRole('${g.id}','${m.user_id}',this.value)" ${canEdit ? '' : 'disabled'}><option value="">Rol</option><option value="admin" ${m.role==='admin'?'selected':''}>Admin</option><option value="user" ${m.role==='user'?'selected':''}>Usuario</option></select><br>`;
+                }
+                membersDiv.innerHTML = html;
+              });
+          }
+          listDiv.innerHTML = '';
+          listDiv.appendChild(frag);
+        }
+      } catch (e) {
+        listDiv.innerHTML = '<span style="color:#f44">Error cargando grupos.</span>';
+      }
+    }
+    window.banUser = async function(groupId, userId) {
+      await fetch(`/bot/ban_user/${groupId}/${userId}`, { method:'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      loadGroupAdmin();
+    }
+    window.muteUser = async function(groupId, userId) {
+      await fetch(`/bot/mute_user/${groupId}/${userId}`, { method:'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      loadGroupAdmin();
+    }
+    window.changeRole = async function(groupId, userId, role) {
+      if (!role) return;
+      await fetch(`/bot/set_role/${groupId}/${userId}`, { method:'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken'), 'Content-Type':'application/json' }, body: JSON.stringify({ role }) });
+      loadGroupAdmin();
+    }
+    window.changePerm = async function(groupId, userId, perm, value) {
+      await fetch(`/bot/set_permission/${groupId}/${userId}`, { method:'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken'), 'Content-Type':'application/json' }, body: JSON.stringify({ permission: perm, value }) });
+      loadGroupAdmin();
+    }
+    loadGroupAdmin();
+  }
+  // Panel de solicitudes de intervención de grupo para admin web
+  if (["owner","admin"].includes(localStorage.getItem('role'))) {
+    const interventionPanel = document.createElement('div');
+    interventionPanel.id = 'interventionPanel';
+    interventionPanel.style.margin = '32px 0';
+    interventionPanel.innerHTML = `<h2 style='color:#6cf'>Solicitudes de intervención en grupos</h2><div id='interventionList'>Cargando...</div>`;
+    document.body.appendChild(interventionPanel);
+    async function loadInterventions() {
+      const listDiv = document.getElementById('interventionList');
+      listDiv.innerHTML = 'Cargando...';
+      try {
+        const resp = await fetch('/admin/request_intervention', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        if (resp.ok) {
+          const js = await resp.json();
+          const list = js.requests || [];
+          if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay solicitudes pendientes.</span>'; return; }
+          const frag = document.createDocumentFragment();
+          list.forEach(req => {
+            const rDiv = document.createElement('div');
+            rDiv.style.background = '#222';
+            rDiv.style.marginBottom = '12px';
+            rDiv.style.padding = '10px';
+            rDiv.style.borderRadius = '8px';
+            rDiv.innerHTML = `<b>Grupo:</b> ${req.chat_title || req.chat_id}<br><b>Usuario:</b> ${req.username || req.user_id}<br><b>Motivo:</b> ${req.motivo}<br><b>Fecha:</b> ${new Date(req.ts*1000).toLocaleString()}`;
+            rDiv.innerHTML += `<br><button onclick="markInterventionAttended('${req.id}')">Marcar como atendida</button>`;
+            rDiv.innerHTML += ` <button onclick="openGroupPanel('${req.chat_id}')">Ir al panel del grupo</button>`;
+            frag.appendChild(rDiv);
+          });
+          listDiv.innerHTML = '';
+          listDiv.appendChild(frag);
+        }
+      } catch (e) {
+        listDiv.innerHTML = '<span style="color:#f44">Error cargando solicitudes.</span>';
+      }
+    }
+    window.markInterventionAttended = async function(id) {
+      const comment = prompt('Comentario para la intervención (opcional):');
+      await fetch(`/admin/request_intervention/${id}/attend`, {
+        method:'POST',
+        headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken'), 'Content-Type':'application/json' },
+        body: JSON.stringify({ comment })
+      });
+      loadInterventions();
+      loadInterventionHistory();
+    }
+    window.openGroupPanel = function(chatId) {
+      // Redirige al panel del grupo/bot correspondiente (ajusta la URL según tu estructura)
+      window.location.href = `/bot_control.html?group=${encodeURIComponent(chatId)}`;
+    }
+    loadInterventions();
+  }
+  // Panel de historial de intervenciones para admin web
+  if (["owner","admin"].includes(localStorage.getItem('role'))) {
+    const interventionHistoryPanel = document.createElement('div');
+    interventionHistoryPanel.id = 'interventionHistoryPanel';
+    interventionHistoryPanel.style.margin = '32px 0';
+    interventionHistoryPanel.innerHTML = `<h2 style='color:#6cf'>Historial de intervenciones en grupos</h2><div id='interventionHistoryList'>Cargando...</div>`;
+    document.body.appendChild(interventionHistoryPanel);
+    async function loadInterventionHistory() {
+      const listDiv = document.getElementById('interventionHistoryList');
+      listDiv.innerHTML = 'Cargando...';
+      try {
+        const resp = await fetch('/admin/request_intervention/history', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        if (resp.ok) {
+          const js = await resp.json();
+          const list = js.history || [];
+          if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay historial de intervenciones.</span>'; return; }
+          const frag = document.createDocumentFragment();
+          list.forEach(req => {
+            const rDiv = document.createElement('div');
+            rDiv.style.background = '#222';
+            rDiv.style.marginBottom = '12px';
+            rDiv.style.padding = '10px';
+            rDiv.style.borderRadius = '8px';
+            rDiv.innerHTML = `<b>Grupo:</b> ${req.chat_title || req.chat_id}<br><b>Usuario:</b> ${req.username || req.user_id}<br><b>Motivo:</b> ${req.motivo}<br><b>Fecha:</b> ${new Date(req.ts*1000).toLocaleString()}<br><b>Estado:</b> ${req.attended ? 'Atendida' : 'Pendiente'}`;
+            if (req.comment) rDiv.innerHTML += `<br><b>Comentario:</b> ${req.comment}`;
+            frag.appendChild(rDiv);
+          });
+          listDiv.innerHTML = '';
+          listDiv.appendChild(frag);
+        }
+      } catch (e) {
+        listDiv.innerHTML = '<span style="color:#f44">Error cargando historial.</span>';
+      }
+    }
+    loadInterventionHistory();
+  }
 })
+// --- Bubble Panel global ---
+(function(){
+  if (!localStorage.getItem('authToken')) return;
+  if (document.getElementById('userBubblePanel')) return;
+  const bubbleHTML = `
+  <div class=\"bubble-panel\" id=\"userBubblePanel\" style=\"display:flex\">
+    <button class=\"bubble-toggle\" id=\"bubbleToggle\" aria-label=\"Abrir menú rápido\">
+      <img src=\"logo.svg\" class=\"bubble-logo\" alt=\"Panel\" />
+    </button>
+    <div class=\"bubble-body\" id=\"bubbleBody\">
+      <div class=\"bubble-header\">
+        <span class=\"bubble-title\">Panel rápido</span>
+        <button class=\"bubble-close\" id=\"bubbleClose\">×</button>
+      </div>
+      <nav class=\"bubble-nav\">
+        <a href=\"chat.html\">Chat</a>
+        <a href=\"monitor.html\">Monitor</a>
+        <a href=\"telegram.html\">Telegram</a>
+        <a href=\"traducciones.html\">Traducciones</a>
+        <a href=\"status.html\">Estado</a>
+        <a href=\"links.html\">Enlaces</a>
+      </nav>
+      <div class=\"bubble-footer\">
+        <a href=\"logout.html\" style=\"color:var(--muted);font-size:0.95em\">Cerrar sesión</a>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend', bubbleHTML);
+  const toggle = document.getElementById('bubbleToggle');
+  const body = document.getElementById('bubbleBody');
+  const close = document.getElementById('bubbleClose');
+  toggle.onclick = () => body.classList.toggle('open');
+  close.onclick = () => body.classList.remove('open');
+  document.addEventListener('click', function(e) {
+    if (!body.contains(e.target) && !toggle.contains(e.target)) {
+      body.classList.remove('open');
+    }
+  });
+})();

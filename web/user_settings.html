@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings de usuario</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { background: #181818; color: #eee; font-family: 'Segoe UI', Arial, sans-serif; margin: 0; }
+    .container { max-width: 500px; margin: 40px auto; background: #222; border-radius: 12px; box-shadow: 0 2px 16px #0006; padding: 32px; }
+    h1 { color: #6cf; margin-bottom: 24px; }
+    .section { margin-bottom: 28px; }
+    .label { color: #6cf; font-weight: bold; margin-bottom: 8px; display: block; }
+    .msg { color: #f44; margin-top: 10px; }
+    .verified { color: #2f6; font-weight: bold; }
+    .not-verified { color: #f44; font-weight: bold; }
+    button { background:#6cf; color:#222; padding:8px 18px; border-radius:6px; border:none; font-weight:bold; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Settings de usuario</h1>
+    <div class="section">
+      <span class="label">Verificación de Telegram</span>
+      <div id="telegramStatus">Cargando...</div>
+      <button id="verifyTelegramBtn">Verificar Telegram</button>
+      <div id="telegramMsg" class="msg"></div>
+    </div>
+    <!-- Otros ajustes de usuario aquí -->
+  </div>
+  <script>
+    async function checkTelegramStatus() {
+      const statusDiv = document.getElementById('telegramStatus');
+      statusDiv.textContent = 'Cargando...';
+      try {
+        const resp = await fetch('/user/telegram_status', { headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || '') } });
+        if (resp.ok) {
+          const js = await resp.json();
+          if (js.verified) {
+            statusDiv.innerHTML = '<span class="verified">Verificado ✔</span>';
+          } else {
+            statusDiv.innerHTML = '<span class="not-verified">No verificado ✖</span>';
+          }
+        } else {
+          statusDiv.textContent = 'Error al consultar.';
+        }
+      } catch (e) {
+        statusDiv.textContent = 'Error de red.';
+      }
+    }
+    checkTelegramStatus();
+    document.getElementById('verifyTelegramBtn').onclick = async () => {
+      const msgDiv = document.getElementById('telegramMsg');
+      msgDiv.textContent = 'Procesando...';
+      try {
+        const resp = await fetch('/user/verify_telegram', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + (localStorage.getItem('authToken') || ''), 'Content-Type': 'application/json' },
+        });
+        if (resp.ok) {
+          msgDiv.textContent = 'Solicitud enviada. Revisa tu Telegram para el enlace de verificación.';
+          setTimeout(checkTelegramStatus, 2000);
+        } else {
+          const err = await resp.json();
+          msgDiv.textContent = err.detail || 'Error al solicitar.';
+        }
+      } catch (e) {
+        msgDiv.textContent = 'Error de red.';
+      }
+    };
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

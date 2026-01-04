@@ -1,3 +1,723 @@
+@app.post('/admin/unban_user')
+def unban_user(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede desbloquear usuarios')
+    user = payload.get('user')
+    if not user:
+        raise HTTPException(status_code=400, detail='Usuario requerido')
+    r.srem('banned_users', user)
+    r.delete(f'user:{user}:banned_reason')
+    return { 'ok': True, 'msg': f'Usuario {user} desbloqueado' }
+@app.get('/admin/banned_users')
+def get_banned_users(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede ver usuarios expulsados')
+    users = list(r.smembers('banned_users'))
+    result = []
+    region_stats = {}
+    for u in users:
+        reason = r.get(f'user:{u}:banned_reason') or 'Sin motivo registrado'
+        region = r.get(f'user:{u}:region') or 'unknown'
+        result.append({'user': u, 'reason': reason, 'region': region})
+        region_stats[region] = region_stats.get(region, 0) + 1
+    # Obtener top regiones bloqueadas
+    top_regions = sorted(region_stats.items(), key=lambda x: x[1], reverse=True)
+    return {'users': result, 'top_regions': top_regions}
+# Endpoint para validar el hash del bot localmente desplegado
+@app.post('/bot/validate_local_hash')
+def validate_local_hash(payload: dict, request: Request):
+    token = payload.get('token')
+    local_hash = payload.get('local_hash')
+    if not token or not local_hash:
+        raise HTTPException(status_code=400, detail='Token y hash requeridos')
+    # Buscar bot por token
+    items = r.lrange('user_bots', 0, -1) or []
+    bot = None
+    for it in items:
+        try:
+            b = json.loads(it.decode() if isinstance(it, bytes) else it)
+            if b.get('token') == token:
+                bot = b
+                break
+        except Exception:
+            continue
+    if not bot:
+        raise HTTPException(status_code=404, detail='Bot no encontrado')
+    # Validar hash contra el último importado (si existe)
+    # Se puede guardar el hash en el registro del bot al importar
+    expected_hash = bot.get('expected_hash')
+    if expected_hash and local_hash.lower() == expected_hash.lower():
+        return { 'ok': True, 'msg': 'Hash válido' }
+    # Aviso al dueño por Telegram si el hash no coincide
+    owner_id = bot.get('owner_id') or bot.get('owner')
+    alert_msg = f"ALERTA: El bot '{bot.get('name')}' tiene un hash inválido: {local_hash} (esperado: {expected_hash})"
+    send_owner_alert(alert_msg, owner_id)
+    return { 'ok': False, 'msg': 'Hash no coincide', 'expected': expected_hash }
+
+# Función para enviar aviso al dueño por Telegram
+def send_owner_alert(msg, owner_id):
+    # owner_id debe ser el chat_id de Telegram del dueño
+    # Configura el token del bot de avisos
+    TELEGRAM_ALERT_BOT_TOKEN = os.environ.get('TELEGRAM_ALERT_BOT_TOKEN')
+    if not TELEGRAM_ALERT_BOT_TOKEN or not owner_id:
+        print('No se puede enviar alerta por Telegram: falta token o owner_id')
+        return
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_ALERT_BOT_TOKEN}/sendMessage"
+        payload = { 'chat_id': owner_id, 'text': msg }
+        requests.post(url, json=payload, timeout=5)
+        print('Alerta enviada al dueño por Telegram.')
+    except Exception as e:
+        print(f'Error enviando alerta por Telegram: {e}')
+import hashlib
+# Endpoint para verificar la integridad del bot importado
+import requests
+@app.get('/bot/verify_integrity')
+def verify_bot_integrity(token: str = '', request: Request = None):
+    if not token:
+        raise HTTPException(status_code=400, detail='Token requerido')
+    # Verificar token con Telegram API
+    try:
+        url = f'https://api.telegram.org/bot{token}/getMe'
+        resp = requests.get(url, timeout=6)
+        data = resp.json() if resp.content else {'ok': False, 'description': 'Sin respuesta'}
+        if not data.get('ok'):
+            return { 'ok': False, 'msg': 'Token inválido o sin permisos', 'details': data }
+        return { 'ok': True, 'msg': 'Bot válido', 'details': data.get('result', {}) }
+    except Exception as e:
+        return { 'ok': False, 'msg': f'Error de conexión: {e}' }
+# Endpoint para importar/registrar bots externos
+@app.post('/bot/import')
+def import_bot(payload: dict, request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    token = payload.get('token')
+    name = payload.get('name')
+    info = payload.get('info', '')
+    avatar = payload.get('avatar', '/logo.svg')
+    bot_file = payload.get('bot_file')  # Debe ser base64 o ruta
+    expected_hash = payload.get('expected_hash')  # SHA256 o MD5
+    if not token or not name:
+        raise HTTPException(status_code=400, detail='Token y nombre requeridos')
+    # Verificar hash si se proporciona archivo y hash
+    if bot_file and expected_hash:
+        try:
+            import base64
+            file_bytes = base64.b64decode(bot_file)
+            sha256 = hashlib.sha256(file_bytes).hexdigest()
+            md5 = hashlib.md5(file_bytes).hexdigest()
+            if expected_hash not in [sha256, md5]:
+                raise HTTPException(status_code=400, detail=f'Hash inválido. SHA256: {sha256}, MD5: {md5}')
+            # Verificar el código antes de ejecutar (ejemplo: no debe contener import os, sys, subprocess, open, etc)
+            code_str = file_bytes.decode(errors='ignore')
+            forbidden = ['import os', 'import sys', 'subprocess', 'open(', 'eval(', 'exec(', 'socket', 'requests', 'popen', 'system(', 'fork(', 'thread', 'multiprocessing']
+            for word in forbidden:
+                if word in code_str:
+                    # Expulsar automáticamente al usuario
+                    r.sadd('banned_users', user)
+                    r.set(f'user:{user}:banned_reason', f'Intento de vulnerar la web/bot: {word}')
+                    raise HTTPException(status_code=403, detail=f'Usuario expulsado por intento de vulnerar la web/bot ({word})')
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f'Error verificando hash: {e}')
+    # Registrar bot en Redis
+    import datetime
+    ip = request.client.host if hasattr(request, 'client') and request.client else 'unknown'
+    bot_data = {
+        'token': token,
+        'name': name,
+        'info': info,
+        'avatar': avatar,
+        'owner': user,
+        'status': 'Activo',
+        'statusColor': 'green',
+        'security': {
+            'imported_at': datetime.datetime.utcnow().isoformat(),
+            'import_ip': ip,
+            'code_verified': True,
+            'forbidden_found': False
+        }
+    }
+    # Eliminar cualquier campo local antes de guardar
+    for k in ['local_path','local_config','local_env','local_ip','local_user','local_secret']:
+        bot_data.pop(k, None)
+    r.rpush('user_bots', json.dumps(bot_data))
+    return { 'ok': True, 'msg': 'Bot importado', 'bot': bot_data }
+# Endpoint para banear grupo/canal
+@app.post('/group/ban')
+def ban_group(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede banear grupos')
+    group_id = payload.get('group_id')
+    if not group_id:
+        raise HTTPException(status_code=400, detail='group_id requerido')
+    r.set(f'group:{group_id}:banned', '1')
+    return { 'ok': True, 'msg': 'Grupo baneado', 'group_id': group_id }
+# Endpoint para consultar avisos de límite excedido en tiempo real
+@app.get('/group/rate_limit_alerts')
+def get_group_rate_limit_alerts(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo admins/owner pueden ver avisos')
+    items = r.lrange('group:rate_limit_exceeded', -100, -1) or []
+    alerts = []
+    for it in items:
+        try:
+            group_id, ts = it.split('|')
+            alerts.append({ 'group_id': group_id, 'timestamp': float(ts) })
+        except Exception:
+            continue
+    return { 'alerts': alerts }
+# Endpoint para limitar la lectura de mensajes por segundo en un grupo/canal
+@app.post('/group/set_read_limit')
+def set_group_read_limit(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede limitar lectura')
+    group_id = payload.get('group_id')
+    read_limit = payload.get('read_limit')
+    if not group_id or not isinstance(read_limit, int):
+        raise HTTPException(status_code=400, detail='group_id y read_limit requeridos')
+    r.set(f'group:{group_id}:read_limit', read_limit)
+    return { 'ok': True, 'msg': 'Límite de lectura actualizado', 'group_id': group_id, 'read_limit': read_limit }
+
+# Endpoint para consultar el límite de lectura de mensajes de un grupo/canal
+@app.get('/group/get_read_limit')
+def get_group_read_limit(group_id: str = '', request: Request = None):
+    if not group_id:
+        raise HTTPException(status_code=400, detail='group_id requerido')
+    raw = r.get(f'group:{group_id}:read_limit')
+    read_limit = int(raw) if raw else None
+    return { 'group_id': group_id, 'read_limit': read_limit }
+# Endpoint para ver uso de recursos de todos los bots y detectar el grupo/canal/proceso que más consume
+@app.get('/bot/resources_usage')
+def bots_resources_usage(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner o admin puede ver recursos')
+    items = r.lrange('user_bots', 0, -1) or []
+    bots_usage = []
+    max_usage = {'bot': None, 'group': None, 'type': None, 'value': 0}
+    groups_raw = r.get('bot_groups')
+    if groups_raw:
+        try:
+            groups = json.loads(groups_raw.decode() if isinstance(groups_raw, bytes) else groups_raw)
+        except Exception:
+            groups = []
+    else:
+        groups = []
+    for it in items:
+        try:
+            bot = json.loads(it.decode() if isinstance(it, bytes) else it)
+            token = bot.get('token')
+            bot_groups = [g for g in groups if g.get('bot_token') == token]
+            total_chats = len(bot_groups)
+            total_members = sum(len(r.lrange(f'bot_group:{g.get("id")}:members', 0, 99) or []) for g in bot_groups)
+            total_messages = sum(len(r.lrange(f'bot_group:{g.get("id")}:messages', 0, 99) or []) for g in bot_groups)
+            # Detectar grupo/canal con más miembros/mensajes
+            top_group = None
+            top_value = 0
+            top_type = ''
+            for g in bot_groups:
+                members = len(r.lrange(f'bot_group:{g.get("id")}:members', 0, 99) or [])
+                messages = len(r.lrange(f'bot_group:{g.get("id")}:messages', 0, 99) or [])
+                if members > top_value:
+                    top_group = g.get('id')
+                    top_value = members
+                    top_type = 'miembros'
+                if messages > top_value:
+                    top_group = g.get('id')
+                    top_value = messages
+                    top_type = 'mensajes'
+            if top_value > max_usage['value']:
+                max_usage = {'bot': token, 'group': top_group, 'type': top_type, 'value': top_value}
+            bots_usage.append({
+                'token': token,
+                'name': bot.get('name'),
+                'total_chats': total_chats,
+                'total_members': total_members,
+                'total_messages': total_messages,
+                'top_group': top_group,
+                'top_type': top_type,
+                'top_value': top_value
+            })
+        except Exception:
+            continue
+    return { 'bots_usage': bots_usage, 'max_usage': max_usage }
+# Endpoint para banear bots de usuarios
+@app.post('/bot/ban')
+def ban_bot(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede banear bots')
+    token = payload.get('token')
+    if not token:
+        raise HTTPException(status_code=400, detail='Token requerido')
+    # Marcar bot como baneado en Redis
+    r.set(f'bot:{token}:banned', '1')
+    return { 'ok': True, 'msg': 'Bot baneado' }
+# Endpoint para que el owner limite recursos de bots de usuarios
+@app.post('/bot/set_limits')
+def set_bot_limits(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede limitar recursos')
+    token = payload.get('token')
+    limits = payload.get('limits', {})
+    if not token or not isinstance(limits, dict):
+        raise HTTPException(status_code=400, detail='Token y límites requeridos')
+    # Guardar límites en Redis (incluyendo rate limit)
+    # Ejemplo de limits: { 'max_chats': 10, 'max_members': 1000, 'max_messages': 10000, 'rate_limit': 5 }
+    r.set(f'bot:{token}:limits', json.dumps(limits))
+    return { 'ok': True, 'msg': 'Límites actualizados', 'limits': limits }
+
+# Endpoint para consultar límites de recursos de un bot
+@app.get('/bot/get_limits')
+def get_bot_limits(token: str = '', request: Request = None):
+    if not token:
+        raise HTTPException(status_code=400, detail='Token requerido')
+    raw = r.get(f'bot:{token}:limits')
+    if raw:
+        try:
+            limits = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+        except Exception:
+            limits = {}
+    else:
+        limits = {}
+    return { 'limits': limits }
+# Endpoint para ver grupos/chats gestionados por un bot específico (token)
+@app.get('/bot/stats')
+def bot_stats(token: str = '', request: Request = None):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    # Buscar el bot del usuario por token
+    items = r.lrange('user_bots', 0, -1) or []
+    bot = None
+    for it in items:
+        try:
+            b = json.loads(it.decode() if isinstance(it, bytes) else it)
+            if b.get('token') == token and b.get('owner') == user:
+                bot = b
+                break
+        except Exception:
+            continue
+    if not bot:
+        raise HTTPException(status_code=404, detail='Bot no encontrado')
+    # Buscar grupos/chats gestionados por ese bot
+    groups_raw = r.get('bot_groups')
+    if groups_raw:
+        try:
+            groups = json.loads(groups_raw.decode() if isinstance(groups_raw, bytes) else groups_raw)
+        except Exception:
+            groups = []
+    else:
+        groups = []
+    bot_groups = []
+    for gr in groups:
+        if gr.get('bot_token') == token:
+            gid = gr.get('id')
+            members = r.lrange(f'bot_group:{gid}:members', 0, 49)
+            gr['members'] = []
+            for m in members or []:
+                try:
+                    gr['members'].append(json.loads(m.decode() if isinstance(m, bytes) else m))
+                except Exception:
+                    continue
+            msgs = r.lrange(f'bot_group:{gid}:messages', 0, 19)
+            gr['messages'] = []
+            for msg in msgs or []:
+                try:
+                    gr['messages'].append(json.loads(msg.decode() if isinstance(msg, bytes) else msg))
+                except Exception:
+                    continue
+            bot_groups.append(gr)
+    return { 'chats': bot_groups }
+# Endpoint para ver estadísticas de los chats/grupos del usuario
+@app.get('/user/chats_stats')
+def user_chats_stats(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    # Obtener grupos/chats donde el usuario es miembro
+    user_groups = []
+    groups_raw = r.get('bot_groups')
+    if groups_raw:
+        try:
+            groups = json.loads(groups_raw.decode() if isinstance(groups_raw, bytes) else groups_raw)
+        except Exception:
+            groups = []
+    else:
+        groups = []
+    for gr in groups:
+        gid = gr.get('id')
+        members = r.lrange(f'bot_group:{gid}:members', 0, 99)
+        member_ids = [json.loads(m.decode() if isinstance(m, bytes) else m).get('id') for m in members or []]
+        if user in member_ids:
+            # Estadísticas básicas
+            msgs = r.lrange(f'bot_group:{gid}:messages', 0, 99)
+            last_msg = None
+            if msgs:
+                try:
+                    last_msg = json.loads(msgs[0].decode() if isinstance(msgs[0], bytes) else msgs[0])
+                except Exception:
+                    last_msg = None
+            user_groups.append({
+                'id': gid,
+                'title': gr.get('title'),
+                'type': gr.get('type'),
+                'miembros': len(members or []),
+                'mensajes': len(msgs or []),
+                'ultima_actividad': last_msg.get('date') if last_msg and last_msg.get('date') else None
+            })
+    return { 'chats': user_groups }
+# Endpoint para confirmar verificación de Telegram
+@app.post('/user/confirm_telegram')
+def confirm_telegram(token: str = '', request: Request = None):
+    if not token:
+        raise HTTPException(status_code=400, detail='Token requerido')
+    user = r.get(f'user:*:telegram_verify_token', token)
+    # Buscar usuario por token
+    found_user = None
+    for k in r.scan_iter(match='user:*:telegram_verify_token'):
+        v = r.get(k)
+        if v and v.decode() == token:
+            found_user = k.decode().split(':')[1]
+            break
+    if not found_user:
+        raise HTTPException(status_code=404, detail='Token inválido o expirado')
+    r.set(f'user:{found_user}:telegram_verified', '1')
+    r.delete(f'user:{found_user}:telegram_verify_token')
+    return { 'ok': True, 'user': found_user }
+# Endpoint para consultar estado de verificación de Telegram
+@app.get('/user/telegram_status')
+def telegram_status(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    verified = bool(r.get(f'user:{user}:telegram_verified'))
+    return { 'verified': verified }
+
+# Endpoint para solicitar verificación de Telegram
+@app.post('/user/verify_telegram')
+def verify_telegram(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    # Simular envío de enlace de verificación por Telegram
+    import secrets
+    token = secrets.token_urlsafe(32)
+    r.set(f'user:{user}:telegram_verify_token', token, ex=1800)
+    # Aquí deberías enviar el enlace real por Telegram
+    print(f'Verify link for {user}: https://tuweb/verify_telegram?token={token}')
+    return { 'ok': True, 'msg': 'Solicitud enviada' }
+# Endpoint para solicitar recuperación de contraseña
+@app.post('/auth/request_reset')
+def request_password_reset(payload: dict):
+    user = (payload.get('user') or '').strip()
+    if not user:
+        raise HTTPException(status_code=400, detail='Usuario requerido')
+    # Buscar usuario en Redis
+    rec = r.get(f'web:user:{user}')
+    if not rec:
+        raise HTTPException(status_code=404, detail='Usuario no encontrado')
+    import secrets, time
+    token = secrets.token_urlsafe(32)
+    r.set(f'web:pwreset:{token}', user, ex=3600)
+    # Enviar enlace por email o Telegram (simulado)
+    # Aquí deberías implementar el envío real
+    print(f'Reset link for {user}: https://tuweb/reset_password?token={token}')
+    # Opcional: guardar log de solicitud
+    r.rpush('web:pwreset_requests', f'{user}|{int(time.time())}')
+    return { 'ok': True, 'msg': 'Solicitud procesada' }
+# Endpoint para listar bots y ajustes del usuario actual
+@app.get('/bot/mybots')
+def get_my_bots(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('user'):
+        raise HTTPException(status_code=403, detail='No autorizado')
+    user = sess['user']
+    items = r.lrange('user_bots', 0, -1) or []
+    bots = []
+    for it in items:
+        try:
+            b = json.loads(it.decode() if isinstance(it, bytes) else it)
+            if b.get('owner') == user:
+                # Detectar si el bot tiene Tor activo (puedes guardar este flag al iniciar el bot)
+                tor_flag = r.get(f"bot:{b.get('token')}:tor_enabled")
+                b['tor_enabled'] = bool(tor_flag == '1')
+                # Eliminar información local sensible
+                b.pop('local_path', None)
+                b.pop('local_config', None)
+                b.pop('local_env', None)
+                b.pop('local_ip', None)
+                b.pop('local_user', None)
+                b.pop('local_secret', None)
+                bots.append(b)
+        except Exception:
+            continue
+    return { 'bots': bots }
+# Endpoint para listar bots de usuarios y sus ajustes
+@app.get('/bot/userbots')
+def get_user_bots(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede ver bots de usuarios')
+    items = r.lrange('user_bots', 0, -1) or []
+    out = []
+    for it in items:
+        try:
+            out.append(json.loads(it.decode() if isinstance(it, bytes) else it))
+        except Exception:
+            continue
+    return { 'bots': out }
+# Endpoint para consultar historial de acciones de ban
+@app.get('/bot/group/ban_history')
+def get_ban_history(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede ver historial')
+    items = r.lrange('bot:ban_history', 0, -1) or []
+    out = []
+    for it in items:
+        try:
+            out.append(json.loads(it.decode() if isinstance(it, bytes) else it))
+        except Exception:
+            continue
+    return { 'history': out }
+
+# Endpoint para consultar notificaciones de ban para admin
+@app.get('/bot/group/ban_notifications')
+def get_ban_notifications(request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail='Solo admins pueden ver notificaciones')
+    # Filtrar notificaciones por el admin actual
+    auth = request.headers.get('authorization', '')
+    items = r.lrange('bot:ban_notifications', 0, -1) or []
+    out = []
+    for it in items:
+        try:
+            notif = json.loads(it.decode() if isinstance(it, bytes) else it)
+            if notif.get('to') == auth:
+                out.append(notif)
+        except Exception:
+            continue
+    return { 'notifications': out }
+# Endpoint para listar sugerencias de ban
+@app.get('/bot/group/ban_suggestions')
+def list_ban_suggestions(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede ver sugerencias')
+    items = r.lrange('bot:ban_suggestions', 0, -1) or []
+    out = []
+    for it in items:
+        try:
+            out.append(json.loads(it.decode() if isinstance(it, bytes) else it))
+        except Exception:
+            continue
+    return { 'suggestions': out }
+
+# Endpoint para eliminar sugerencia de ban (por índice)
+@app.post('/bot/group/ban_suggestions/{idx}/delete')
+def delete_ban_suggestion(idx: int, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede eliminar sugerencias')
+    items = r.lrange('bot:ban_suggestions', 0, -1) or []
+    if idx < 0 or idx >= len(items):
+        raise HTTPException(status_code=404, detail='Índice fuera de rango')
+    sug = None
+    try:
+        sug = json.loads(items[idx].decode() if isinstance(items[idx], bytes) else items[idx])
+    except Exception:
+        pass
+    r.lset('bot:ban_suggestions', idx, '__deleted__')
+    r.lrem('bot:ban_suggestions', 1, '__deleted__')
+    # Registrar historial de acción
+    action = request.query_params.get('action') or 'rechazado'
+    r.rpush('bot:ban_history', json.dumps({ 'ids': sug.get('ids') if sug else [], 'from': sug.get('from') if sug else '', 'action': action, 'ts': int(time.time()) }))
+    # Notificar al admin (simulado: guardar notificación en Redis)
+    if sug and sug.get('from'):
+        r.rpush('bot:ban_notifications', json.dumps({ 'to': sug['from'], 'action': action, 'ids': sug.get('ids', []), 'ts': int(time.time()) }))
+    return { 'ok': True }
+# Endpoint para sugerir lista de ban al owner
+@app.post('/bot/group/suggestban')
+def suggest_ban_list(payload: dict, request: Request):
+    if not is_admin_request(request):
+        raise HTTPException(status_code=403, detail='Solo admins pueden sugerir bans')
+    ids = payload.get('ids')
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail='Lista de IDs requerida')
+    # Guardar sugerencia en Redis para revisión del owner
+    r.rpush('bot:ban_suggestions', json.dumps({ 'ids': ids, 'from': request.headers.get('authorization', '') }))
+    return { 'ok': True, 'suggested': len(ids) }
+# Endpoint para importar lista de ban en los bots
+@app.post('/bot/group/importban')
+def import_ban_list(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede importar bans')
+    ids = payload.get('ids')
+    if not ids or not isinstance(ids, list):
+        raise HTTPException(status_code=400, detail='Lista de IDs requerida')
+    # Aplica el ban en Redis y opcionalmente en Telegram
+    api_type = payload.get('api') or ''
+    global_ban = payload.get('global') or False
+    banned = 0
+    for uid in ids:
+        if global_ban:
+            r.sadd('bot:banlist_global', uid)
+        else:
+            r.sadd('bot:banlist', uid)
+        if api_type == 'cas.ban':
+            # Llamar a la API de CAS para banear
+            try:
+                import requests
+                resp = requests.post('https://api.cas.chat/ban', json={ 'user_id': uid }, timeout=6)
+                if resp.ok:
+                    banned += 1
+            except Exception as e:
+                print(f'Error CAS ban {uid}:', e)
+        else:
+            banned += 1
+    return { 'ok': True, 'banned': banned }
+# --- BLOG ENDPOINTS ---
+@app.get('/blog/posts')
+def get_blog_posts():
+    items = r.lrange('web:blog:posts', 0, 49) or []
+    out = []
+    for it in items:
+        try:
+            out.append(json.loads(it.decode() if isinstance(it, bytes) else it))
+        except Exception:
+            continue
+    return { 'posts': out }
+
+@app.post('/blog/publish')
+def publish_blog_post(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede publicar')
+    title = (payload.get('title') or '').strip()
+    content = (payload.get('content') or '').strip()
+    if not title or not content:
+        raise HTTPException(status_code=400, detail='Título y contenido requeridos')
+    post = {
+        'title': title,
+        'content': content,
+        'date': payload.get('date') or time.strftime('%Y-%m-%d'),
+        'author': 'owner',
+        'id': secrets.token_hex(8)
+    }
+    r.lpush('web:blog:posts', json.dumps(post))
+    # Reenviar al chat de Telegram si es publicación nueva o si se solicita (resend)
+    resend = payload.get('resend') or False
+    if resend or not payload.get('id'):
+        try:
+            tg_chat_id = r.get('blog:telegram_chat_id')
+            tg_token = r.get('blog:telegram_token')
+            if tg_chat_id and tg_token:
+                import requests
+                msg = f"📝 Nueva publicación en el blog:\n<b>{post['title']}</b>\n{post['content']}\n\nVer más en la web."
+                url = f"https://api.telegram.org/bot{tg_token.decode() if isinstance(tg_token, bytes) else tg_token}/sendMessage"
+                requests.post(url, data={
+                    'chat_id': tg_chat_id.decode() if isinstance(tg_chat_id, bytes) else tg_chat_id,
+                    'text': msg,
+                    'parse_mode': 'HTML'
+                }, timeout=6)
+        except Exception as e:
+            print('Error enviando publicación al chat Telegram:', e)
+    return { 'ok': True, 'post': post }
+
+@app.post('/blog/edit')
+def edit_blog_post(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede editar')
+    post_id = payload.get('id')
+    title = (payload.get('title') or '').strip()
+    content = (payload.get('content') or '').strip()
+    if not post_id or not title or not content:
+        raise HTTPException(status_code=400, detail='ID, título y contenido requeridos')
+    items = r.lrange('web:blog:posts', 0, 49) or []
+    new_posts = []
+    edited = None
+    for it in items:
+        try:
+            post = json.loads(it.decode() if isinstance(it, bytes) else it)
+            if post.get('id') == post_id:
+                post['title'] = title
+                post['content'] = content
+                edited = post
+            new_posts.append(post)
+        except Exception:
+            continue
+    if not edited:
+        raise HTTPException(status_code=404, detail='Post no encontrado')
+    # Sobrescribe la lista
+    r.delete('web:blog:posts')
+    for post in reversed(new_posts):
+        r.lpush('web:blog:posts', json.dumps(post))
+    return { 'ok': True, 'post': edited }
+def is_owner_request(request: Request) -> bool:
+    if not check_auth(request):
+        return False
+    sess = get_session_from_request(request)
+    return bool(sess and sess.get('role') == 'owner')
+
+# Endpoint para listar grupos/chats del bot
+@app.get('/bot/groups')
+def get_bot_groups(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede acceder')
+    groups = r.get('bot_groups')
+    if groups:
+        try:
+            groups = json.loads(groups.decode() if isinstance(groups, bytes) else groups)
+        except Exception:
+            groups = []
+    else:
+        groups = []
+    # Para cada grupo/chat, añadir miembros y mensajes recientes si existen en Redis
+    for gr in groups:
+        gid = gr.get('id')
+        # Miembros
+        members = r.lrange(f'bot_group:{gid}:members', 0, 49)
+        gr['members'] = []
+        for m in members or []:
+            try:
+                gr['members'].append(json.loads(m.decode() if isinstance(m, bytes) else m))
+            except Exception:
+                continue
+        # Mensajes recientes
+        msgs = r.lrange(f'bot_group:{gid}:messages', 0, 19)
+        gr['messages'] = []
+        for msg in msgs or []:
+            try:
+                gr['messages'].append(json.loads(msg.decode() if isinstance(msg, bytes) else msg))
+            except Exception:
+                continue
+    return { 'groups': groups }
+
+# Endpoint para salir de grupo/chat
+@app.post('/bot/groups/leave')
+def leave_bot_group(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede acceder')
+    group_id = payload.get('id') if payload else None
+    if not group_id:
+        raise HTTPException(status_code=400, detail='id requerido')
+    # Simulación: marcar grupo como abandonado
+    r.sadd('bot_left_groups', group_id)
+    return { 'ok': True }
+
+# Endpoint para ver mensajes recibidos por el bot
+@app.get('/bot/messages')
+def get_bot_messages(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo el owner puede acceder')
+    msgs = r.lrange('bot_received_messages', 0, 49)
+    messages = []
+    for m in msgs or []:
+        try:
+            messages.append(json.loads(m.decode() if isinstance(m, bytes) else m))
+        except Exception:
+            continue
+    return { 'messages': messages }
 ## ...existing code...
 
 # (Mover esto después de app = FastAPI())

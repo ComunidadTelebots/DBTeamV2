@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Estadísticas de tus Chats</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .chat-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .chat-header { display: flex; align-items: center; justify-content: space-between; }
+    .chat-title { font-size: 1.2em; font-weight: bold; color: #34495e; }
+    .chat-id { font-size: 0.95em; color: #888; }
+    .chat-type { font-size: 0.95em; color: #16a085; margin-left: 1em; }
+    .chat-meta { font-size: 0.95em; color: #888; margin-top: 0.5em; }
+    .stat { font-size: 1.1em; margin-top: 0.7em; }
+    .warning { background: #fff3cd; color: #856404; padding: 0.75em; border-radius: 8px; margin-top: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Estadísticas de tus Chats</h1>
+  <div id="user-summary" style="margin-bottom:2em;"></div>
+  <div id="chats"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    function getTokenFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('token');
+    }
+    async function fetchStats() {
+      const token = getTokenFromUrl();
+      let url = '/user/chats_stats';
+      if (token) url = `/bot/stats?token=${encodeURIComponent(token)}`;
+      const res = await fetch(url);
+      const data = await res.json();
+      renderUserSummary(data.chats || []);
+      renderChats(data.chats || []);
+      renderCharts(data.chats || []);
+    }
+    function renderUserSummary(chats) {
+      const summaryDiv = document.getElementById('user-summary');
+      if (!chats.length) {
+        summaryDiv.innerHTML = '';
+        return;
+      }
+      // Resumen general del usuario
+      const totalChats = chats.length;
+      const totalMiembros = chats.reduce((a, c) => a + (c.miembros || 0), 0);
+      const totalMensajes = chats.reduce((a, c) => a + (c.mensajes || 0), 0);
+      const lastActivity = chats.map(c => c.ultima_actividad).filter(Boolean).sort((a, b) => b - a)[0];
+      summaryDiv.innerHTML = `
+        <div style="background:#eafaf1;padding:1em;border-radius:8px;max-width:600px;">
+          <h2>Resumen de tu actividad</h2>
+          <ul style="list-style:none;padding:0;">
+            <li><strong>Chats/grupos gestionados:</strong> ${totalChats}</li>
+            <li><strong>Total de miembros:</strong> ${totalMiembros}</li>
+            <li><strong>Total de mensajes:</strong> ${totalMensajes}</li>
+            <li><strong>Última actividad:</strong> ${lastActivity ? new Date(lastActivity * 1000).toLocaleString() : 'N/A'}</li>
+          </ul>
+        </div>
+      `;
+    }
+    function renderChats(chats) {
+      const container = document.getElementById('chats');
+      container.innerHTML = '';
+      if (!chats.length) {
+        container.innerHTML = '<p>No eres miembro de ningún chat/grupo gestionado por el bot.</p>';
+        return;
+      }
+      chats.forEach(chat => {
+        const actividad = chat.ultima_actividad ? new Date(chat.ultima_actividad * 1000).toLocaleString() : 'N/A';
+        const html = `
+          <div class="chat-card">
+            <div class="chat-header">
+              <span class="chat-title">${chat.title || 'Sin nombre'}</span>
+              <span class="chat-id">ID: ${chat.id}</span>
+              <span class="chat-type">${chat.type || 'Grupo/Chat'}</span>
+            </div>
+            <div class="chat-meta">
+              Miembros: <strong>${chat.miembros}</strong> &nbsp;|&nbsp; Mensajes: <strong>${chat.mensajes}</strong>
+            </div>
+            <div class="stat">
+              Última actividad: ${actividad}
+            </div>
+            ${renderWarning(chat, { max_chats: 100, max_members: 1000, max_messages: 5000, rate_limit: 30 })}
+          </div>
+        `;
+        container.innerHTML += html;
+      });
+    }
+    function renderWarning(bot, limits) {
+      let warning = '';
+      if (bot.chats > limits.max_chats) warning += 'Exceso de chats. ';
+      if (bot.members > limits.max_members) warning += 'Exceso de miembros. ';
+      if (bot.messages > limits.max_messages) warning += 'Exceso de mensajes. ';
+      if (bot.rate > limits.rate_limit) warning += 'Exceso de mensajes por segundo. ';
+      return warning ? `<div class="warning">⚠️ ${warning}</div>` : '';
+    }
+    function renderCharts(chats) {
+      const statsDiv = document.getElementById('stats');
+      statsDiv.innerHTML = '';
+      if (!chats.length) return;
+      // Miembros por chat
+      const miembrosData = {
+        labels: chats.map(c => c.title || c.id),
+        datasets: [{
+          label: 'Miembros',
+          data: chats.map(c => c.miembros),
+          backgroundColor: '#16a08588',
+        }]
+      };
+      // Mensajes por chat
+      const mensajesData = {
+        labels: chats.map(c => c.title || c.id),
+        datasets: [{
+          label: 'Mensajes',
+          data: chats.map(c => c.mensajes),
+          backgroundColor: '#2980b988',
+        }]
+      };
+      statsDiv.innerHTML = `
+        <h2>Gráficos de tus chats</h2>
+        <div style="max-width:600px;margin-bottom:2em;"><canvas id="miembrosChart"></canvas></div>
+        <div style="max-width:600px;"><canvas id="mensajesChart"></canvas></div>
+      `;
+      new Chart(document.getElementById('miembrosChart').getContext('2d'), {
+        type: 'bar',
+        data: miembrosData,
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+      new Chart(document.getElementById('mensajesChart').getContext('2d'), {
+        type: 'bar',
+        data: mensajesData,
+        options: { responsive: true, plugins: { legend: { display: false } } }
+      });
+    }
+    // Crear div para los gráficos
+    const statsDiv = document.createElement('div');
+    statsDiv.id = 'stats';
+    document.body.insertBefore(statsDiv, document.getElementById('chats'));
+    fetchStats();
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

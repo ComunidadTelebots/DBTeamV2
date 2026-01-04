@@ -1,0 +1,9 @@
+{
+  "TELEGRAM_MIN_INTERVAL": "0.35",
+  "TELEGRAM_MAX_CONCURRENT": "2",
+  "OWNER_TELEGRAM_ID": "-",
+  "WEBAPP_URL": "http://127.0.0.1:8000",
+  "STATS_API_URL": "http://127.0.0.1:8081",
+  "USE_TOR": "0",
+  "TOR_PROXY": "socks5h://127.0.0.1:9050"
+}

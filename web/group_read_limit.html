@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Limitar Lectura de Mensajes por Grupo</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .group-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .group-header { display: flex; align-items: center; justify-content: space-between; }
+    .group-title { font-size: 1.2em; font-weight: bold; color: #34495e; }
+    .group-id { font-size: 0.95em; color: #888; }
+    .stat { font-size: 1.1em; margin-top: 0.7em; }
+    .limit-form { margin-top: 1em; background: #f9f9f9; padding: 1em; border-radius: 8px; }
+    .limit-form label { display: block; margin-top: 0.5em; }
+    .limit-form input { width: 80px; margin-left: 0.5em; }
+    button { background: #16a085; color: #fff; border: none; border-radius: 5px; padding: 0.5em 1.2em; cursor: pointer; margin-top: 1em; }
+    button:hover { background: #138d75; }
+  </style>
+</head>
+<body>
+  <h1>Limitar Lectura de Mensajes por Grupo</h1>
+  <div id="groups"></div>
+  <script>
+    async function fetchGroups() {
+      const res = await fetch('/bot/groups');
+      const data = await res.json();
+      renderGroups(data.groups || []);
+    }
+    async function fetchReadLimit(group_id) {
+      const res = await fetch(`/group/get_read_limit?group_id=${encodeURIComponent(group_id)}`);
+      return (await res.json()).read_limit;
+    }
+    async function setReadLimit(group_id) {
+      const current = await fetchReadLimit(group_id);
+      const limit = prompt('Límite de mensajes por segundo para este grupo:', current || 10);
+      if (!limit) return;
+      await fetch('/group/set_read_limit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ group_id, read_limit: Number(limit) })
+      });
+      alert('Límite actualizado');
+      fetchGroups();
+    }
+    async function renderGroups(groups) {
+      const container = document.getElementById('groups');
+      container.innerHTML = '';
+      if (!groups.length) {
+        container.innerHTML = '<p>No hay grupos/chats integrados.</p>';
+        return;
+      }
+      for (const gr of groups) {
+        const readLimit = await fetchReadLimit(gr.id);
+        const html = `<div class="group-card">
+          <div class="group-header">
+            <span class="group-title">${gr.title || 'Sin nombre'}</span>
+            <span class="group-id">ID: ${gr.id}</span>
+          </div>
+          <div class="stat">
+            <strong>Límite de lectura:</strong> ${readLimit !== null ? readLimit : 'Sin límite'} mensajes/segundo
+          </div>
+          <form class="limit-form" onsubmit="event.preventDefault(); setReadLimit('${gr.id}')">
+            <label for="limit-${gr.id}">Nuevo límite de mensajes/segundo:</label>
+            <input type="number" id="limit-${gr.id}" min="1" value="${readLimit !== null ? readLimit : 10}">
+            <button type="button" onclick="setReadLimit('${gr.id}')">Actualizar límite</button>
+          </form>
+        </div>`;
+        container.innerHTML += html;
+      }
+    }
+    fetchGroups();
+  </script>
+</body>
+</html>

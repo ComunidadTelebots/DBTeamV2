@@ -10,6 +10,13 @@ import sys
 from pathlib import Path
 from types import ModuleType
 from typing import Dict
+import redis
+import time
+from collections import defaultdict
+import threading
+import asyncio
+
+msg_lock = threading.Lock()
 
 
 class Bot:
@@ -23,6 +30,45 @@ class Bot:
         self.load_lang('en')
         self.load_plugins()
         print(f'Loaded plugins: {list(self.plugins.keys())}')
+        # Validar hash local al iniciar
+        self.validate_local_hash()
+
+        def validate_local_hash(self):
+            import hashlib, requests, os
+            # Ruta del archivo principal del bot
+            bot_file = os.path.abspath(__file__)
+            # Calcular SHA256
+            sha256 = hashlib.sha256()
+            with open(bot_file, 'rb') as f:
+                for chunk in iter(lambda: f.read(4096), b''):
+                    sha256.update(chunk)
+            local_hash = sha256.hexdigest()
+            # Token del bot (puede obtenerse de config/env/registro)
+            token = os.environ.get('BOT_TOKEN')
+            if not token:
+                print('No BOT_TOKEN en entorno, omitiendo validación de hash')
+                return
+            # Llamar al endpoint central
+            try:
+                url = 'http://localhost:8000/bot/validate_local_hash'  # Ajusta si usas otro host/puerto
+                resp = requests.post(url, json={'token': token, 'local_hash': local_hash}, timeout=5)
+                data = resp.json()
+                if not data.get('ok'):
+                    print(f'ALERTA: El hash local del bot NO coincide con el esperado ({data.get('expected')})')
+                    self.notify_owner(f"El bot local tiene un hash inválido: {local_hash} (esperado: {data.get('expected')})")
+                else:
+                    print('Hash local del bot validado correctamente.')
+            except Exception as e:
+                print(f'Error al validar hash local: {e}')
+
+        def notify_owner(self, msg):
+            # Aviso al dueño de la web (puedes mejorar: email, Telegram, Redis, etc)
+            try:
+                r = redis.StrictRedis(host='127.0.0.1', port=6379, db=0, decode_responses=True)
+                r.rpush('owner_alerts', msg)
+                print('Aviso enviado al dueño de la web.')
+            except Exception as e:
+                print(f'No se pudo avisar al dueño: {e}')
 
     def load_plugins(self):
         """Discover and import plugins from package `python_bot.plugins`.
@@ -97,3 +143,93 @@ class Bot:
             return f'[{key}]'
         except Exception:
             return f'[{key}]'
+
+
+class GroupRateLimiter:
+    def __init__(self, redis_host='127.0.0.1', redis_port=6379):
+        self.r = redis.StrictRedis(host=redis_host, port=redis_port, db=0, decode_responses=True)
+        self.last_msg_time = {}
+
+    def allow_message(self, group_id):
+        limit = self.r.get(f'group:{group_id}:read_limit')
+        if not limit:
+            return True  # No limit set
+        limit = int(limit)
+        now = time.time()
+        last = self.last_msg_time.get(group_id, 0)
+        if now - last < 1.0 / limit:
+            # Notificar al usuario, admins y owner
+            self.r.rpush('group:rate_limit_exceeded', f'{group_id}|{now}')
+            # Opcional: enviar alerta por web, email, Telegram, etc.
+            return False  # Too fast
+        self.last_msg_time[group_id] = now
+        return True
+
+
+COMMAND_USAGE_LIMIT = 50  # Umbral de uso excesivo
+COMMAND_BLOCK_TIME = 3600  # Bloqueo temporal en segundos (1 hora)
+command_usage = defaultdict(lambda: defaultdict(list))  # group_id -> user_id -> [timestamps]
+blocked_commands = defaultdict(lambda: defaultdict(dict))  # group_id -> user_id -> {command: unblock_time}
+
+
+async def handle_command(group_id, user_id, command):
+    now = time.time()
+    # Limpiar bloqueos expirados
+    for cmd in list(blocked_commands[group_id][user_id].keys()):
+        if blocked_commands[group_id][user_id][cmd] < now:
+            del blocked_commands[group_id][user_id][cmd]
+    # Verificar si el comando está bloqueado
+    if command in blocked_commands[group_id][user_id]:
+        return f"Comando '{command}' bloqueado temporalmente para este usuario."
+    # Registrar uso
+    command_usage[group_id][user_id].append(now)
+    # Mantener solo los últimos 100 usos
+    if len(command_usage[group_id][user_id]) > 100:
+        command_usage[group_id][user_id] = command_usage[group_id][user_id][-100:]
+    # Detectar uso excesivo
+    recent = [t for t in command_usage[group_id][user_id] if now-t < 3600]
+    if recent.count(now) > COMMAND_USAGE_LIMIT:
+        blocked_commands[group_id][user_id][command] = now + COMMAND_BLOCK_TIME
+        return f"Comando '{command}' bloqueado por uso excesivo (1h)."
+    # ...lógica original del comando...
+    return None
+
+
+TELEGRAM_MSG_RATE_LIMIT = 30  # Máximo mensajes por segundo global
+OWNER_BOT_ID = 'owner_bot_id'  # Ajusta este valor según tu sistema
+BOT_INDIVIDUAL_LIMIT_FACTOR = 0.8
+bot_msg_timestamps = defaultdict(list)  # bot_id -> [timestamps]
+
+
+def can_send_telegram_msg():
+    now = time.time()
+    with msg_lock:
+        global msg_timestamps
+        msg_timestamps = [t for t in msg_timestamps if now-t < 1]
+        if len(msg_timestamps) < TELEGRAM_MSG_RATE_LIMIT:
+            msg_timestamps.append(now)
+            return True
+        return False
+
+
+def can_send_bot_msg(bot_id):
+    now = time.time()
+    bot_msg_timestamps[bot_id] = [t for t in bot_msg_timestamps[bot_id] if now-t < 1]
+    if len(bot_msg_timestamps[bot_id]) < int(TELEGRAM_MSG_RATE_LIMIT * BOT_INDIVIDUAL_LIMIT_FACTOR):
+        bot_msg_timestamps[bot_id].append(now)
+        return True
+    return False
+
+
+async def send_telegram_message(bot_id, *args, **kwargs):
+    # Limite global
+    if not can_send_telegram_msg():
+        while not can_send_telegram_msg():
+            await asyncio.sleep(0.05)
+    # Limite individual para todos los bots
+    if not can_send_bot_msg(bot_id):
+        while not can_send_bot_msg(bot_id):
+            await asyncio.sleep(0.05)
+    # ...lógica original para enviar mensaje...
+    # Por ejemplo:
+    # await telegram_api.send_message(*args, **kwargs)

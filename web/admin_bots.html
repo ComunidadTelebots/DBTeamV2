@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Panel de Administración de Bots</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .bot-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .bot-header { display: flex; align-items: center; justify-content: space-between; }
+    .bot-title { font-size: 1.2em; font-weight: bold; color: #34495e; }
+    .bot-id { font-size: 0.95em; color: #888; }
+    .bot-token { font-size: 0.95em; color: #16a085; margin-left: 1em; }
+    .bot-meta { font-size: 0.95em; color: #888; margin-top: 0.5em; }
+    .stat { font-size: 1.1em; margin-top: 0.7em; }
+    .bot-avatar { width: 48px; height: 48px; border-radius: 50%; margin-right: 1em; }
+    .bot-info { margin-bottom: 1em; }
+    .bot-actions { margin-top: 1em; }
+    button { background: #c0392b; color: #fff; border: none; border-radius: 5px; padding: 0.5em 1.2em; cursor: pointer; margin-right: 1em; }
+    button.limit { background: #16a085; }
+    button.limit:hover { background: #138d75; }
+    button.ban { background: #c0392b; }
+    button.ban:hover { background: #922b21; }
+    .warning { color: #e67e22; font-weight: bold; margin-top: 0.5em; }
+    .limit-form { margin-top: 1em; background: #f9f9f9; padding: 1em; border-radius: 8px; }
+    .limit-form label { display: block; margin-top: 0.5em; }
+    .limit-form input { width: 80px; margin-left: 0.5em; }
+  </style>
+</head>
+<body>
+  <h1>Administración de Bots de Usuarios</h1>
+  <div id="bots"></div>
+  <script>
+    async function fetchBots() {
+      const res = await fetch('/bot/userbots');
+      const data = await res.json();
+      renderBots(data.bots || []);
+    }
+    async function fetchBotLimits(token) {
+      const res = await fetch(`/bot/get_limits?token=${encodeURIComponent(token)}`);
+      return (await res.json()).limits || {};
+    }
+    async function setBotLimits(token) {
+      const maxChats = prompt('Máximo de chats:', '10');
+      const maxMembers = prompt('Máximo de miembros:', '1000');
+      const maxMessages = prompt('Máximo de mensajes:', '10000');
+      const rateLimit = prompt('Mensajes por segundo:', '5');
+      const limits = { max_chats: Number(maxChats), max_members: Number(maxMembers), max_messages: Number(maxMessages), rate_limit: Number(rateLimit) };
+      await fetch('/bot/set_limits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, limits })
+      });
+      alert('Límites actualizados');
+      fetchBots();
+    }
+    async function banBot(token) {
+      if (!confirm('¿Seguro que quieres banear este bot?')) return;
+      await fetch('/bot/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token })
+      });
+      alert('Bot baneado');
+      fetchBots();
+    }
+    function renderWarning(bot, limits) {
+      let warning = '';
+      if (bot.chats > limits.max_chats) warning += 'Exceso de chats. ';
+      if (bot.members > limits.max_members) warning += 'Exceso de miembros. ';
+      if (bot.messages > limits.max_messages) warning += 'Exceso de mensajes. ';
+      if (bot.rate > limits.rate_limit) warning += 'Exceso de mensajes por segundo. ';
+      return warning ? `<div class="warning">⚠️ ${warning}</div>` : '';
+    }
+    async function renderBots(bots) {
+      const container = document.getElementById('bots');
+      container.innerHTML = '';
+      if (!bots.length) {
+        container.innerHTML = '<p>No hay bots de usuarios registrados.</p>';
+        return;
+      }
+      for (const bot of bots) {
+        const limits = await fetchBotLimits(bot.token);
+        const html = `
+          <div class="bot-card">
+            <div class="bot-header">
+              <img src="${bot.avatar || '/logo.svg'}" class="bot-avatar" alt="avatar">
+              <span class="bot-title">${bot.name || 'Sin nombre'}</span>
+              <span class="bot-id">ID: ${bot.info?.match(/ID: (\d+)/)?.[1] || ''}</span>
+              <span class="bot-token">Token: ${bot.token.slice(0, 8)}...*</span>
+            </div>
+            <div class="bot-info">${bot.info || ''}</div>
+            <div class="bot-meta">
+              Estado: <strong style="color:${bot.statusColor}">${bot.status}</strong>
+            </div>
+            <div class="stat">
+              <strong>Chats:</strong> ${bot.chats || 0} &nbsp;|&nbsp; <strong>Miembros:</strong> ${bot.members || 0} &nbsp;|&nbsp; <strong>Mensajes:</strong> ${bot.messages || 0} &nbsp;|&nbsp; <strong>Rate:</strong> ${bot.rate || 0} msg/s
+            </div>
+            ${renderWarning(bot, limits)}
+            <div class="bot-actions">
+              <button class="limit" onclick="setBotLimits('${bot.token}')">Limitar recursos</button>
+              <button class="ban" onclick="banBot('${bot.token}')">Banear bot</button>
+            </div>
+          </div>
+        `;
+        container.innerHTML += html;
+      }
+    }
+    fetchBots();
+  </script>
+</body>
+</html>

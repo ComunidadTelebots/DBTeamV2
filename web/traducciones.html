@@ -30,27 +30,112 @@
   </header>
 
   <main class="container">
+    <!-- Panel de login obligatorio -->
+    <section id="loginPanel" style="margin-bottom:18px;border:1px solid #444;padding:18px;border-radius:10px;background:#181818;max-width:420px;display:none">
+      <h2>Login requerido</h2>
+      <div style="margin-bottom:10px;display:flex;flex-direction:column;gap:10px">
+        <input id="loginUserInput" type="text" placeholder="Usuario" style="width:100%" />
+        <input id="loginPassInput" type="password" placeholder="Contraseña" style="width:100%" />
+        <button id="loginBtn">Entrar</button>
+        <span id="loginMsg" style="margin-top:8px;color:#f44"></span>
+      </div>
+      <div id="telegramContact" style="margin-top:14px;color:#6cf;font-size:0.98rem"></div>
+    </section>
+    <div id="mainContent" style="display:none">
+                    <!-- Opción para enviar traducción por Telegram (solo admins de traducciones) -->
+                    <div id="sendTranslationTelegramPanel" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:420px;">
+                      <h2>Enviar traducción por Telegram</h2>
+                      <input id="translationTelegramInput" type="text" placeholder="Texto a traducir y enviar..." style="width:100%;margin-bottom:8px" />
+                      <div style="margin-bottom:8px">
+                        <label><input type="radio" name="tgSendMode" id="tgSendGroup" value="group" checked /> Grupo oficial</label>
+                        <label style="margin-left:18px"><input type="radio" name="tgSendMode" id="tgSendPrivate" value="private" /> Privado</label>
+                        <input id="tgPrivateUserInput" type="text" placeholder="Usuario Telegram (ej: @usuario)" style="width:60%;margin-left:12px;display:none" />
+                      </div>
+                      <button id="sendTranslationTelegramBtn" class="btn">Enviar por Telegram</button>
+                      <span id="sendTranslationTelegramMsg" style="margin-left:10px;color:#6cf"></span>
+                    </div>
+              <!-- Opción para contactar con el creador, solo admins -->
+              <div id="contactCreatorPanel" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:420px;">
+                        <div style="margin-bottom:10px">
+                          <button id="notifyCreatorTelegramBtn" class="btn" style="margin-right:8px">Notificar por Telegram</button>
+                          <button id="notifyCreatorEmailBtn" class="btn">Notificar por Email</button>
+                        </div>
+                <h2>Minichat con el creador</h2>
+                <div id="creatorContactInfo" style="margin-bottom:10px;color:#6cf;font-size:0.98rem"></div>
+                <div id="miniChatMessages" style="background:#222;padding:8px 10px;border-radius:8px;min-height:60px;max-height:180px;overflow-y:auto;margin-bottom:10px;font-size:0.97rem"></div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <input id="miniChatInput" type="text" placeholder="Escribe tu mensaje..." style="flex:1;padding:6px;border-radius:6px;border:1px solid #444;background:#181818;color:#fff" />
+                  <label style="color:#6cf;font-size:0.97rem"><input type="checkbox" id="notifyTelegramChk" /> Telegram</label>
+                  <label style="color:#6cf;font-size:0.97rem"><input type="checkbox" id="notifyEmailChk" /> Email</label>
+                  <button id="miniChatSendBtn" class="btn">Enviar</button>
+                </div>
+                <span id="miniChatStatus" style="margin-top:8px;color:#6cf"></span>
+              </div>
+        <section id="adminCreate" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;">
+          <h2>Crear administrador</h2>
+          <div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
+            <input id="adminUserInput" type="text" placeholder="Usuario" style="width:120px" />
+            <input id="adminPassInput" type="password" placeholder="Contraseña" style="width:120px" />
+            <button id="adminCreateBtn">Crear</button>
+            <span id="adminCreateMsg" style="margin-left:10px;color:#6c6"> </span>
+          </div>
+        </section>
     <h1>Traducciones</h1>
     <p class="hint">Explora y descarga los archivos de traducción generados para la interfaz web.</p>
 
-    <label for="langSelect">Selecciona idioma:</label>
-    <select id="langSelect">
-      <option value="en">English</option>
-      <option value="es">Español</option>
-      <option value="fr">Français</option>
-      <option value="de">Deutsch</option>
-      <option value="it">Italiano</option>
-      <option value="pt">Português</option>
-      <option value="ru">Русский</option>
-      <option value="zh">中文</option>
-      <option value="ja">日本語</option>
-    </select>
+    <section id="ownerAudit" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;">
+      <h2>Auditoría de acciones sensibles</h2>
+      <div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
+        <input id="auditUserFilter" type="text" placeholder="Usuario" style="width:120px" />
+        <input id="auditIpFilter" type="text" placeholder="IP" style="width:120px" />
+        <select id="auditActionFilter">
+          <option value="">Todas</option>
+          <option value="CREATE">CREATE</option>
+          <option value="LIST">LIST</option>
+          <option value="DENIED_CREATE">DENIED_CREATE</option>
+          <option value="DENIED_LIST">DENIED_LIST</option>
+          <option value="ACCESS">ACCESS</option>
+        </select>
+        <button id="auditFilterBtn">Filtrar</button>
+        <button id="auditClearBtn" class="secondary">Limpiar</button>
+        <input id="auditPathFilter" type="text" placeholder="Ruta" style="width:180px" />
+      </div>
+      <div id="auditList">Solo visible para owner/admin.</div>
 
-    <label for="scopeSelect" style="margin-left:12px">Ámbito:</label>
-    <select id="scopeSelect">
-      <option value="bot">Bot</option>
-      <option value="web">Web (UI)</option>
-    </select>
+      <section id="adminCreate" style="display:none;margin-top:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;">
+        <h2>Crear administrador</h2>
+        <div style="margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
+          <input id="adminUserInput" type="text" placeholder="Usuario" style="width:120px" />
+          <input id="adminPassInput" type="password" placeholder="Contraseña" style="width:120px" />
+          <button id="adminCreateBtn">Crear</button>
+          <span id="adminCreateMsg" style="margin-left:10px;color:#6c6"> </span>
+        </div>
+      </section>
+    </section>
+
+    <section style="margin-bottom:18px">
+      <label for="newLangInput">Crear nuevo idioma:</label>
+      <input id="newLangInput" type="text" maxlength="5" placeholder="Código ej: fr, de, it" style="width:60px;text-transform:lowercase" />
+      <select id="newScopeInput">
+        <option value="bot">Bot</option>
+        <option value="web">Web (UI)</option>
+      </select>
+      <button id="createLangBtn">Crear idioma</button>
+      <span id="createLangMsg" style="margin-left:10px;color:#6c6"> </span>
+    </section>
+
+    <label for="langSelect">Selecciona idioma:</label>
+
+    <div style="display:flex;gap:24px;align-items:center;margin-bottom:8px">
+      <div>
+        <label for="langSelectWeb">Web:</label>
+        <select id="langSelectWeb"></select>
+      </div>
+      <div>
+        <label for="langSelectBot">Bot:</label>
+        <select id="langSelectBot"></select>
+      </div>
+    </div>
 
     <div style="margin-top:12px;display:flex;gap:8px;align-items:center;">
       <button id="loadBtn">Cargar</button>
@@ -62,14 +147,17 @@
       <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
     </div>
   <script>
+  window._isOwner = false;
   async function checkOwner() {
     const token = localStorage.getItem('authToken');
     if (!token) return false;
     const resp = await fetch('/translations/suggestions', { headers: { 'Authorization': 'Bearer ' + token } });
     if (resp.status === 200) {
       document.getElementById('forceTranslateBtn').style.display = '';
+      window._isOwner = true;
       return true;
     }
+    window._isOwner = false;
     return false;
   }
   checkOwner();
@@ -108,5 +196,6 @@
   </main>
   <script src="traducciones.js"></script>
   <script src="shared.js"></script>
+  <script src="owner.js"></script>
 </body>
 </html>

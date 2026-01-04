@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mis Bots - Información y Estadísticas</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #2c3e50; }
+    .bot-card { background: #fff; border-radius: 8px; box-shadow: 0 2px 8px #0001; margin-bottom: 2em; padding: 1.5em; }
+    .bot-header { display: flex; align-items: center; justify-content: space-between; }
+    .bot-title { font-size: 1.2em; font-weight: bold; color: #34495e; }
+    .bot-id { font-size: 0.95em; color: #888; }
+    .bot-token { font-size: 0.95em; color: #16a085; margin-left: 1em; }
+    .bot-meta { font-size: 0.95em; color: #888; margin-top: 0.5em; }
+    .stat { font-size: 1.1em; margin-top: 0.7em; }
+    .bot-avatar { width: 48px; height: 48px; border-radius: 50%; margin-right: 1em; }
+    .bot-info { margin-bottom: 1em; }
+    .bot-actions { margin-top: 1em; }
+    button { background: #16a085; color: #fff; border: none; border-radius: 5px; padding: 0.5em 1.2em; cursor: pointer; }
+    button:hover { background: #138d75; }
+    .charts { margin-top: 2em; }
+  </style>
+</head>
+<body>
+  <h1>Mis Bots - Información y Estadísticas</h1>
+  <div id="bots"></div>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    async function fetchBots() {
+      const res = await fetch('/bot/mybots');
+      const data = await res.json();
+      renderBots(data.bots || []);
+    }
+    async function fetchBotStats(token) {
+      // Suponiendo que existe endpoint /bot/stats?token=...
+      const res = await fetch(`/bot/stats?token=${encodeURIComponent(token)}`);
+      return await res.json();
+    }
+    async function renderBots(bots) {
+      const container = document.getElementById('bots');
+      container.innerHTML = '';
+      if (!bots.length) {
+        container.innerHTML = '<p>No tienes bots registrados.</p>';
+        return;
+      }
+      for (const bot of bots) {
+        const stats = await fetchBotStats(bot.token);
+        const html = `
+          <div class="bot-card">
+            <div class="bot-header">
+              <img src="${bot.avatar || '/logo.svg'}" class="bot-avatar" alt="avatar">
+              <span class="bot-title">${bot.name || 'Sin nombre'}</span>
+              <span class="bot-id">ID: ${bot.info?.match(/ID: (\d+)/)?.[1] || ''}</span>
+              <span class="bot-token">Token: ${bot.token.slice(0, 8)}...*</span>
+            </div>
+            <div class="bot-info">${bot.info || ''}</div>
+            <div class="bot-meta">
+              Estado: <strong style="color:${bot.statusColor}">${bot.status}</strong><br>
+              <span id="tor-status-${bot.token}"></span>
+              <div id="bot-list"></div>
+              <canvas id="chatsChart" height="120"></canvas>
+              <canvas id="membersChart" height="120"></canvas>
+              <canvas id="messagesChart" height="120"></canvas>
+              <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+              <script>
+                async function loadBots() {
+                    const resp = await fetch('/api/bot/mybots');
+                    const data = await resp.json();
+                    const bots = data.bots || [];
+                    let html = '';
+                    let names = [], chats = [], members = [], messages = [];
+                    for (const bot of bots) {
+                        names.push(bot.name);
+                        chats.push(bot.total_chats||0);
+                        members.push(bot.total_members||0);
+                        messages.push(bot.total_messages||0);
+                        html += \`<div class='bot-info'>
+                            <b>Nombre:</b> \${bot.name}<br>
+                            <b>Estado:</b> \${bot.status}<br>
+                            <b>Token:</b> \${bot.token.slice(0,8)}...*<br>
+                            <b>Info:</b> \${bot.info}<br>
+                            <b>Avatar:</b> \${bot.avatar}<br>
+                            <b>Propietario:</b> \${bot.owner}<br>
+                            <b>Fecha importación:</b> \${bot.security?.imported_at}<br>
+                            <b>IP importación:</b> \${bot.security?.import_ip}<br>
+                            <b>Región:</b> \${bot.security?.region}<br>
+                            <b>Tor:</b> \${bot.tor_enabled ? 'Sí' : 'No'}<br>
+                            <b>Hash esperado:</b> \${bot.expected_hash}<br>
+                            <b>Chats:</b> \${bot.total_chats}<br>
+                            <b>Miembros:</b> \${bot.total_members}<br>
+                            <b>Mensajes:</b> \${bot.total_messages}<br>
+                            <b>Código verificado:</b> \${bot.security?.code_verified ? 'Sí' : 'No'}<br>
+                            <b>Instrucciones prohibidas:</b> \${bot.security?.forbidden_found ? 'Sí' : 'No'}<br>
+                        </div><hr>\`;
+                    }
+                    document.getElementById('bot-list').innerHTML = html;
+                    // Gráfico de chats
+                    new Chart(document.getElementById('chatsChart').getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: names,
+                            datasets: [{label: 'Chats', data: chats, backgroundColor: '#2196f3'}]
+                        },
+                        options: {responsive: true, plugins: {legend: {display: false}}, title: {display: true, text: 'Chats por bot'}}
+                    });
+                    // Gráfico de miembros
+                    new Chart(document.getElementById('membersChart').getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: names,
+                            datasets: [{label: 'Miembros', data: members, backgroundColor: '#4caf50'}]
+                        },
+                        options: {responsive: true, plugins: {legend: {display: false}}, title: {display: true, text: 'Miembros por bot'}}
+                    });
+                    // Gráfico de mensajes
+                    new Chart(document.getElementById('messagesChart').getContext('2d'), {
+                        type: 'bar',
+                        data: {
+                            labels: names,
+                            datasets: [{label: 'Mensajes', data: messages, backgroundColor: '#ff9800'}]
+                        },
+                        options: {responsive: true, plugins: {legend: {display: false}}, title: {display: true, text: 'Mensajes por bot'}}
+                    });
+                }
+                loadBots();
+              </script>
+            </div>
+          </div>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+      }
+    }
+    fetchBots();
+  </script>
+  <script src="owner.js"></script>
+</body>
+</html>

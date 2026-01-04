@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Usuarios expulsados</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2em; background: #f7f7f7; }
+    h1 { color: #c0392b; }
+    table { width: 100%; border-collapse: collapse; margin-top: 2em; }
+    th, td { padding: 0.7em; border-bottom: 1px solid #eee; }
+    th { background: #c0392b; color: #fff; }
+    tr:nth-child(even) { background: #f9f9f9; }
+    .reason { color: #c0392b; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  <h1>Usuarios expulsados automáticamente</h1>
+  <table id="bannedTable">
+    <thead>
+      <tr><th>Usuario</th><th>Motivo</th><th>Región</th><th>Acción</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+    <div id="banned-list"></div>
+    <div id="region-stats"></div>
+    <canvas id="regionChart" height="120"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    async function loadBanned() {
+        const resp = await fetch('/api/banned_users');
+        const data = await resp.json();
+        const users = data.users || [];
+        let html = '';
+        for (const u of users) {
+            html += `<div class='banned-user'>
+                <b>ID:</b> ${u.id}<br>
+                <b>Nombre:</b> ${u.name}<br>
+                <b>Región:</b> ${u.region}<br>
+                <b>Motivo:</b> ${u.reason}<br>
+                <button onclick="unban('${u.id}')">Desbanear</button>
+            </div><hr>`;
+        }
+        document.getElementById('banned-list').innerHTML = html;
+        // Región stats
+        let regionHtml = '<h3>Regiones más bloqueadas</h3>';
+        let regionNames = [], regionCounts = [];
+        for (const r of (data.top_regions||[])) {
+            regionHtml += `${r.region}: ${r.count}<br>`;
+            regionNames.push(r.region);
+            regionCounts.push(r.count);
+        }
+        document.getElementById('region-stats').innerHTML = regionHtml;
+        // Gráfico de regiones
+        new Chart(document.getElementById('regionChart').getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: regionNames,
+                datasets: [{label: 'Bloqueos', data: regionCounts, backgroundColor: '#e91e63'}]
+            },
+            options: {responsive: true, plugins: {legend: {display: false}}, title: {display: true, text: 'Bloqueos por región'}}
+        });
+    }
+    async function unban(id) {
+        await fetch(`/api/unban_user/${id}`, {method:'POST'});
+        loadBanned();
+    }
+    loadBanned();
+    </script>
+  <script>
+    async function fetchBannedUsers() {
+      const res = await fetch('/admin/banned_users');
+      const data = await res.json();
+      const tbody = document.querySelector('#bannedTable tbody');
+      tbody.innerHTML = '';
+      for (const u of data.users) {
+        tbody.innerHTML += `<tr><td>${u.user}</td><td class="reason">${u.reason}</td><td>${u.region || 'unknown'}</td><td><button onclick="unbanUser('${u.user}')">Desbloquear</button></td></tr>`;
+      }
+      if (data.top_regions && data.top_regions.length) {
+        let html = '<h2>Regiones más bloqueadas</h2><ul>';
+        for (const [region, count] of data.top_regions) {
+          html += `<li><strong>${region}</strong>: ${count} expulsados</li>`;
+        }
+        html += '</ul>';
+        document.getElementById('regionStats').innerHTML = html;
+      } else {
+        document.getElementById('regionStats').innerHTML = '';
+      }
+    }
+    fetchBannedUsers();
+
+    async function unbanUser(user) {
+      if (!confirm('¿Seguro que quieres desbloquear a ' + user + '?')) return;
+      const res = await fetch('/admin/unban_user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user })
+      });
+      const data = await res.json();
+      alert(data.msg);
+      fetchBannedUsers();
+    }
+  </script>
+</body>
+</html>

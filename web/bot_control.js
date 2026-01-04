@@ -109,6 +109,114 @@ async function refreshProcesses(){
   }catch(err){ el('process_res').innerText = 'Error: '+err.message }
 }
 
+async function checkCommandUsage() {
+  try {
+    const res = await api(`/bot/command_usage/${groupId}`);
+    if(res.most_used && res.most_used.count > 50) { // Umbral de uso alto
+      el('command_warning').style.display = 'block';
+      el('command_warning').innerText = `Advertencia: El comando '${res.most_used.command}' se ha usado ${res.most_used.count} veces recientemente.`;
+    } else {
+      el('command_warning').style.display = 'none';
+    }
+  } catch(e) { el('command_warning').innerText = 'Error al consultar uso de comandos.'; }
+}
+
+async function loadBlockedCommands() {
+  try {
+    const res = await api(`/bot/blocked_commands/${groupId}`);
+    const tbody = el('blocked_commands_table').querySelector('tbody');
+    tbody.innerHTML = '';
+    if(res && res.length) {
+      res.forEach(row => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${row.user_id}</td><td>${row.command}</td><td>${row.unblock_time ? new Date(row.unblock_time*1000).toLocaleString() : '-'} </td><td><button data-user="${row.user_id}" data-command="${row.command}" class="unblock_cmd_btn">Desbloquear</button></td>`;
+        tbody.appendChild(tr);
+      });
+      // Añadir eventos a los botones
+      tbody.querySelectorAll('.unblock_cmd_btn').forEach(btn => {
+        btn.onclick = async ()=>{
+          const userId = btn.getAttribute('data-user');
+          const command = btn.getAttribute('data-command');
+          try{
+            await api(`/bot/unblock_command/${groupId}/${userId}/${command}`,{method:'POST'});
+            el('unblock_command_res').innerText = `Comando '${command}' desbloqueado para el usuario ${userId}.`;
+            loadBlockedCommands();
+          }catch(e){ el('unblock_command_res').innerText = 'Error: '+e.message; }
+        };
+      });
+    } else {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="4">No hay comandos bloqueados.</td>';
+      tbody.appendChild(tr);
+    }
+  } catch(e) {
+    el('blocked_commands_table').querySelector('tbody').innerHTML = '<tr><td colspan="4">Error al cargar bloqueos.</td></tr>';
+  }
+}
+
+let telegramStatsHistory = [];
+function drawTelegramStatsGraph() {
+  const canvas = el('telegram_stats_graph');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = '#0077cc';
+  ctx.beginPath();
+  telegramStatsHistory.forEach((v,i) => {
+    const x = i * (canvas.width/60);
+    const y = canvas.height - (v/40)*canvas.height;
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+async function loadTelegramStats(repeat=true) {
+  try {
+    const res = await api('/bot/telegram_stats');
+    let html = '';
+    html += `<b>Mensajes en el último segundo:</b> ${res.last_second}<br>`;
+    html += `<b>Mensajes en el último minuto:</b> ${res.last_minute}<br>`;
+    html += `<b>Límite global:</b> ${res.limit} msg/segundo<br>`;
+    const pct = ((res.last_second/res.limit)*100).toFixed(1);
+    html += `<b>Porcentaje usado:</b> ${pct}%`;
+    if(pct > 80) html += `<br><span style='color:red;font-weight:bold;'>¡Advertencia: Uso alto del límite!</span>`;
+    el('telegram_stats_content').innerHTML = html;
+    telegramStatsHistory.push(res.last_second);
+    if(telegramStatsHistory.length > 60) telegramStatsHistory = telegramStatsHistory.slice(-60);
+    drawTelegramStatsGraph();
+  } catch(e) {
+    el('telegram_stats_content').innerText = 'Error al cargar estadísticas.';
+  }
+  if(repeat) setTimeout(()=>loadTelegramStats(true),1000);
+}
+
+async function loadBotsLimits() {
+  try {
+    const res = await api('/bot/bots_limits');
+    const tbody = el('bots_limits_table').querySelector('tbody');
+    tbody.innerHTML = '';
+    if(res && res.length) {
+      res.forEach(row => {
+        const pct = ((row.last_second/row.limit)*100).toFixed(1);
+        let alert = '';
+        if(pct > 80) alert = "<span style='color:red;font-weight:bold;'>¡Alerta!</span>";
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${row.bot_name}</td><td>${row.last_second}</td><td>${row.limit}</td><td>${pct}% ${alert}</td>`;
+        tbody.appendChild(tr);
+      });
+    } else {
+      const tr = document.createElement('tr');
+      tr.innerHTML = '<td colspan="4">No hay datos de bots.</td>';
+      tbody.appendChild(tr);
+    }
+  } catch(e) {
+    el('bots_limits_table').querySelector('tbody').innerHTML = '<tr><td colspan="4">Error al cargar límites.</td></tr>';
+  }
+}
+// Llamar al cargar el panel
+loadTelegramStats();
+loadBotsLimits();
+
 document.addEventListener('DOMContentLoaded', ()=>{
   // restore backend config
   try{ backendUrl = localStorage.getItem('bc_backend_url') || ''; const u = el('backend_url'); if(u) u.value = backendUrl; }catch(e){}
@@ -127,6 +235,58 @@ document.addEventListener('DOMContentLoaded', ()=>{
   el('btn_start').addEventListener('click', startBot);
   el('btn_stop').addEventListener('click', stopBot);
   el('btn_processes').addEventListener('click', refreshProcesses);
+  el('quick_ban').onclick = async ()=>{
+    const userId = el('quick_user_id').value.trim();
+    if(!userId) return el('quick_res').innerText = 'Introduce el ID de usuario.';
+    try{
+      await api(`/bot/ban_user/${groupId}/${userId}`,{method:'POST'});
+      el('quick_res').innerText = 'Usuario baneado.';
+    }catch(e){ el('quick_res').innerText = 'Error: '+e.message; }
+  };
+  el('quick_mute').onclick = async ()=>{
+    const userId = el('quick_user_id').value.trim();
+    if(!userId) return el('quick_res').innerText = 'Introduce el ID de usuario.';
+    try{
+      await api(`/bot/mute_user/${groupId}/${userId}`,{method:'POST'});
+      el('quick_res').innerText = 'Usuario muteado.';
+    }catch(e){ el('quick_res').innerText = 'Error: '+e.message; }
+  };
+  el('quick_promote').onclick = async ()=>{
+    const userId = el('quick_user_id').value.trim();
+    if(!userId) return el('quick_res').innerText = 'Introduce el ID de usuario.';
+    try{
+      await api(`/bot/set_role/${groupId}/${userId}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({role:'admin'})});
+      el('quick_res').innerText = 'Usuario promovido a admin.';
+    }catch(e){ el('quick_res').innerText = 'Error: '+e.message; }
+  };
+  el('quick_perms').onclick = async ()=>{
+    const userId = el('quick_user_id').value.trim();
+    if(!userId) return el('quick_res').innerText = 'Introduce el ID de usuario.';
+    // Redirigir a panel de edición de permisos (ajusta la URL si es necesario)
+    window.location.href = `/owner.html?edit_perms=1&group=${encodeURIComponent(groupId)}&user=${encodeURIComponent(userId)}`;
+  };
+  el('quick_reply').onclick = async ()=>{
+    const userId = el('quick_user_id').value.trim();
+    const comment = prompt('Respuesta/comentario para la intervención:');
+    if(!userId || !comment) return el('quick_res').innerText = 'Introduce el ID y comentario.';
+    try{
+      await api(`/admin/request_intervention/${groupId}/reply`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({user_id:userId,comment})});
+      el('quick_res').innerText = 'Respuesta enviada.';
+    }catch(e){ el('quick_res').innerText = 'Error: '+e.message; }
+  };
+  el('block_command_btn').onclick = async ()=>{
+    const userId = el('block_user_id').value.trim();
+    const command = el('block_command_name').value.trim();
+    if(!userId || !command) return el('block_command_res').innerText = 'Introduce usuario y comando.';
+    try{
+      await api(`/bot/block_command/${groupId}/${userId}/${command}`,{method:'POST'});
+      el('block_command_res').innerText = `Comando '${command}' bloqueado para el usuario ${userId}.`;
+    }catch(e){ el('block_command_res').innerText = 'Error: '+e.message; }
+  };
   refreshAccounts();
   refreshProcesses();
+  checkCommandUsage();
+  loadBlockedCommands();
+  loadTelegramStats();
+  loadBotsLimits();
 });
