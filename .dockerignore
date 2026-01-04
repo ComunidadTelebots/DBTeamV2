@@ -11,3 +11,16 @@ torrents
 node_modules
 dist
 build
+logs
+data/media
+data/nextcloud
+data/plex
+data/streams
+data/torrents
+models/gpt2
+*.log
+*.pid
+*.pkl
+*.cache
+*.tmp
+secrets

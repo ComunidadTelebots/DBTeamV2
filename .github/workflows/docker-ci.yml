@@ -10,6 +10,18 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Free up disk space (agresivo)
+        run: |
+          echo "[ANTES] Espacio libre:"
+          df -h
+          echo "Limpiando dotnet, android, ghc, cachés de APT y Docker..."
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc || true
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          sudo docker system prune -af || true
+          sudo rm -rf /var/lib/docker || true
+          echo "[DESPUÉS] Espacio libre:"
+          df -h
       - name: Checkout code
         uses: actions/checkout@v4
 

@@ -5,9 +5,10 @@ FROM python:3.11-slim as builder
 WORKDIR /app
 COPY . .
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
-    && if [ -f projects/bot/python_bot/requirements.txt ]; then /opt/venv/bin/pip install -r projects/bot/python_bot/requirements.txt; fi \
-    && if [ -f projects/python_api/python_api/requirements.txt ]; then /opt/venv/bin/pip install -r projects/python_api/python_api/requirements.txt; fi
+    && /opt/venv/bin/pip install --upgrade pip setuptools wheel --no-cache-dir \
+    && if [ -f projects/bot/python_bot/requirements.txt ]; then /opt/venv/bin/pip install --no-cache-dir -r projects/bot/python_bot/requirements.txt; fi \
+    && if [ -f projects/python_api/python_api/requirements.txt ]; then /opt/venv/bin/pip install --no-cache-dir -r projects/python_api/python_api/requirements.txt; fi \
+    && rm -rf /root/.cache/pip /tmp/*
 
 FROM python:3.11-slim
 ENV VIRTUAL_ENV=/opt/venv
