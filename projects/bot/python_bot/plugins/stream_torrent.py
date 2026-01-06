@@ -611,6 +611,23 @@ async def stream_torrent_file_cmd(update: Any, context: Any):
     try:
         f = await context.bot.get_file(doc.file_id)
         await f.download_to_drive(tmp.name)
+        # verify uploaded torrent against checksums API if entry exists
+        try:
+            from python_bot.utils import compute_file_sha256, verify_local_with_checksums_api
+            local_hash = compute_file_sha256(tmp.name)
+            v = verify_local_with_checksums_api(fname, local_hash)
+            if v is False:
+                try:
+                    await update.message.reply_text(f'Torrent {fname} no pasó la verificación de integridad (hash mismatch). Abortando.')
+                except Exception:
+                    pass
+                try:
+                    os.unlink(tmp.name)
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
         # create and send a small cover/info image to the uploader (private) and origin chat
         try:
             size = os.path.getsize(tmp.name)

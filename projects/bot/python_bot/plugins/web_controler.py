@@ -1,12 +1,8 @@
-"""Telegram control plugin: simple administrative commands exposed via Telegram.
+"""Web control plugin (renamed from telegram_control.py).
 
-Registers commands:
-- /status  : show basic bot status
-- /plugins : list loaded plugins
-- /lang <code> : load language module and show a sample string
-- /reload [plugin] : attempt to reload plugins (best-effort)
-
-This plugin uses the `bot.register_command` API provided by `python_bot.bot.Bot`.
+Exposes administrative commands via Telegram (status, plugins, lang, reload, ping, reloadbg).
+This module is a rename of projects/bot/python_bot/plugins/telegram_control.py —
+plugin registration names updated to `web_controler`.
 """
 import importlib
 import inspect
@@ -20,12 +16,12 @@ from python_bot.storage import storage
 
 def setup(bot):
     # register commands
-    bot.register_command('status', status, 'Show bot status', plugin='telegram_control')
-    bot.register_command('plugins', plugins_cmd, 'List loaded plugins', plugin='telegram_control')
-    bot.register_command('lang', lang_cmd, 'Load language: /lang <code>', plugin='telegram_control')
-    bot.register_command('reload', reload_cmd, 'Reload plugins: /reload [plugin]', plugin='telegram_control')
-    bot.register_command('ping', ping_cmd, 'Ping the bot to check liveness', plugin='telegram_control')
-    bot.register_command('reloadbg', reloadbg_cmd, 'Restart the bot in background (owner only)', plugin='telegram_control')
+    bot.register_command('status', status, 'Show bot status', plugin='web_controler')
+    bot.register_command('plugins', plugins_cmd, 'List loaded plugins', plugin='web_controler')
+    bot.register_command('lang', lang_cmd, 'Load language: /lang <code>', plugin='web_controler')
+    bot.register_command('reload', reload_cmd, 'Reload plugins: /reload [plugin]', plugin='web_controler')
+    bot.register_command('ping', ping_cmd, 'Ping the bot to check liveness', plugin='web_controler')
+    bot.register_command('reloadbg', reloadbg_cmd, 'Restart the bot in background (owner only)', plugin='web_controler')
 
 
 async def status(update: Any, context: Any):

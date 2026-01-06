@@ -15,6 +15,8 @@ from typing import Any, List
 
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8082')
 AI_URL = os.getenv('AI_URL', 'http://127.0.0.1:8081')
+# URL para el servicio de checksums (por defecto en el servidor AI donde añadimos endpoints)
+CHECKSUMS_URL = os.getenv('CHECKSUMS_URL', AI_URL)
 NGINX_URL = os.getenv('NGINX_URL', 'http://127.0.0.1')
 DNS_URL = os.getenv('DNS_URL', 'http://127.0.0.1:53')
 
@@ -33,7 +35,20 @@ async def listmedia_cmd(update: Any, context: Any):
     try:
         r = requests.get(f'{BACKEND_URL}/media/files', timeout=10)
         files = r.json().get('files', [])
-        text = 'Archivos multimedia disponibles:\n' + '\n'.join(f['name'] for f in files)
+        text = 'Archivos multimedia disponibles:\n'
+        for f in files:
+            name = f.get('name')
+            # verificar checksum si está disponible
+            try:
+                vr = requests.get(f'{CHECKSUMS_URL}/checksums/verify', params={'name': name}, timeout=5)
+                if vr.ok:
+                    vj = vr.json()
+                    status = '(verificado)' if vj.get('ok') else '(no-verificado)'
+                else:
+                    status = ''
+            except Exception:
+                status = ''
+            text += f"- {name} {status}\n"
         await update.message.reply_text(text)
     except Exception as e:
         await update.message.reply_text(f'Error: {e}')
@@ -44,6 +59,21 @@ async def streammedia_cmd(update: Any, context: Any):
         await update.message.reply_text('Uso: /streammedia <nombre>')
         return
     name = args[0]
+    # Antes de generar enlace, pedir verificación de checksum al API
+    try:
+        vr = requests.get(f'{CHECKSUMS_URL}/checksums/verify', params={'name': name}, timeout=5)
+        if vr.ok:
+            j = vr.json()
+            if not j.get('ok'):
+                await update.message.reply_text(f'Advertencia: el archivo {name} no pasó la verificación de integridad (hash mismatch). Acción abortada.')
+                return
+        else:
+            await update.message.reply_text(f'No se pudo verificar integridad de {name}; intenta de nuevo más tarde.')
+            return
+    except Exception as e:
+        await update.message.reply_text(f'Error al verificar integridad: {e}')
+        return
+
     url = f'{BACKEND_URL}/media/stream/{name}'
     await update.message.reply_text(f'Enlace de streaming: {url}')
 

@@ -1,0 +1,8 @@
+## checksums.txt - Lista de checksums SHA256 para verificaciones del instalador
+## Formato: <nombre_archivo> <sha256>
+## Ejemplo:
+## get-docker.sh 0a1b2c3d4e5f... (reemplaza por el SHA256 real)
+## Añade aquí hashes de otros ficheiros que el instalador descargue externamente.
+
+# Añade tus entradas debajo (sin '#')
+# get-docker.sh <SHA256>

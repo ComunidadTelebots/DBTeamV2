@@ -84,3 +84,40 @@ def send_telegram_message(chat_id_or_username: str, text: str, token: Optional[s
         return r.json()
     except Exception:
         r.raise_for_status()
+
+
+def compute_file_sha256(path: str) -> str:
+    """Compute SHA256 hex digest for a local file. Raises on I/O errors."""
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, 'rb') as fh:
+        for chunk in iter(lambda: fh.read(8192), b''):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def verify_local_with_checksums_api(name: str, local_hash: str = None, timeout: int = 5):
+    """Query the checksums API for `name` and compare expected hash with `local_hash`.
+    Returns: True=match, False=mismatch, None=no entry or API unavailable.
+    """
+    import os
+    try:
+        import requests
+    except Exception:
+        return None
+    checks_url = os.getenv('CHECKSUMS_URL', os.getenv('AI_URL', 'http://127.0.0.1:8081'))
+    try:
+        r = requests.get(f'{checks_url}/checksums/list', timeout=timeout)
+        if not r.ok:
+            return None
+        data = r.json()
+        entries = {e['name']: e['sha256'] for e in data.get('entries', [])}
+        expected = entries.get(name)
+        if not expected:
+            return None
+        if local_hash is None:
+            # cannot compute local here; caller should provide
+            return None
+        return expected == local_hash
+    except Exception:
+        return None

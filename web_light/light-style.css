@@ -1,0 +1,5 @@
+body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; background:#f7fafc; color:#102030; }
+header { background:#fff; border-bottom:1px solid #e6eef8 }
+main { padding:18px }
+nav a { color:#2563eb; text-decoration:none; margin-right:8px }
+pre { background:#0b1220; color:#e6eef8; padding:12px; border-radius:6px; overflow:auto }

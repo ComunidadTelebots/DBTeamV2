@@ -1,0 +1,52 @@
+version: '3.8'
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: always
+    ports:
+      - "9000:9000"
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+  web:
+    image: nginx:alpine
+    container_name: web_static
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./web/build:/usr/share/nginx/html:ro
+    environment:
+      - NGINX_HOST=localhost
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+  bot:
+    build:
+      context: ./projects/bot/python_bot
+      dockerfile: Dockerfile
+    image: dbteamv2/bot:latest
+    container_name: dbteam_bot
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./python_api
+      dockerfile: Dockerfile
+    image: dbteamv2/api:latest
+    container_name: dbteam_api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+
+volumes:
+  portainer_data:
+    driver: local

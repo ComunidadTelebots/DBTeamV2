@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Estado - DBTeam (Ligero)</title>
+  <link rel="stylesheet" href="/static/light-style.css">
+</head>
+<body>
+  <main style="padding:1rem;max-width:900px;margin:0 auto">
+    <h1>Estado del sistema</h1>
+    <div id="status">Cargando...</div>
+  </main>
+  <script>
+    fetch('/status').then(r=>r.json()).then(js=>{
+      const el = document.getElementById('status');
+      el.innerHTML = '<pre>'+JSON.stringify(js,null,2)+'</pre>';
+    }).catch(e=>{document.getElementById('status').textContent = 'Error al obtener estado: '+e.message});
+  </script>
+</body>
+</html>

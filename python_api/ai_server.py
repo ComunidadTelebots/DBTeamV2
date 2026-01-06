@@ -255,6 +255,101 @@ def create_app(model_dir: str):
             pass
         return jsonify({"models": installed})
 
+    # --- Checksums API ---
+    def repo_root_path():
+        return Path(app.root_path).parents[0]
+
+    def parse_checksums():
+        repo_root = repo_root_path()
+        cs = repo_root / 'checksums.txt'
+        if not cs.exists():
+            return {}
+        entries = {}
+        with open(str(cs), 'r', encoding='utf-8') as fh:
+            for line in fh:
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                parts = line.split()
+                if len(parts) >= 2:
+                    name = parts[0]
+                    h = parts[1]
+                    entries[name] = h
+        return entries
+
+    def compute_sha256(path: Path):
+        import hashlib
+        h = hashlib.sha256()
+        with open(str(path), 'rb') as fh:
+            for chunk in iter(lambda: fh.read(8192), b''):
+                h.update(chunk)
+        return h.hexdigest()
+
+    def verify_checksums_signature():
+        repo_root = repo_root_path()
+        cs = repo_root / 'checksums.txt'
+        sig = repo_root / 'checksums.txt.sig'
+        if not cs.exists():
+            return {'ok': False, 'reason': 'checksums.txt not found'}
+        if not sig.exists():
+            return {'ok': False, 'reason': 'signature not found'}
+        # check gpg availability
+        import shutil, subprocess
+        if not shutil.which('gpg'):
+            return {'ok': False, 'reason': 'gpg not available'}
+        try:
+            p = subprocess.run(['gpg', '--verify', str(sig), str(cs)], capture_output=True, text=True)
+            if p.returncode == 0:
+                return {'ok': True}
+            else:
+                return {'ok': False, 'reason': p.stderr.strip() or p.stdout.strip()}
+        except Exception as e:
+            return {'ok': False, 'reason': str(e)}
+
+    @app.route('/checksums/list', methods=['GET'])
+    def checksums_list():
+        entries = parse_checksums()
+        return jsonify({'entries': [{'name': k, 'sha256': v} for k, v in entries.items()]})
+
+    @app.route('/checksums/verify', methods=['GET'])
+    def checksums_verify():
+        name = request.args.get('name')
+        entries = parse_checksums()
+        if not name:
+            return jsonify({'error': 'name query param required'}), 400
+        expected = entries.get(name)
+        if expected is None:
+            return jsonify({'error': 'no checksum entry for name', 'name': name}), 404
+        repo_root = repo_root_path()
+        target = repo_root / name
+        if not target.exists():
+            return jsonify({'error': 'target not found', 'name': name}), 404
+        try:
+            actual = compute_sha256(target)
+        except Exception as e:
+            return jsonify({'error': 'could not compute hash', 'msg': str(e)}), 500
+        ok = (actual == expected)
+        return jsonify({'name': name, 'expected': expected, 'actual': actual, 'ok': ok})
+
+    @app.route('/checksums/verify_all', methods=['GET'])
+    def checksums_verify_all():
+        entries = parse_checksums()
+        repo_root = repo_root_path()
+        report = []
+        for name, expected in entries.items():
+            target = repo_root / name
+            if not target.exists():
+                report.append({'name': name, 'status': 'missing'})
+                continue
+            try:
+                actual = compute_sha256(target)
+            except Exception:
+                report.append({'name': name, 'status': 'error', 'detail': 'compute_failed'})
+                continue
+            report.append({'name': name, 'expected': expected, 'actual': actual, 'ok': actual == expected})
+        sig = verify_checksums_signature()
+        return jsonify({'signature': sig, 'report': report})
+
     @app.route('/models/install', methods=['POST'])
     def models_install():
         data = request.get_json(force=True) or {}

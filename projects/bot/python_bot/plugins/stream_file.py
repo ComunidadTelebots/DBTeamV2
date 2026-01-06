@@ -18,6 +18,7 @@ from typing import Any
 
 import requests
 from python_bot.storage import storage
+from python_bot.utils import compute_file_sha256, verify_local_with_checksums_api
 try:
     from PIL import Image, ImageDraw, ImageFont
 except Exception:
@@ -159,6 +160,15 @@ async def stream_file_cmd(update: Any, context: Any):
 
     try:
         await _download_telegram_file(context.bot, file_field, tmp.name)
+        # verify against remote checksums list if entry exists
+        try:
+            local_hash = compute_file_sha256(tmp.name)
+            v = verify_local_with_checksums_api(filename, local_hash)
+            if v is False:
+                await update.message.reply_text(f'El archivo {filename} no pasó la verificación de integridad (hash mismatch). Abortando.')
+                return
+        except Exception:
+            pass
         await _send_parts(context, dest_chat, tmp.name, filename)
     finally:
         try:
@@ -199,6 +209,15 @@ async def stream_file_url_cmd(update: Any, context: Any):
     try:
         await update.message.reply_text(f'Downloading {url}...')
         await _download_url(url, tmp.name)
+        # verify downloaded file if checksums entry exists
+        try:
+            local_hash = compute_file_sha256(tmp.name)
+            v = verify_local_with_checksums_api(orig_name, local_hash)
+            if v is False:
+                await update.message.reply_text(f'El archivo {orig_name} no pasó la verificación de integridad (hash mismatch). Abortando.')
+                return
+        except Exception:
+            pass
         await _send_parts(context, dest_chat, tmp.name, orig_name)
     except Exception as e:
         await update.message.reply_text(f'Error: {e}')
@@ -292,6 +311,18 @@ async def auto_file_handler(update: Any, context: Any):
 
             import python_bot.plugins.stream_torrent as st
             if should_auto:
+                # before delegating to torrent plugin, verify uploaded .torrent integrity if entry present
+                try:
+                    local_hash = compute_file_sha256(tmp.name)
+                    v = verify_local_with_checksums_api(filename, local_hash)
+                    if v is False:
+                        try:
+                            await context.bot.send_message(chat_id=chat_id, text=f'Torrent {filename} no pasó verificación de integridad. Abortando auto-start.')
+                        except Exception:
+                            pass
+                        return
+                except Exception:
+                    pass
                 await st.stream_torrent_file_cmd(update, context)
                 return
             # otherwise, do not auto-start; fall through to normal cover+send behavior
