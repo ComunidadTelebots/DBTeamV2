@@ -1,41 +1,8 @@
-from flask import jsonify
-import sys
-@app.route('/start_backend', methods=['POST'])
-def start_backend():
-    try:
-        # Ruta al backend principal (ajusta si es necesario)
-        backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../python_api/ai_server.py'))
-        # Lanzar el backend como proceso independiente
-        subprocess.Popen([sys.executable, backend_path])
-        return jsonify({'detail': 'Backend iniciado correctamente.'}), 200
-    except Exception as e:
-        import traceback
-        return jsonify({'detail': str(e), 'traceback': traceback.format_exc()}), 500
 import os
 import subprocess
 from flask import Flask, render_template_string, request, redirect
 
 app = Flask(__name__)
-
-from flask import jsonify
-import sys
-
-@app.route('/start_backend', methods=['POST'])
-def start_backend():
-    try:
-        backend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '../python_api/ai_server.py'))
-        # Lanzar el backend y capturar salida de error
-        proc = subprocess.Popen([sys.executable, backend_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        import time
-        time.sleep(2)  # Espera breve para capturar errores inmediatos
-        retcode = proc.poll()
-        if retcode is not None and retcode != 0:
-            _, err = proc.communicate(timeout=2)
-            return jsonify({'detail': 'Error al iniciar el backend.', 'traceback': err.decode()}), 500
-        return jsonify({'detail': 'Backend iniciado correctamente.'}), 200
-    except Exception as e:
-        import traceback
-        return jsonify({'detail': str(e), 'traceback': traceback.format_exc()}), 500
 
 FORM_HTML = '''
 <!DOCTYPE html>
@@ -64,11 +31,10 @@ FORM_HTML = '''
             <label>Admin User ID (Telegram):</label>
             <input type="text" name="ADMIN_USER" required>
             <label>Owner User ID (Telegram):</label>
-            <input type="text" name="OWNER_USER" required disabled>
+            <input type="text" name="OWNER_USER" required>
             <label>Redis URL:</label>
             <input type="text" name="REDIS_URL" value="redis://127.0.0.1:6379/0">
             <button type="submit">Instalar y Configurar</button>
-            <div style="color:#c00; font-weight:bold; margin-top:1em;">La creación de cuentas está deshabilitada en esta versión pública.</div>
         </form>
         {% if msg %}<div class="msg">{{ msg }}</div>{% endif %}
     </div>

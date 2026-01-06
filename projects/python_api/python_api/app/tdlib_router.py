@@ -1,3 +1,37 @@
+# Endpoint para listar clientes TDLib registrados/activos
+from fastapi import Depends
+
+@router.get('/userclients')
+def list_tdlib_clients(request: Request = None):
+    # Ejemplo: obtener de Redis o memoria, aquí mockeado
+    # En producción, deberías guardar los clientes TDLib en Redis o una base de datos
+    # y devolver la lista real
+    # Formato esperado: [{id, name, owner, info, ...}]
+    # Requiere API key
+    api_key = None
+    if request:
+        api_key = request.headers.get('x-api-key') or request.headers.get('authorization')
+    expected_key = getattr(config, 'WEB_API_KEY', None)
+    if expected_key and api_key != expected_key:
+        return JSONResponse({"detail": "API key requerida o incorrecta"}, status_code=403)
+    try:
+        r = redis.from_url(config.REDIS_URL)
+    except Exception:
+        r = None
+    clients = []
+    if r:
+        try:
+            raw = r.get('tdlib:clients')
+            if raw:
+                clients = json.loads(raw)
+        except Exception:
+            clients = []
+    # Si no hay datos, devolver ejemplo
+    if not clients:
+        clients = [
+            {"id": "tdlib_1", "name": "TDLib Demo", "owner": "demo", "info": {"status": "activo"}},
+        ]
+    return {"clients": clients}
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File
 from fastapi.responses import JSONResponse
 from .. import config
@@ -20,6 +54,12 @@ _td_client = None
 def connect_tdlib(payload: dict = None, request: Request = None):
     global _td_client
     prefer_dummy = payload.get('dummy', False) if payload else False
+    # Leer api_id y api_hash de headers si vienen de la web
+    api_id = None
+    api_hash = None
+    if request:
+        api_id = request.headers.get('x-tdlib-api-id')
+        api_hash = request.headers.get('x-tdlib-api-hash')
     # Si es build de GitHub, no permitir uso de tokens oficiales
     if os.getenv('GITHUB_BUILD') == '1':
         return {
@@ -32,7 +72,30 @@ def connect_tdlib(payload: dict = None, request: Request = None):
             }
         }
     try:
-        _td_client = get_client(prefer_dummy=prefer_dummy)
+        # Pasar api_id y api_hash a get_client si están presentes
+        _td_client = get_client(prefer_dummy=prefer_dummy, api_id=api_id, api_hash=api_hash)
+        # Registrar cliente en Redis
+        try:
+            r = redis.from_url(config.REDIS_URL)
+        except Exception:
+            r = None
+        if r:
+            # Puedes personalizar los datos según lo que devuelva tu cliente TDLib
+            client_info = {
+                "id": f"tdlib_{uuid.uuid4().hex[:8]}",
+                "name": getattr(_td_client, 'name', 'TDLib Client'),
+                "owner": getattr(_td_client, 'owner', 'owner'),
+                "info": {"status": "activo", "api_id": api_id, "api_hash": api_hash}
+            }
+            try:
+                raw = r.get('tdlib:clients')
+                clients = json.loads(raw) if raw else []
+            except Exception:
+                clients = []
+            # Evitar duplicados por id
+            if not any(c.get('id') == client_info['id'] for c in clients):
+                clients.append(client_info)
+                r.set('tdlib:clients', json.dumps(clients))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     try:

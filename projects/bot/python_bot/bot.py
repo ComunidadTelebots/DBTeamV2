@@ -13,6 +13,142 @@ from typing import Dict, List
 
 
 class Bot:
+
+    # ================= FUNCIONES SUGERIDAS (STUBS) =================
+    async def send_critical_alert(self, chat_id, message):
+        """Enviar alerta crítica a canal/grupo."""
+        # TODO: Implementar lógica de envío
+        pass
+
+    async def send_daily_summary(self, chat_id):
+        """Enviar resumen diario/semanal de actividad o logs."""
+        # TODO: Implementar lógica de resumen
+        pass
+
+    async def list_active_users(self, chat_id):
+        """Listar usuarios activos y sus permisos."""
+        # TODO: Implementar lógica de listado
+        pass
+
+    async def audit_permission_changes(self):
+        """Auditar cambios de permisos/accesos."""
+        # TODO: Implementar lógica de auditoría
+        pass
+
+    async def report_service_status(self, chat_id):
+        """Consultar y reportar estado de servicios externos."""
+        # TODO: Implementar lógica de consulta y reporte
+        pass
+
+    async def restart_service(self, service_name):
+        """Reiniciar servicio externo desde el bot."""
+        # TODO: Implementar lógica de reinicio
+        pass
+
+    async def clean_temp_files(self):
+        """Limpieza automática de archivos temporales/logs antiguos."""
+        # TODO: Implementar lógica de limpieza
+        pass
+
+    async def update_dependencies(self):
+        """Comprobar y actualizar dependencias del sistema/bot."""
+        # TODO: Implementar lógica de actualización
+        pass
+
+    async def backup_config(self):
+        """Hacer backup de configuraciones clave."""
+        # TODO: Implementar lógica de backup
+        pass
+
+    async def restore_config(self):
+        """Restaurar configuraciones clave."""
+        # TODO: Implementar lógica de restauración
+        pass
+
+    async def analyze_logs_for_errors(self):
+        """Analizar logs y detectar patrones de error frecuentes."""
+        # TODO: Implementar lógica de análisis
+        pass
+
+    async def interactive_help(self, chat_id, user_id):
+        """Ayuda interactiva según permisos del usuario."""
+        # TODO: Implementar lógica de ayuda
+        pass
+
+    async def suggest_commands(self, chat_id, user_input):
+        """Sugerir comandos/autocompletar."""
+        # TODO: Implementar lógica de sugerencia
+        pass
+
+    async def show_bot_stats(self, chat_id):
+        """Mostrar estadísticas de uso del bot."""
+        # TODO: Implementar lógica de estadísticas
+        pass
+
+    async def system_resource_monitor(self, chat_id):
+        """Monitor de recursos del sistema accesible desde el bot."""
+        # TODO: Implementar lógica de monitorización
+        pass
+
+    # ================= INTEGRACIÓN DE COMANDOS =================
+    def register_default_commands(self):
+        """Registra comandos básicos para las funciones sugeridas."""
+        self.register_command('alerta_critica', self.cmd_alerta_critica, 'Enviar alerta crítica')
+        self.register_command('resumen_diario', self.cmd_resumen_diario, 'Solicitar resumen diario')
+        self.register_command('usuarios_activos', self.cmd_usuarios_activos, 'Listar usuarios activos')
+        self.register_command('estado_servicios', self.cmd_estado_servicios, 'Consultar estado de servicios')
+        self.register_command('limpiar_temp', self.cmd_limpiar_temp, 'Limpiar archivos temporales')
+        self.register_command('backup_config', self.cmd_backup_config, 'Backup de configuración')
+        self.register_command('ayuda_interactiva', self.cmd_ayuda_interactiva, 'Ayuda interactiva')
+        self.register_command('estadisticas_bot', self.cmd_estadisticas_bot, 'Estadísticas del bot')
+        self.register_command('monitor_sistema', self.cmd_monitor_sistema, 'Monitor de sistema')
+
+    async def cmd_alerta_critica(self, update, context):
+        await self.send_critical_alert(update.effective_chat.id, "¡Alerta crítica enviada!")
+        await update.message.reply_text("Alerta crítica enviada.")
+
+    async def cmd_resumen_diario(self, update, context):
+        await self.send_daily_summary(update.effective_chat.id)
+        await update.message.reply_text("Resumen diario solicitado.")
+
+    async def cmd_usuarios_activos(self, update, context):
+        await self.list_active_users(update.effective_chat.id)
+        await update.message.reply_text("Usuarios activos listados.")
+
+    async def cmd_estado_servicios(self, update, context):
+        await self.report_service_status(update.effective_chat.id)
+        await update.message.reply_text("Estado de servicios consultado.")
+
+    async def cmd_limpiar_temp(self, update, context):
+        await self.clean_temp_files()
+        await update.message.reply_text("Archivos temporales limpiados.")
+
+    async def cmd_backup_config(self, update, context):
+        await self.backup_config()
+        await update.message.reply_text("Backup de configuración realizado.")
+
+    async def cmd_ayuda_interactiva(self, update, context):
+        await self.interactive_help(update.effective_chat.id, update.effective_user.id)
+        await update.message.reply_text("Ayuda interactiva mostrada.")
+
+    async def cmd_estadisticas_bot(self, update, context):
+        await self.show_bot_stats(update.effective_chat.id)
+        await update.message.reply_text("Estadísticas del bot mostradas.")
+
+    async def cmd_monitor_sistema(self, update, context):
+        await self.system_resource_monitor(update.effective_chat.id)
+        await update.message.reply_text("Monitor de sistema ejecutado.")
+
+    # ================= INTEGRACIÓN WEB (ESQUEMA BÁSICO) =================
+    # Ejemplo: usar Flask/FastAPI para exponer endpoints que llamen a estas funciones
+    # from fastapi import FastAPI, Request
+    # app = FastAPI()
+    # @app.post("/api/alerta_critica")
+    # async def api_alerta_critica(request: Request):
+    #     data = await request.json()
+    #     await self.send_critical_alert(data['chat_id'], data['message'])
+    #     return {"status": "ok"}
+    # ...agrega más endpoints según funciones...
         async def leave_group_by_id(self, group_id):
             # This method should use the Telegram API to leave the group by ID
             # You may need to adapt this to your bot framework
@@ -44,6 +180,8 @@ class Bot:
         self.load_lang('en')
         self.load_plugins()
         print(f'Loaded plugins: {list(self.plugins.keys())}')
+        # Registrar comandos sugeridos automáticamente
+        self.register_default_commands()
 
     def load_plugins(self):
         """Discover and import plugins from package `python_bot.plugins`.

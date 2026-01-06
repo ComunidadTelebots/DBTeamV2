@@ -1,0 +1,30 @@
+# Instala TDLib (libtdjson) y python-tdlib en Windows
+# 1. Instala MSYS2 desde https://www.msys2.org/ y abre una terminal MSYS2 MinGW 64-bit
+# 2. Instala dependencias
+pacman -Syu --noconfirm
+pacman -S --noconfirm git mingw-w64-x86_64-toolchain mingw-w64-x86_64-cmake mingw-w64-x86_64-openssl mingw-w64-x86_64-curl mingw-w64-x86_64-zlib mingw-w64-x86_64-lzma
+
+# 3. Clona y compila TDLib
+cd ~
+git clone --depth=1 --branch v1.8.27 https://github.com/tdlib/td.git
+cd td
+mkdir build && cd build
+cmake -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release ..
+mingw32-make -j4
+mingw32-make install
+
+# 4. Copia libtdjson.dll a una ruta en tu PATH o al directorio del backend
+#    Por ejemplo: cp /mingw64/bin/libtdjson.dll /c/Users/adria/Documents/GitHub/DBTeamV2/
+
+# 5. Instala dependencias Python (en CMD o PowerShell, no MSYS2)
+cd /c/Users/adria/Documents/GitHub/DBTeamV2/
+pip install -r requirements.txt
+
+# 6. Variables de entorno necesarias para el backend (en PowerShell):
+# Sustituye por tus valores reales
+$env:TD_API_ID="TU_API_ID"
+$env:TD_API_HASH="TU_API_HASH"
+$env:TD_PHONE="+34123456789"
+
+# 7. Inicia el backend normalmente
+# uvicorn main:app --host 0.0.0.0 --port 8000

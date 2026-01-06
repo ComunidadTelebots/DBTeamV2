@@ -1,4 +1,19 @@
   <section class="card" style="margin-bottom:18px">
+    <h2 style="margin:0 0 10px 0">Panel unificado de chats y ban</h2>
+    <button id="reloadUnifiedChatsBtn" class="ghost">Recargar</button>
+    <div id="unifiedChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:420px;overflow-y:auto"></div>
+  </section>
+  <section class="card" style="margin-bottom:18px">
+    <h2 style="margin:0 0 10px 0">Chats de Bots clásicos</h2>
+    <button id="reloadClassicChatsBtn" class="ghost">Recargar</button>
+    <div id="classicChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:320px;overflow-y:auto"></div>
+  </section>
+  <section class="card" style="margin-bottom:18px">
+    <h2 style="margin:0 0 10px 0">Chats de TDLib</h2>
+    <button id="reloadTdlibChatsBtn" class="ghost">Recargar</button>
+    <div id="tdlibChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:320px;overflow-y:auto"></div>
+  </section>
+  <section class="card" style="margin-bottom:18px">
     <h2 style="margin:0 0 10px 0">Estado de las traducciones</h2>
     <div id="translationStatusPanel" style="display:flex;flex-wrap:wrap;gap:18px"></div>
   </section>
@@ -39,10 +54,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Panel Owner - DBTeam</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/shared.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="icon" href="/logo.svg">
+  <link rel="icon" href="/static/logo.svg">
   <style>
     .geo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
     .geo-block{padding:8px;border:1px solid var(--border, #e5e7eb);border-radius:10px;background:var(--panel, #0b1320)}
@@ -163,15 +178,38 @@
                                                     </div>
                                                   </div>
                                                 </div>
-                                        <section class="card" style="margin-bottom:18px">
-                                          <h2 style="margin:0 0 10px 0">Bots de usuario</h2>
-                                          <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
-                                            <input id="telegramTokenInput" type="text" placeholder="Token de Telegram" style="width:260px;max-width:100%" />
-                                            <button id="addUserBotByTokenBtn" class="btn" style="max-width:180px">+ Agregar bot por token</button>
-                                          </div>
-                                          <div id="userBotsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
-                                          <button id="addUserBotBtn" class="btn" style="margin-top:12px;max-width:180px">+ Agregar bot de usuario manual</button>
-                                        </section>
+<section class="card" style="margin-bottom:18px">
+  <h2 style="margin:0 0 10px 0">Bots de usuario (clásicos)</h2>
+  <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
+    <input id="telegramTokenInput" type="text" placeholder="Token de Telegram" style="width:260px;max-width:100%" />
+    <button id="addUserBotByTokenBtn" class="btn" style="max-width:180px">+ Agregar bot por token</button>
+    <button id="reloadClassicBotsBtn" class="ghost" style="margin-left:18px">Recargar</button>
+  </div>
+  <div id="userBotsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
+  <button id="addUserBotBtn" class="btn" style="margin-top:12px;max-width:180px">+ Agregar bot de usuario manual</button>
+</section>
+<section class="card" style="margin-bottom:18px">
+  <h2 style="margin:0 0 10px 0">Clientes TDLib</h2>
+  <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
+    <button id="reloadTdlibClientsBtn" class="ghost">Recargar</button>
+  </div>
+  <div id="tdlibClientsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
+</section>
+<section class="card" style="margin-bottom:18px">
+  <h2 style="margin:0 0 10px 0">Estadísticas y chats</h2>
+  <div style="display:flex;flex-wrap:wrap;gap:32px">
+    <div style="min-width:320px">
+      <h3>Bots clásicos</h3>
+      <button id="reloadClassicStatsBtn" class="ghost">Recargar</button>
+      <div id="classicStatsPanel">Cargando...</div>
+    </div>
+    <div style="min-width:320px">
+      <h3>TDLib</h3>
+      <button id="reloadTdlibStatsBtn" class="ghost">Recargar</button>
+      <div id="tdlibStatsPanel">Cargando...</div>
+    </div>
+  </div>
+</section>
                                 <!-- Modal resumen bot -->
                                 <div id="botSummaryModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0008;z-index:2000;align-items:center;justify-content:center">
                                   <div style="background:#fff;padding:28px 32px;border-radius:16px;max-width:340px;box-shadow:0 4px 24px #0004;display:flex;flex-direction:column;align-items:center;gap:14px">
@@ -223,8 +261,44 @@
             <button id="saveChannelsBtn" class="btn" style="margin-top:8px;max-width:200px">Guardar canales</button>
           </div>
         </section>
+
     <h1>Panel Owner</h1>
     <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
+
+    <!-- Panel de anuncios publicados -->
+    <section class="card" style="margin-bottom:18px;padding:18px;background:#181818;border-radius:10px;border:1px solid #444;">
+      <h2 style="margin-bottom:12px">Anuncios publicados</h2>
+      <div id="anunciosPublicadosPanel">Cargando...</div>
+    </section>
+    <script>
+    async function cargarAnunciosPublicados() {
+      const panel = document.getElementById('anunciosPublicadosPanel');
+      panel.innerHTML = 'Cargando...';
+      try {
+        const res = await fetch('/api/anuncios_publicados');
+        const data = await res.json();
+        if (!data.anuncios || !data.anuncios.length) {
+          panel.innerHTML = '<span style="color:#888">No hay anuncios publicados.</span>';
+          return;
+        }
+        let html = `<table style='width:100%;margin-top:8px'><thead><tr><th>Título</th><th>Canal</th><th>Hora</th><th>Visitas</th><th>Enlace</th></tr></thead><tbody>`;
+        data.anuncios.forEach(a => {
+          html += `<tr>` +
+            `<td>${a.titulo}</td>` +
+            `<td>${a.canal || '-'}</td>` +
+            `<td>${a.hora || '-'}</td>` +
+            `<td>${a.visitas || 0}</td>` +
+            `<td><a href='${a.enlace}' target='_blank'>Ver anuncio</a></td>` +
+            `</tr>`;
+        });
+        html += '</tbody></table>';
+        panel.innerHTML = html;
+      } catch (e) {
+        panel.innerHTML = '<span style="color:#f44">Error cargando anuncios.</span>';
+      }
+    }
+    cargarAnunciosPublicados();
+    </script>
 
     <!-- NUEVO BLOQUE DE CREACIÓN DE USUARIOS Y ADMINISTRADORES -->
     <section class="card" style="margin-bottom:18px;padding:18px;background:#181818;border-radius:10px;border:1px solid #444;">

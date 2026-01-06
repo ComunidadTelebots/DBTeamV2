@@ -118,6 +118,30 @@ local function rand_token()
   return sha256(r)
 end
 
+
+-- ================= FUNCIONES SUGERIDAS (STUBS) =================
+
+-- Web/API: Consultar estado de API externa
+function check_external_api_status(api_url)
+  -- Consultar y devolver estado de una API externa
+  -- TODO: Implementar lógica de consulta HTTP
+  return nil
+end
+
+-- Web/API: Enviar datos a API externa
+function send_data_to_external_api(api_url, data)
+  -- Enviar datos a una API externa
+  -- TODO: Implementar lógica de envío HTTP
+  return nil
+end
+
+-- Web/API: Obtener estadísticas de uso de API
+function get_api_usage_stats(api_url)
+  -- Consultar estadísticas de uso de una API
+  -- TODO: Implementar lógica de consulta
+  return nil
+end
+
 local function shell_escape_single(s)
   if not s then return '' end
   return s:gsub("'", "'\\''")

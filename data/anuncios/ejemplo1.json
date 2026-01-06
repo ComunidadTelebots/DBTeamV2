@@ -1,0 +1,10 @@
+{
+  "titulo": "Anuncio de prueba",
+  "contenido": "Este es un anuncio pendiente para moderar.",
+  "usuario": {"username": "demo", "id": 1},
+  "estado": "pendiente",
+  "canal": "Canal Demo",
+  "hora": "2026-01-06 12:00",
+  "visitas": 0,
+  "enlace": "https://ejemplo.com/anuncio1"
+}

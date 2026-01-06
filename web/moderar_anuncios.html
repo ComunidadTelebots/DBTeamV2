@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Moderación de Anuncios - DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
+    .container { max-width: 700px; margin: 48px auto; background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 32px 28px; }
+    h1 { color: #6cf; margin-bottom: 18px; }
+    .anuncio { background: #222b3a; border-radius: 8px; padding: 18px 16px; margin-bottom: 18px; }
+    .anuncio .titulo { color: #facc15; font-size: 1.15em; font-weight: bold; }
+    .anuncio .usuario { color: #6cf; font-size: 0.98em; }
+    .anuncio .contenido { margin: 10px 0 8px 0; color: #fff; }
+    .anuncio .acciones { margin-top: 8px; }
+    .btn { background: #6cf; color: #101624; border: none; border-radius: 6px; padding: 7px 18px; margin-right: 10px; font-size: 1em; cursor: pointer; font-weight: bold; }
+    .btn-rechazar { background: #f44; color: #fff; }
+    .msg { margin-top: 18px; font-size: 1.05em; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Moderación de Anuncios</h1>
+    <div id="anuncios"></div>
+    <div class="msg" id="msg"></div>
+  </div>
+  <script>
+    async function cargarAnuncios() {
+      document.getElementById('anuncios').innerHTML = 'Cargando...';
+      const res = await fetch('/api/anuncios_pendientes');
+      const data = await res.json();
+      if (!data.ok || !data.anuncios.length) {
+        document.getElementById('anuncios').innerHTML = 'No hay anuncios pendientes.';
+        return;
+      }
+      let html = '';
+      data.anuncios.forEach((a, idx) => {
+        html += `<div class='anuncio'>` +
+          `<div class='titulo'>${a.titulo}</div>` +
+          `<div class='usuario'>Enviado por: ${a.usuario.username || a.usuario.id}</div>` +
+          `<div class='contenido'>${a.contenido}</div>` +
+          (a.canal ? `<div style='color:#facc15;font-size:0.98em'>Canal: ${a.canal}</div>` : '') +
+          (a.hora ? `<div style='color:#6cf;font-size:0.98em'>Hora: ${a.hora}</div>` : '') +
+          (a.visitas !== undefined ? `<div style='color:#facc15;font-size:0.98em'>Visitas: ${a.visitas}</div>` : '') +
+          (a.enlace ? `<div><a href='${a.enlace}' target='_blank'>Ver anuncio</a></div>` : '') +
+          `<div class='acciones'><button class='btn' onclick='aprobarAnuncio(${idx})'>Aprobar y Publicar</button><button class='btn btn-rechazar' onclick='rechazarAnuncio(${idx})'>Rechazar</button></div>` +
+          `</div>`;
+      });
+      document.getElementById('anuncios').innerHTML = html;
+    }
+    async function aprobarAnuncio(idx) {
+      document.getElementById('msg').textContent = 'Publicando anuncio...';
+      const res = await fetch('/api/anuncios_aprobar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx })
+      });
+      const data = await res.json();
+      document.getElementById('msg').textContent = data.msg;
+      cargarAnuncios();
+    }
+    async function rechazarAnuncio(idx) {
+      document.getElementById('msg').textContent = 'Rechazando anuncio...';
+      const res = await fetch('/api/anuncios_rechazar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx })
+      });
+      const data = await res.json();
+      document.getElementById('msg').textContent = data.msg;
+      cargarAnuncios();
+    }
+    cargarAnuncios();
+  </script>
+</body>
+</html>

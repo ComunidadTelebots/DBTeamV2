@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestión de Grupos Anunciantes - DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
+    .container { max-width: 600px; margin: 48px auto; background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 32px 28px; }
+    h1 { color: #6cf; margin-bottom: 18px; }
+    label { display: block; margin-top: 16px; color: #facc15; }
+    input { width: 100%; background: #222b3a; color: #fff; border: none; border-radius: 6px; padding: 8px; margin-top: 4px; font-size: 1em; }
+    .btn { background: #6cf; color: #101624; border: none; border-radius: 6px; padding: 10px 24px; margin-top: 18px; font-size: 1.1em; cursor: pointer; font-weight: bold; }
+    .msg { margin-top: 18px; font-size: 1.05em; }
+    .grupo-lista { margin-top: 24px; }
+    .grupo-item { background: #222b3a; border-radius: 8px; padding: 12px 16px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .grupo-id { font-weight: bold; color: #facc15; }
+    .grupo-nombre { color: #6cf; margin-left: 10px; }
+    .del-btn { background: #f44; color: #fff; border: none; border-radius: 6px; padding: 4px 14px; font-size: 1em; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Gestión de Grupos Anunciantes</h1>
+    <form id="grupoForm">
+      <label for="grupoId">ID del grupo</label>
+      <input type="text" id="grupoId" name="grupoId" maxlength="32" required placeholder="Ej: -1001234567890" />
+      <label for="grupoNombre">Nombre del grupo (opcional)</label>
+      <input type="text" id="grupoNombre" name="grupoNombre" maxlength="64" placeholder="Ej: Canal Noticias" />
+      <button class="btn" type="submit">Añadir grupo</button>
+    </form>
+    <div class="msg" id="msg"></div>
+    <div class="grupo-lista" id="grupoLista"></div>
+  </div>
+  <script>
+    async function cargarGrupos() {
+      const res = await fetch('/api/grupos_anunciantes');
+      const data = await res.json();
+      let html = '';
+      if (data.ok && data.grupos.length) {
+        data.grupos.forEach((g, idx) => {
+          html += `<div class='grupo-item'><span class='grupo-id'>${g.id}</span><span class='grupo-nombre'>${g.nombre||''}</span><button class='del-btn' onclick='eliminarGrupo(${idx})'>Eliminar</button></div>`;
+        });
+      } else {
+        html = '<div style="color:#aaa">No hay grupos registrados.</div>';
+      }
+      document.getElementById('grupoLista').innerHTML = html;
+    }
+    document.getElementById('grupoForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const id = document.getElementById('grupoId').value.trim();
+      const nombre = document.getElementById('grupoNombre').value.trim();
+      if (!id) return;
+      document.getElementById('msg').textContent = 'Añadiendo grupo...';
+      const res = await fetch('/api/grupos_anunciantes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, nombre })
+      });
+      const data = await res.json();
+      document.getElementById('msg').textContent = data.msg;
+      document.getElementById('grupoForm').reset();
+      cargarGrupos();
+    };
+    window.eliminarGrupo = async function(idx) {
+      if (!confirm('¿Eliminar este grupo?')) return;
+      const res = await fetch('/api/grupos_anunciantes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idx })
+      });
+      const data = await res.json();
+      document.getElementById('msg').textContent = data.msg;
+      cargarGrupos();
+    };
+    cargarGrupos();
+  </script>
+</body>
+</html>

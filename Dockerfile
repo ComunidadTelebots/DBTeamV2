@@ -15,26 +15,26 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
  && rm -rf /var/lib/apt/lists/*
 
+
 # Create app user
 RUN useradd -m appuser
-WORKDIR /home/appuser/app
+ARG EMV=appuser
+ENV EMV=${EMV}
+WORKDIR /home/$EMV/app
 
 # Copy project files (dockerignore will filter large assets)
-COPY . /home/appuser/app
-RUN chown -R appuser:appuser /home/appuser/app
+COPY . /home/$EMV/app
+RUN chown -R $EMV:$EMV /home/$EMV/app
 
-USER appuser
+USER $EMV
 
-# Create and activate venv, install requirements (if present)
+# Create and activate venv, install requirements from unified file
 RUN python3 -m venv .venv && \
     . .venv/bin/activate && \
-    pip install --upgrade pip setuptools wheel || true
+    pip install --upgrade pip setuptools wheel && \
+    pip install -r /home/$EMV/app/requirements.txt
 
-# Install requirements if files exist
-RUN if [ -f projects/bot/python_bot/requirements.txt ]; then . .venv/bin/activate && pip install -r projects/bot/python_bot/requirements.txt; fi
-RUN if [ -f projects/python_api/python_api/requirements.txt ]; then . .venv/bin/activate && pip install -r projects/python_api/python_api/requirements.txt; fi
-
-ENV PATH="/home/appuser/app/.venv/bin:$PATH"
+ENV PATH="/home/$EMV/app/.venv/bin:$PATH"
 
 # Expose ports used by web UI and stats API
 EXPOSE 8000 8081

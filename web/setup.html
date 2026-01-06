@@ -77,6 +77,7 @@
         <button class="btn setup-btn" type="submit">Guardar y Instalar</button>
         <div class="setup-status" id="setupStatus"></div>
       </form>
+      <button class="btn setup-btn" id="btnStartAll" style="background:#28a745;color:#fff;font-weight:bold;">Iniciar TODO (configurar, instalar y arrancar)</button>
       <button class="btn setup-btn" id="btnWin">Instalar en Windows</button>
       <button class="btn setup-btn" id="btnUbuntu">Instalar en Ubuntu</button>
       <button class="btn setup-btn" id="btnAutoInstall" style="background:var(--primary,#1976d2);color:#fff;">Auto-instalación completa</button>
@@ -122,6 +123,75 @@
                             status.textContent = 'No se pudo contactar con el backend para iniciarlo.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
                           }
                         };
+                            // Botón para iniciar TODO (configurar, instalar y arrancar backend)
+                            document.getElementById('btnStartAll').onclick = async function() {
+                              status.textContent = 'Iniciando TODO: guardando configuración, instalando y arrancando backend...';
+                              // 1. Validar y guardar configuración
+                              const requiredFields = [
+                                { id: 'BOT_TOKEN', name: 'BOT_TOKEN' },
+                                { id: 'WEB_API_SECRET', name: 'WEB_API_SECRET' },
+                                { id: 'ADMIN_USER', name: 'ADMIN_USER' },
+                                { id: 'OWNER_USER', name: 'OWNER_USER' },
+                                { id: 'REDIS_URL', name: 'REDIS_URL' }
+                              ];
+                              let missing = [];
+                              let config = {};
+                              requiredFields.forEach(f => {
+                                const el = document.getElementById(f.id);
+                                if (!el || !el.value.trim()) missing.push(f.name);
+                                else config[f.name] = el.value.trim();
+                              });
+                              if (missing.length) {
+                                status.textContent = 'Faltan campos obligatorios: ' + missing.join(', ') + '. Por favor, complétalos antes de continuar.';
+                                return;
+                              }
+                              try {
+                                const resp = await fetch('/run_setup_general', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify(config)
+                                });
+                                if (!resp.ok) throw new Error('Error al guardar configuración.');
+                              } catch (e) {
+                                status.textContent = 'Error al guardar configuración: ' + (e.message || '');
+                                return;
+                              }
+                              // 2. Instalar según SO
+                              let os = '';
+                              if (navigator.userAgent.indexOf('Windows') !== -1) os = 'windows';
+                              else if (navigator.userAgent.indexOf('Linux') !== -1) os = 'ubuntu';
+                              else os = '';
+                              try {
+                                let resp;
+                                if (os === 'windows') resp = await fetch('/run_setup_windows', { method: 'POST' });
+                                else if (os === 'ubuntu') resp = await fetch('/run_setup_ubuntu', { method: 'POST' });
+                                else resp = null;
+                                if (resp && resp.ok) {
+                                  status.textContent = 'Instalación iniciada. Ahora arrancando backend...';
+                                } else {
+                                  status.textContent = 'Configuración guardada, pero no se pudo iniciar la instalación automática para tu sistema operativo.';
+                                }
+                              } catch (e) {
+                                status.textContent = 'Configuración guardada, pero no se pudo iniciar la instalación automática. ' + (e.message || '');
+                              }
+                              // 3. Arrancar backend
+                              try {
+                                const resp = await fetch('/start_backend', { method: 'POST' });
+                                if (resp.ok) {
+                                  status.textContent = '¡TODO iniciado correctamente! Backend arrancado.';
+                                } else {
+                                  let msg = 'No se pudo iniciar el backend.';
+                                  try {
+                                    const err = await resp.json();
+                                    if (err.detail) msg += '\nDetalle: ' + err.detail;
+                                    if (err.traceback) msg += '\nTraza: ' + err.traceback;
+                                  } catch {}
+                                  status.textContent = msg + '\nVerifica permisos y configuración.';
+                                }
+                              } catch (e) {
+                                status.textContent = 'No se pudo contactar con el backend para iniciarlo.\nCausas posibles: el servidor no está iniciado, hay problemas de red o el firewall bloquea la conexión.';
+                              }
+                            };
                     // Botón de auto-instalación
                     document.getElementById('btnAutoInstall').onclick = async function() {
                       status.textContent = 'Iniciando auto-instalación completa...';

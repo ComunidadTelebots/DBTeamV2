@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Demo Panel Owner - DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="shared.css" />
+  <style>
+    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
+    .demo-container { max-width: 1200px; margin: 0 auto; padding: 32px 0; }
+    .card { background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 24px; margin-bottom: 28px; }
+    h2 { color: #6cf; margin-bottom: 12px; }
+    .panel-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+    .panel-row { display: flex; gap: 32px; flex-wrap: wrap; }
+    .panel-col { flex: 1; min-width: 340px; }
+    .panel-chat { background: #222b3a; border-radius: 8px; padding: 12px; min-height: 80px; max-height: 320px; overflow-y: auto; margin-bottom: 12px; }
+    .panel-chat h3 { color: #facc15; margin: 0 0 8px 0; }
+    .panel-chat .chat-item { background: #222; border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; }
+    .panel-chat .chat-title { font-weight: bold; }
+    .panel-chat .chat-type { color: #888; font-size: 0.97em; }
+    .panel-chat .chat-msg { color: #ccc; font-size: 0.97em; margin-bottom: 2px; }
+    .panel-chat .ban-btn { background: #f44; color: #fff; border: none; border-radius: 6px; padding: 2px 10px; margin-left: 6px; cursor: pointer; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  <div class="demo-container">
+    <h1>Demo Panel Owner - DBTeam</h1>
+    <p style="color:#aaa">Comparativa de paneles: separados y unificado (con ban).</p>
+    <div class="panel-row">
+      <div class="panel-col">
+        <div class="card">
+          <div class="panel-title">Chats Bots clásicos</div>
+          <div id="demoClassicChats" class="panel-chat"></div>
+        </div>
+        <div class="card">
+          <div class="panel-title">Chats TDLib</div>
+          <div id="demoTdlibChats" class="panel-chat"></div>
+        </div>
+      </div>
+      <div class="panel-col">
+        <div class="card">
+          <div class="panel-title">Panel unificado de chats y ban</div>
+          <div id="demoUnifiedChats" class="panel-chat"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script>
+    // Datos demo
+    const classicChats = [
+      { id: 1, title: 'Grupo General', type: 'group', members: [ {id: 'u1', username: 'alice'}, {id: 'u2', username: 'bob'} ], messages: [ {text: 'Hola a todos'}, {text: 'Bienvenidos!'} ] },
+      { id: 2, title: 'Canal Noticias', type: 'channel', members: [ {id: 'u3', username: 'carol'} ], messages: [ {text: 'Última noticia...'} ] }
+    ];
+    const tdlibChats = [
+      { id: 101, title: 'Chat Personal', type: 'private', members: [ {id: 'u4', username: 'dave'} ], messages: [ {text: 'Hola desde TDLib'} ] },
+      { id: 102, title: 'Grupo TD', type: 'group', members: [ {id: 'u5', username: 'eve'}, {id: 'u6', username: 'frank'} ], messages: [ {text: 'TDLib activo'} ] }
+    ];
+    // Render panel clásico
+    function renderClassicChats() {
+      const el = document.getElementById('demoClassicChats');
+      let html = '';
+      classicChats.forEach(chat => {
+        html += `<div class='chat-item'><span class='chat-title'>${chat.title}</span> <span class='chat-type'>(${chat.type})</span><br/>`;
+        if (chat.messages && chat.messages.length) {
+          chat.messages.slice(0,2).forEach(msg => {
+            html += `<div class='chat-msg'>${msg.text}</div>`;
+          });
+        }
+        html += `</div>`;
+      });
+      el.innerHTML = html;
+    }
+    // Render panel TDLib
+    function renderTdlibChats() {
+      const el = document.getElementById('demoTdlibChats');
+      let html = '';
+      tdlibChats.forEach(chat => {
+        html += `<div class='chat-item'><span class='chat-title'>${chat.title}</span> <span class='chat-type'>(${chat.type})</span><br/>`;
+        if (chat.messages && chat.messages.length) {
+          chat.messages.slice(0,2).forEach(msg => {
+            html += `<div class='chat-msg'>${msg.text}</div>`;
+          });
+        }
+        html += `</div>`;
+      });
+      el.innerHTML = html;
+    }
+    // Render panel unificado con ban
+    function renderUnifiedChats() {
+      const el = document.getElementById('demoUnifiedChats');
+      let html = '<div style="margin-bottom:10px"><b>Bots clásicos</b></div>';
+      classicChats.forEach(chat => {
+        html += `<div class='chat-item'><span class='chat-title'>${chat.title}</span> <span class='chat-type'>(${chat.type})</span><br/>`;
+        if (chat.members && chat.members.length) {
+          html += `<div style='margin-top:4px;font-size:0.97em;color:#ccc'>Miembros: ${chat.members.length}</div>`;
+          chat.members.forEach(m => {
+            html += `<div style='display:inline-block;margin-right:8px'>${m.username || m.id}<button class='ban-btn' data-user='${m.id}'>Ban</button></div>`;
+          });
+        }
+        html += `</div>`;
+      });
+      html += '<div style="margin:16px 0 10px 0"><b>TDLib</b></div>';
+      tdlibChats.forEach(chat => {
+        html += `<div class='chat-item'><span class='chat-title'>${chat.title}</span> <span class='chat-type'>(${chat.type})</span><br/>`;
+        if (chat.members && chat.members.length) {
+          html += `<div style='margin-top:4px;font-size:0.97em;color:#ccc'>Miembros: ${chat.members.length}</div>`;
+          chat.members.forEach(m => {
+            html += `<div style='display:inline-block;margin-right:8px'>${m.username || m.id}<button class='ban-btn' data-user='${m.id}'>Ban</button></div>`;
+          });
+        }
+        html += `</div>`;
+      });
+      el.innerHTML = html;
+      // Demo: alert al banear
+      el.querySelectorAll('.ban-btn').forEach(btn => {
+        btn.onclick = function() {
+          alert('Demo: usuario ' + this.getAttribute('data-user') + ' baneado');
+        };
+      });
+    }
+    renderClassicChats();
+    renderTdlibChats();
+    renderUnifiedChats();
+  </script>
+</body>
+</html>

@@ -1,113 +1,317 @@
+    // --- Panel unificado de chats y ban ---
+    async function loadUnifiedChats() {
+      const panel = document.getElementById('unifiedChatsPanel');
+      panel.innerHTML = 'Cargando...';
+      let apiId = localStorage.getItem('tdlibApiId') || '';
+      let apiHash = localStorage.getItem('tdlibApiHash') || '';
+      if (!apiId || !apiHash) {
+        apiId = prompt('Introduce tu Telegram api_id para TDLib:');
+        if (!apiId) { panel.innerHTML = '<span style=\"color:#f44\">Debes introducir api_id para ver chats.</span>'; return; }
+        apiHash = prompt('Introduce tu Telegram api_hash para TDLib:');
+        if (!apiHash) { panel.innerHTML = '<span style=\"color:#f44\">Debes introducir api_hash para ver chats.</span>'; return; }
+        localStorage.setItem('tdlibApiId', apiId);
+        localStorage.setItem('tdlibApiHash', apiHash);
+      }
+      try {
+        // Obtener chats de bots clásicos
+        const classicResp = await fetch('/bot/groups', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        // Obtener chats de TDLib
+        const tdlibResp = await fetch('/tdlib/chats', { headers: { 'x-tdlib-api-id': apiId, 'x-tdlib-api-hash': apiHash, 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+        let html = '';
+        if (classicResp.ok) {
+          const js = await classicResp.json();
+          const chats = js.groups || [];
+          if (chats.length) {
+            html += `<div style='margin-bottom:10px'><b>Bots clásicos</b></div>`;
+            chats.forEach(chat => {
+              html += `<div style='margin-bottom:10px;padding:8px 10px;background:#222;border-radius:8px'>`;
+              html += `<b>${chat.title || chat.id}</b> <span style='color:#888'>(${chat.type || ''})</span><br/>`;
+              if (chat.members && chat.members.length) {
+                html += `<div style='margin-top:4px;font-size:0.97em;color:#ccc'>Miembros: ${chat.members.length}</div>`;
+                chat.members.slice(0,3).forEach(m => {
+                  html += `<div style='display:inline-block;margin-right:8px'>${m.username || m.id || '[user]'}` +
+                    ` <button class='banUserBtn' data-user='${m.id}'>Ban</button></div>`;
+                });
+              }
+              html += `</div>`;
+            });
+          }
+        }
+        if (tdlibResp.ok) {
+          const chats = await tdlibResp.json();
+          if (chats.length) {
+            html += `<div style='margin:16px 0 10px 0'><b>TDLib</b></div>`;
+            chats.forEach(chat => {
+              html += `<div style='margin-bottom:10px;padding:8px 10px;background:#222;border-radius:8px'>`;
+              html += `<b>${chat.title || chat.id}</b> <span style='color:#888'>(${chat.type || ''})</span><br/>`;
+              if (chat.members && chat.members.length) {
+                html += `<div style='margin-top:4px;font-size:0.97em;color:#ccc'>Miembros: ${chat.members.length}</div>`;
+                chat.members.slice(0,3).forEach(m => {
+                  html += `<div style='display:inline-block;margin-right:8px'>${m.username || m.id || '[user]'}` +
+                    ` <button class='banUserBtn' data-user='${m.id}'>Ban</button></div>`;
+                });
+              }
+              html += `</div>`;
+            });
+          }
+        }
+        panel.innerHTML = html || '<span style="color:#888">No hay chats.</span>';
+        // Asignar eventos a los botones de ban
+        panel.querySelectorAll('.banUserBtn').forEach(btn => {
+          btn.onclick = async function() {
+            const userId = this.getAttribute('data-user');
+            if (!userId) return;
+            if (!confirm('¿Banear usuario ' + userId + '?')) return;
+            try {
+              const resp = await fetch('/group/ban', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
+                body: JSON.stringify({ group_id: userId })
+              });
+              if (resp.ok) {
+                alert('Usuario baneado');
+                loadUnifiedChats();
+              } else {
+                alert('Error al banear');
+              }
+            } catch (e) {
+              alert('Error de red');
+            }
+          };
+        });
+      } catch (e) {
+        panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+      }
+    }
+    document.getElementById('reloadUnifiedChatsBtn').onclick = loadUnifiedChats;
+    loadUnifiedChats();
+  // --- Panel tipo chat: Bots clásicos ---
+  async function loadClassicChats() {
+    const panel = document.getElementById('classicChatsPanel');
+    panel.innerHTML = 'Cargando...';
+    try {
+      const resp = await fetch('/bot/groups', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      if (resp.ok) {
+        const js = await resp.json();
+        const chats = js.groups || [];
+        if (!chats.length) { panel.innerHTML = '<span style="color:#888">No hay chats.</span>'; return; }
+        let html = '';
+        chats.forEach(chat => {
+          html += `<div style='margin-bottom:10px;padding:8px 10px;background:#222;border-radius:8px'>`;
+          html += `<b>${chat.title || chat.id}</b> <span style='color:#888'>(${chat.type || ''})</span><br/>`;
+          if (chat.messages && chat.messages.length) {
+            html += `<div style='margin-top:4px'>`;
+            chat.messages.slice(0,3).forEach(msg => {
+              html += `<div style='color:#ccc;font-size:0.97em;margin-bottom:2px'>${msg.text || '[sin texto]'}</div>`;
+            });
+            html += `</div>`;
+          }
+          html += `</div>`;
+        });
+        panel.innerHTML = html;
+      } else {
+        panel.innerHTML = '<span style="color:#f44">Error cargando chats.</span>';
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+    }
+  }
+  document.getElementById('reloadClassicChatsBtn').onclick = loadClassicChats;
+  loadClassicChats();
+
+  // --- Panel tipo chat: TDLib ---
+  async function loadTdlibChats() {
+    const panel = document.getElementById('tdlibChatsPanel');
+    panel.innerHTML = 'Cargando...';
+    let apiId = localStorage.getItem('tdlibApiId') || '';
+    let apiHash = localStorage.getItem('tdlibApiHash') || '';
+    if (!apiId || !apiHash) {
+      apiId = prompt('Introduce tu Telegram api_id para TDLib:');
+      if (!apiId) { panel.innerHTML = '<span style=\"color:#f44\">Debes introducir api_id para ver chats TDLib.</span>'; return; }
+      apiHash = prompt('Introduce tu Telegram api_hash para TDLib:');
+      if (!apiHash) { panel.innerHTML = '<span style=\"color:#f44\">Debes introducir api_hash para ver chats TDLib.</span>'; return; }
+      localStorage.setItem('tdlibApiId', apiId);
+      localStorage.setItem('tdlibApiHash', apiHash);
+    }
+    try {
+      const resp = await fetch('/tdlib/chats', { headers: { 'x-tdlib-api-id': apiId, 'x-tdlib-api-hash': apiHash, 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      if (resp.ok) {
+        const chats = await resp.json();
+        if (!chats.length) { panel.innerHTML = '<span style="color:#888">No hay chats.</span>'; return; }
+        let html = '';
+        chats.forEach(chat => {
+          html += `<div style='margin-bottom:10px;padding:8px 10px;background:#222;border-radius:8px'>`;
+          html += `<b>${chat.title || chat.id}</b> <span style='color:#888'>(${chat.type || ''})</span><br/>`;
+          if (chat.messages && chat.messages.length) {
+            html += `<div style='margin-top:4px'>`;
+            chat.messages.slice(0,3).forEach(msg => {
+              html += `<div style='color:#ccc;font-size:0.97em;margin-bottom:2px'>${msg.text || '[sin texto]'}</div>`;
+            });
+            html += `</div>`;
+          }
+          html += `</div>`;
+        });
+        panel.innerHTML = html;
+      } else {
+        panel.innerHTML = '<span style="color:#f44">Error cargando chats TDLib.</span>';
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+    }
+  }
+  document.getElementById('reloadTdlibChatsBtn').onclick = loadTdlibChats;
+  loadTdlibChats();
 document.addEventListener('DOMContentLoaded', ()=>{
-                                                                                                                      // Panel de recuperación de contraseña para usuarios
-                                                                                                                      if (localStorage.getItem('role') === 'user') {
-                                                                                                                        const pwResetPanel = document.createElement('div');
-                                                                                                                        pwResetPanel.id = 'pwResetPanel';
-                                                                                                                        pwResetPanel.style.margin = '32px 0';
-                                                                                                                        pwResetPanel.innerHTML = `<h2 style='color:#6cf'>¿Olvidaste tu contraseña?</h2><div><input type='text' id='pwResetUser' placeholder='Usuario' style='margin-right:8px;'><button id='pwResetBtn'>Solicitar nueva contraseña</button> <span id='pwResetMsg' style='color:#f44;margin-left:10px;'></span></div>`;
-                                                                                                                        document.body.appendChild(pwResetPanel);
-                                                                                                                        document.getElementById('pwResetBtn').onclick = async () => {
-                                                                                                                          const user = document.getElementById('pwResetUser').value.trim();
-                                                                                                                          const msgSpan = document.getElementById('pwResetMsg');
-                                                                                                                          if (!user) { msgSpan.textContent = 'Introduce tu usuario.'; return; }
-                                                                                                                          msgSpan.textContent = 'Procesando...';
-                                                                                                                          try {
-                                                                                                                            const resp = await fetch('/auth/request_reset', {
-                                                                                                                              method: 'POST',
-                                                                                                                              headers: { 'Content-Type': 'application/json' },
-                                                                                                                              body: JSON.stringify({ user })
-                                                                                                                            });
-                                                                                                                            if (resp.ok) {
-                                                                                                                              msgSpan.textContent = 'Solicitud enviada. Revisa tu email o Telegram.';
-                                                                                                                            } else {
-                                                                                                                              const err = await resp.json();
-                                                                                                                              msgSpan.textContent = err.detail || 'Error al solicitar.';
-                                                                                                                            }
-                                                                                                                          } catch (e) {
-                                                                                                                            msgSpan.textContent = 'Error de red.';
-                                                                                                                          }
-                                                                                                                        };
-                                                                                                                      }
-                                                                                                                    // Panel de bots y ajustes para usuario normal (no owner)
-                                                                                                                    if (localStorage.getItem('role') === 'user') {
-                                                                                                                      const myBotsPanel = document.createElement('div');
-                                                                                                                      myBotsPanel.id = 'myBotsPanel';
-                                                                                                                      myBotsPanel.style.margin = '32px 0';
-                                                                                                                      myBotsPanel.innerHTML = `<h2 style='color:#6cf'>Mis bots y ajustes</h2><div id='myBotsList'>Cargando...</div>`;
-                                                                                                                      document.body.appendChild(myBotsPanel);
-                                                                                                                      async function loadMyBots() {
-                                                                                                                        const listDiv = document.getElementById('myBotsList');
-                                                                                                                        listDiv.innerHTML = 'Cargando...';
-                                                                                                                        try {
-                                                                                                                          const resp = await fetch('/bot/mybots', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
-                                                                                                                          if (resp.ok) {
-                                                                                                                            const js = await resp.json();
-                                                                                                                            const list = js.bots || [];
-                                                                                                                            if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No tienes bots registrados.</span>'; return; }
-                                                                                                                            const frag = document.createDocumentFragment();
-                                                                                                                            list.forEach(bot => {
-                                                                                                                              const botDiv = document.createElement('div');
-                                                                                                                              botDiv.style.background = '#222';
-                                                                                                                              botDiv.style.marginBottom = '16px';
-                                                                                                                              botDiv.style.padding = '12px';
-                                                                                                                              botDiv.style.borderRadius = '8px';
-                                                                                                                              botDiv.innerHTML = `<b>Bot:</b> ${bot.name || bot.id}`;
-                                                                                                                              const settingsDiv = document.createElement('div');
-                                                                                                                              settingsDiv.style.fontSize = '0.97em';
-                                                                                                                              settingsDiv.style.color = '#ccc';
-                                                                                                                              settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings)}`;
-                                                                                                                              botDiv.appendChild(settingsDiv);
-                                                                                                                              frag.appendChild(botDiv);
-                                                                                                                            });
-                                                                                                                            listDiv.innerHTML = '';
-                                                                                                                            listDiv.appendChild(frag);
-                                                                                                                          }
-                                                                                                                        } catch (e) {
-                                                                                                                          listDiv.innerHTML = '<span style="color:#f44">Error cargando bots.</span>';
-                                                                                                                        }
-                                                                                                                      }
-                                                                                                                      loadMyBots();
-                                                                                                                    }
-                                                                                                                  // Panel de bots de usuarios y sus ajustes (solo owner)
-                                                                                                                  if (localStorage.getItem('role') === 'owner') {
-                                                                                                                    const userBotsPanel = document.createElement('div');
-                                                                                                                    userBotsPanel.id = 'userBotsPanel';
-                                                                                                                    userBotsPanel.style.margin = '32px 0';
-                                                                                                                    userBotsPanel.innerHTML = `<h2 style='color:#6cf'>Bots de usuarios y ajustes</h2><div id='userBotsList'>Cargando...</div>`;
-                                                                                                                    document.body.appendChild(userBotsPanel);
-                                                                                                                    async function loadUserBots() {
-                                                                                                                      const listDiv = document.getElementById('userBotsList');
-                                                                                                                      listDiv.innerHTML = 'Cargando...';
-                                                                                                                      try {
-                                                                                                                        const resp = await fetch('/bot/userbots', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
-                                                                                                                        if (resp.ok) {
-                                                                                                                          const js = await resp.json();
-                                                                                                                          const list = js.bots || [];
-                                                                                                                          if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay bots de usuarios.</span>'; return; }
-                                                                                                                          const frag = document.createDocumentFragment();
-                                                                                                                          list.forEach(bot => {
-                                                                                                                            const botDiv = document.createElement('div');
-                                                                                                                            botDiv.style.background = '#222';
-                                                                                                                            botDiv.style.marginBottom = '16px';
-                                                                                                                            botDiv.style.padding = '12px';
-                                                                                                                            botDiv.style.borderRadius = '8px';
-                                                                                                                            botDiv.innerHTML = `<b>Usuario:</b> ${bot.owner} <span style='color:#6cf'>Bot: ${bot.name || bot.id}</span>`;
-                                                                                                                            const settingsDiv = document.createElement('div');
-                                                                                                                            settingsDiv.style.fontSize = '0.97em';
-                                                                                                                            settingsDiv.style.color = '#ccc';
-                                                                                                                            settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings)}`;
-                                                                                                                            botDiv.appendChild(settingsDiv);
-                                                                                                                            frag.appendChild(botDiv);
-                                                                                                                          });
-                                                                                                                          listDiv.innerHTML = '';
-                                                                                                                          listDiv.appendChild(frag);
-                                                                                                                        }
-                                                                                                                      } catch (e) {
-                                                                                                                        listDiv.innerHTML = '<span style="color:#f44">Error cargando bots.</span>';
-                                                                                                                      }
-                                                                                                                    }
-                                                                                                                    loadUserBots();
-                                                                                                                  }
+  // --- Panel bots clásicos ---
+  async function loadClassicBots() {
+    const panel = document.getElementById('userBotsPanel');
+    panel.innerHTML = 'Cargando...';
+    try {
+      const resp = await fetch('/bot/userbots', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      if (resp.ok) {
+        const js = await resp.json();
+        const list = js.bots || [];
+        if (!list.length) { panel.innerHTML = '<span style="color:#888">No hay bots de usuarios.</span>'; return; }
+        const frag = document.createDocumentFragment();
+        list.forEach(bot => {
+          const botDiv = document.createElement('div');
+          botDiv.style.background = '#222';
+          botDiv.style.marginBottom = '16px';
+          botDiv.style.padding = '12px';
+          botDiv.style.borderRadius = '8px';
+          botDiv.innerHTML = `<b>Usuario:</b> ${bot.owner} <span style='color:#6cf'>Bot: ${bot.name || bot.id}</span>`;
+          const settingsDiv = document.createElement('div');
+          settingsDiv.style.fontSize = '0.97em';
+          settingsDiv.style.color = '#ccc';
+          settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings || bot.info || {})}`;
+          botDiv.appendChild(settingsDiv);
+          frag.appendChild(botDiv);
+        });
+        panel.innerHTML = '';
+        panel.appendChild(frag);
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error cargando bots.</span>';
+    }
+  }
+  document.getElementById('reloadClassicBotsBtn').onclick = loadClassicBots;
+  loadClassicBots();
+
+  // --- Panel TDLib ---
+  async function loadTdlibClients() {
+    const panel = document.getElementById('tdlibClientsPanel');
+    panel.innerHTML = 'Cargando...';
+    let apiId = localStorage.getItem('tdlibApiId') || '';
+    let apiHash = localStorage.getItem('tdlibApiHash') || '';
+    if (!apiId || !apiHash) {
+      apiId = prompt('Introduce tu Telegram api_id para TDLib:');
+      if (!apiId) { panel.innerHTML = '<span style="color:#f44">Debes introducir api_id para ver clientes TDLib.</span>'; return; }
+      apiHash = prompt('Introduce tu Telegram api_hash para TDLib:');
+      if (!apiHash) { panel.innerHTML = '<span style="color:#f44">Debes introducir api_hash para ver clientes TDLib.</span>'; return; }
+      localStorage.setItem('tdlibApiId', apiId);
+      localStorage.setItem('tdlibApiHash', apiHash);
+    }
+    try {
+      const resp = await fetch('/tdlib/userclients', { headers: { 'x-tdlib-api-id': apiId, 'x-tdlib-api-hash': apiHash, 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      if (resp.ok) {
+        const js = await resp.json();
+        const list = js.clients || [];
+        if (!list.length) { panel.innerHTML = '<span style="color:#888">No hay clientes TDLib.</span>'; return; }
+        const frag = document.createDocumentFragment();
+        list.forEach(client => {
+          const clientDiv = document.createElement('div');
+          clientDiv.style.background = '#222';
+          clientDiv.style.marginBottom = '16px';
+          clientDiv.style.padding = '12px';
+          clientDiv.style.borderRadius = '8px';
+          clientDiv.innerHTML = `<b>Owner:</b> ${client.owner || '-'} <span style='color:#6cf'>TDLib: ${client.name || client.id}</span>`;
+          const infoDiv = document.createElement('div');
+          infoDiv.style.fontSize = '0.97em';
+          infoDiv.style.color = '#ccc';
+          infoDiv.innerHTML = `<b>Info:</b> ${JSON.stringify(client.info || {})}`;
+          clientDiv.appendChild(infoDiv);
+          frag.appendChild(clientDiv);
+        });
+        panel.innerHTML = '';
+        panel.appendChild(frag);
+      } else {
+        panel.innerHTML = '<span style="color:#f44">Error cargando clientes TDLib.</span>';
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+    }
+  }
+  document.getElementById('reloadTdlibClientsBtn').onclick = loadTdlibClients;
+  loadTdlibClients();
+
+  // --- Estadísticas bots clásicos ---
+  async function loadClassicStats() {
+    const panel = document.getElementById('classicStatsPanel');
+    panel.innerHTML = 'Cargando...';
+    try {
+      const resp = await fetch('/bot/stats', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      if (resp.ok) {
+        const js = await resp.json();
+        let html = '';
+        if (js.processes) {
+          html += `<div><b>Procesos:</b> <pre>${JSON.stringify(js.processes, null, 2)}</pre></div>`;
+        }
+        if (js.devices) {
+          html += `<div><b>Dispositivos:</b> <pre>${JSON.stringify(js.devices, null, 2)}</pre></div>`;
+        }
+        if (js.messages_count !== undefined) {
+          html += `<div><b>Mensajes:</b> ${js.messages_count}</div>`;
+        }
+        if (js.server_uptime !== undefined) {
+          html += `<div><b>Uptime:</b> ${js.server_uptime}s</div>`;
+        }
+        panel.innerHTML = html;
+      } else {
+        panel.innerHTML = '<span style="color:#f44">Error cargando estadísticas.</span>';
+      }
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+    }
+  }
+  document.getElementById('reloadClassicStatsBtn').onclick = loadClassicStats;
+  loadClassicStats();
+
+  // --- Estadísticas TDLib ---
+  async function loadTdlibStats() {
+    const panel = document.getElementById('tdlibStatsPanel');
+    panel.innerHTML = 'Cargando...';
+    let apiId = localStorage.getItem('tdlibApiId') || '';
+    let apiHash = localStorage.getItem('tdlibApiHash') || '';
+    if (!apiId || !apiHash) {
+      apiId = prompt('Introduce tu Telegram api_id para TDLib:');
+      if (!apiId) { panel.innerHTML = '<span style="color:#f44">Debes introducir api_id para ver estadísticas TDLib.</span>'; return; }
+      apiHash = prompt('Introduce tu Telegram api_hash para TDLib:');
+      if (!apiHash) { panel.innerHTML = '<span style="color:#f44">Debes introducir api_hash para ver estadísticas TDLib.</span>'; return; }
+      localStorage.setItem('tdlibApiId', apiId);
+      localStorage.setItem('tdlibApiHash', apiHash);
+    }
+    try {
+      const chatsResp = await fetch('/tdlib/chats', { headers: { 'x-tdlib-api-id': apiId, 'x-tdlib-api-hash': apiHash, 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      const messagesResp = await fetch('/tdlib/messages', { headers: { 'x-tdlib-api-id': apiId, 'x-tdlib-api-hash': apiHash, 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+      let html = '';
+      if (chatsResp.ok) {
+        const chats = await chatsResp.json();
+        html += `<div><b>Chats:</b> <pre>${JSON.stringify(chats, null, 2)}</pre></div>`;
+      }
+      if (messagesResp.ok) {
+        const messages = await messagesResp.json();
+        html += `<div><b>Eventos/Mensajes recientes:</b> <pre>${JSON.stringify(messages, null, 2)}</pre></div>`;
+      }
+      panel.innerHTML = html;
+    } catch (e) {
+      panel.innerHTML = '<span style="color:#f44">Error de red.</span>';
+    }
+  }
+  document.getElementById('reloadTdlibStatsBtn').onclick = loadTdlibStats;
+  loadTdlibStats();
+
+  // ...resto de la lógica existente...
+});
                                                                                                                 // Panel de historial de acciones de ban para owner
                                                                                                                 if (localStorage.getItem('role') === 'owner') {
                                                                                                                   const banHistoryPanel = document.createElement('div');
@@ -214,40 +418,68 @@ document.addEventListener('DOMContentLoaded', ()=>{
                                                                                                                 banSuggestPanel.style.margin = '32px 0';
                                                                                                                 banSuggestPanel.innerHTML = `<h2 style='color:#6cf'>Sugerencias de ban de admins</h2><div id='banSuggestList'>Cargando...</div>`;
                                                                                                                 document.body.appendChild(banSuggestPanel);
-                                                                                                                async function loadBanSuggestions() {
-                                                                                                                  const listDiv = document.getElementById('banSuggestList');
+                                                                                                                async function loadUserBots() {
+                                                                                                                  const listDiv = document.getElementById('userBotsList');
+                                                                                                                  const botType = document.getElementById('botTypeSelector')?.value || 'telegram';
                                                                                                                   listDiv.innerHTML = 'Cargando...';
+                                                                                                                  let url = '/bot/userbots';
+                                                                                                                  let headers = { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') };
+                                                                                                                  if (botType === 'tdlib') {
+                                                                                                                    url = '/tdlib/userclients';
+                                                                                                                    // Pedir api_id y api_hash de Telegram
+                                                                                                                    let apiId = localStorage.getItem('tdlibApiId') || '';
+                                                                                                                    let apiHash = localStorage.getItem('tdlibApiHash') || '';
+                                                                                                                    if (!apiId || !apiHash) {
+                                                                                                                      apiId = prompt('Introduce tu Telegram api_id para TDLib:');
+                                                                                                                      if (!apiId) {
+                                                                                                                        listDiv.innerHTML = '<span style="color:#f44">Debes introducir api_id para ver clientes TDLib.</span>';
+                                                                                                                        return;
+                                                                                                                      }
+                                                                                                                      apiHash = prompt('Introduce tu Telegram api_hash para TDLib:');
+                                                                                                                      if (!apiHash) {
+                                                                                                                        listDiv.innerHTML = '<span style="color:#f44">Debes introducir api_hash para ver clientes TDLib.</span>';
+                                                                                                                        return;
+                                                                                                                      }
+                                                                                                                      localStorage.setItem('tdlibApiId', apiId);
+                                                                                                                      localStorage.setItem('tdlibApiHash', apiHash);
+                                                                                                                    }
+                                                                                                                    headers['x-tdlib-api-id'] = apiId;
+                                                                                                                    headers['x-tdlib-api-hash'] = apiHash;
+                                                                                                                  }
                                                                                                                   try {
-                                                                                                                    const resp = await fetch('/bot/group/ban_suggestions', { headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
+                                                                                                                    const resp = await fetch(url, { headers });
                                                                                                                     if (resp.ok) {
                                                                                                                       const js = await resp.json();
-                                                                                                                      const list = js.suggestions || [];
-                                                                                                                      if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay sugerencias.</span>'; return; }
+                                                                                                                      const list = js.bots || js.clients || [];
+                                                                                                                      if (!list.length) { listDiv.innerHTML = '<span style="color:#888">No hay bots/clientes de este tipo.</span>'; return; }
                                                                                                                       const frag = document.createDocumentFragment();
-                                                                                                                      list.forEach((sug, idx) => {
-                                                                                                                        const sugDiv = document.createElement('div');
-                                                                                                                        sugDiv.style.background = '#222';
-                                                                                                                        sugDiv.style.marginBottom = '16px';
-                                                                                                                        sugDiv.style.padding = '12px';
-                                                                                                                        sugDiv.style.borderRadius = '8px';
-                                                                                                                        sugDiv.innerHTML = `<b>Sugerencia #${idx+1}</b> <span style='color:#6cf'>IDs: ${sug.ids.length}</span> <span style='color:#888'>De: ${sug.from}</span>`;
-                                                                                                                        const idsList = document.createElement('div');
-                                                                                                                        idsList.style.fontSize = '0.97em';
-                                                                                                                        idsList.style.color = '#ccc';
-                                                                                                                        idsList.textContent = sug.ids.join(', ');
-                                                                                                                        sugDiv.appendChild(idsList);
-                                                                                                                        const btns = document.createElement('div'); btns.style.marginTop = '8px';
-                                                                                                                        const approveBtn = document.createElement('button'); approveBtn.textContent = 'Aprobar'; approveBtn.className = 'ghost';
-                                                                                                                        approveBtn.onclick = async () => {
-                                                                                                                          approveBtn.disabled = true;
-                                                                                                                          await fetch('/bot/group/importban', {
-                                                                                                                            method: 'POST',
-                                                                                                                            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + localStorage.getItem('authToken') },
-                                                                                                                            body: JSON.stringify({ ids: sug.ids, global: true })
-                                                                                                                          });
-                                                                                                                          await fetch(`/bot/group/ban_suggestions/${idx}/delete`, { method: 'POST', headers: { 'Authorization': 'Bearer ' + localStorage.getItem('authToken') } });
-                                                                                                                          await loadBanSuggestions();
-                                                                                                                        };
+                                                                                                                      list.forEach(bot => {
+                                                                                                                        const botDiv = document.createElement('div');
+                                                                                                                        botDiv.style.background = '#222';
+                                                                                                                        botDiv.style.marginBottom = '16px';
+                                                                                                                        botDiv.style.padding = '12px';
+                                                                                                                        botDiv.style.borderRadius = '8px';
+                                                                                                                        botDiv.innerHTML = `<b>Usuario:</b> ${bot.owner || bot.user || '-'} <span style='color:#6cf'>${botType === 'tdlib' ? 'Cliente TDLib' : 'Bot'}: ${bot.name || bot.id}</span>`;
+                                                                                                                        const settingsDiv = document.createElement('div');
+                                                                                                                        settingsDiv.style.fontSize = '0.97em';
+                                                                                                                        settingsDiv.style.color = '#ccc';
+                                                                                                                        settingsDiv.innerHTML = `<b>Ajustes:</b> ${JSON.stringify(bot.settings || bot.info || {})}`;
+                                                                                                                        botDiv.appendChild(settingsDiv);
+                                                                                                                        frag.appendChild(botDiv);
+                                                                                                                      });
+                                                                                                                      listDiv.innerHTML = '';
+                                                                                                                      listDiv.appendChild(frag);
+                                                                                                                    } else {
+                                                                                                                      listDiv.innerHTML = '<span style="color:#f44">Error cargando bots/clientes.</span>';
+                                                                                                                    }
+                                                                                                                  } catch (e) {
+                                                                                                                    listDiv.innerHTML = '<span style="color:#f44">Error de red.</span>';
+                                                                                                                  }
+                                                                                                                }
+                                                                                                                // Recarga al cambiar el selector
+                                                                                                                const botTypeSelector = document.getElementById('botTypeSelector');
+                                                                                                                if (botTypeSelector) botTypeSelector.onchange = loadUserBots;
+                                                                                                                loadUserBots();
                                                                                                                         btns.appendChild(approveBtn);
                                                                                                                         const rejectBtn = document.createElement('button'); rejectBtn.textContent = 'Rechazar'; rejectBtn.className = 'ghost'; rejectBtn.style.marginLeft = '8px';
                                                                                                                         rejectBtn.onclick = async () => {

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Enviar Anuncio - DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
+    .container { max-width: 480px; margin: 48px auto; background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 32px 28px; }
+    h1 { color: #6cf; margin-bottom: 18px; }
+    label { display: block; margin-top: 16px; color: #facc15; }
+    input, textarea { width: 100%; background: #222b3a; color: #fff; border: none; border-radius: 6px; padding: 8px; margin-top: 4px; font-size: 1em; }
+    textarea { min-height: 80px; resize: vertical; }
+    .btn { background: #6cf; color: #101624; border: none; border-radius: 6px; padding: 10px 24px; margin-top: 22px; font-size: 1.1em; cursor: pointer; font-weight: bold; }
+    .msg { margin-top: 18px; font-size: 1.05em; }
+    .login-info { color: #aaa; font-size: 0.98em; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Enviar Anuncio</h1>
+    <div class="login-info" id="loginInfo">Cargando usuario...</div>
+    <form id="anuncioForm">
+      <label for="titulo">Título</label>
+      <input type="text" id="titulo" name="titulo" maxlength="80" required />
+      <label for="contenido">Contenido</label>
+      <textarea id="contenido" name="contenido" maxlength="1000" required></textarea>
+      <button class="btn" type="submit">Enviar anuncio</button>
+    </form>
+    <div class="msg" id="msg"></div>
+  </div>
+  <script>
+    // Simulación de usuario autenticado (reemplazar por lógica real)
+    const usuario = { username: 'demo_user', id: 123 };
+    document.getElementById('loginInfo').textContent = 'Usuario: ' + usuario.username;
+
+    document.getElementById('anuncioForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const titulo = document.getElementById('titulo').value.trim();
+      const contenido = document.getElementById('contenido').value.trim();
+      if (!titulo || !contenido) return;
+      document.getElementById('msg').textContent = 'Enviando...';
+      try {
+        const res = await fetch('/api/anuncios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo, contenido, usuario })
+        });
+        if (res.ok) {
+          document.getElementById('msg').textContent = '¡Anuncio enviado para revisión/publicación!';
+          document.getElementById('anuncioForm').reset();
+        } else {
+          document.getElementById('msg').textContent = 'Error al enviar el anuncio.';
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = 'Error de red.';
+      }
+    };
+  </script>
+</body>
+</html>

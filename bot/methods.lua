@@ -58,6 +58,64 @@ function sendRequest(request_id, chat_id, reply_to_message_id, disable_notificat
   }, callback or dl_cb, extra)
 end
 
+
+-- ================= FUNCIONES SUGERIDAS (STUBS) =================
+
+-- Notificaciones avanzadas
+function notify_admins_critical(message)
+  -- Notificar a los administradores sobre eventos críticos
+  -- TODO: Implementar lógica de notificación
+end
+
+function send_activity_report(chat_id)
+  -- Enviar reporte de actividad al chat
+  -- TODO: Implementar lógica de reporte
+end
+
+-- Gestión de usuarios y permisos
+function get_user_permissions(user_id)
+  -- Obtener permisos de un usuario
+  -- TODO: Implementar lógica de consulta
+end
+
+function set_user_permission(user_id, permission, value)
+  -- Asignar/quitar permiso a usuario
+  -- TODO: Implementar lógica de asignación
+end
+
+-- Integración con servicios externos
+function check_service_health(service_name)
+  -- Comprobar estado de un servicio externo
+  -- TODO: Implementar lógica de chequeo
+end
+
+function restart_external_service(service_name)
+  -- Reiniciar servicio externo
+  -- TODO: Implementar lógica de reinicio
+end
+
+-- Automatización y mantenimiento
+function auto_clean_logs(days)
+  -- Eliminar logs antiguos automáticamente
+  -- TODO: Implementar lógica de limpieza
+end
+
+function check_for_updates()
+  -- Comprobar si hay actualizaciones del bot o dependencias
+  -- TODO: Implementar lógica de actualización
+end
+
+-- Utilidades administrativas
+function backup_database()
+  -- Realizar backup de la base de datos
+  -- TODO: Implementar lógica de backup
+end
+
+function restore_database()
+  -- Restaurar base de datos desde backup
+  -- TODO: Implementar lógica de restauración
+end
+
 function add_user(chat_id, user_id)
   	tdcli_function ({
     	ID = "AddChatMember",

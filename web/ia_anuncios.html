@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Generar Anuncio por IA - DBTeam</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
+    .container { max-width: 540px; margin: 48px auto; background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 32px 28px; }
+    h1 { color: #6cf; margin-bottom: 18px; }
+    label { display: block; margin-top: 16px; color: #facc15; }
+    textarea, input { width: 100%; background: #222b3a; color: #fff; border: none; border-radius: 6px; padding: 8px; margin-top: 4px; font-size: 1em; }
+    textarea { min-height: 60px; resize: vertical; }
+    .btn { background: #6cf; color: #101624; border: none; border-radius: 6px; padding: 10px 24px; margin-top: 22px; font-size: 1.1em; cursor: pointer; font-weight: bold; }
+    .msg { margin-top: 18px; font-size: 1.05em; }
+    .anuncio-preview { background: #222b3a; border-radius: 8px; padding: 16px; margin-top: 18px; color: #fff; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Generar Anuncio por IA</h1>
+    <form id="iaForm">
+      <label for="prompt">Describe el anuncio que quieres generar</label>
+      <textarea id="prompt" name="prompt" maxlength="400" required placeholder="Ejemplo: Anuncio para promocionar un evento de tecnología este sábado..."></textarea>
+      <button class="btn" type="submit">Generar anuncio</button>
+    </form>
+    <div class="msg" id="msg"></div>
+    <div class="anuncio-preview" id="anuncioPreview" style="display:none"></div>
+    <button class="btn" id="publicarBtn" style="display:none;margin-top:18px">Publicar anuncio</button>
+  </div>
+  <script>
+    let anuncioGenerado = null;
+    document.getElementById('iaForm').onsubmit = async function(e) {
+      e.preventDefault();
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!prompt) return;
+      document.getElementById('msg').textContent = 'Generando anuncio...';
+      document.getElementById('anuncioPreview').style.display = 'none';
+      document.getElementById('publicarBtn').style.display = 'none';
+      try {
+        const res = await fetch('/api/ia_anuncio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt })
+        });
+        const data = await res.json();
+        if (data.ok && data.anuncio) {
+          anuncioGenerado = data.anuncio;
+          document.getElementById('anuncioPreview').textContent = anuncioGenerado;
+          document.getElementById('anuncioPreview').style.display = 'block';
+          document.getElementById('publicarBtn').style.display = 'inline-block';
+          document.getElementById('msg').textContent = '';
+        } else {
+          document.getElementById('msg').textContent = 'No se pudo generar el anuncio.';
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = 'Error de red.';
+      }
+    };
+    document.getElementById('publicarBtn').onclick = async function() {
+      if (!anuncioGenerado) return;
+      document.getElementById('msg').textContent = 'Publicando anuncio...';
+      try {
+        const res = await fetch('/api/anuncios', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ titulo: 'Anuncio IA', contenido: anuncioGenerado, usuario: { username: 'ia', is_admin: true } })
+        });
+        const data = await res.json();
+        if (data.ok) {
+          document.getElementById('msg').textContent = '¡Anuncio enviado para revisión/publicación!';
+          document.getElementById('anuncioPreview').style.display = 'none';
+          document.getElementById('publicarBtn').style.display = 'none';
+          document.getElementById('iaForm').reset();
+        } else {
+          document.getElementById('msg').textContent = 'Error al publicar el anuncio.';
+        }
+      } catch (err) {
+        document.getElementById('msg').textContent = 'Error de red.';
+      }
+    };
+  </script>
+</body>
+</html>

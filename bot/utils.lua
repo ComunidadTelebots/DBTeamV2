@@ -102,3 +102,34 @@ function strike_out(text, underline_spaces)
   end
   return text_str
 end
+
+
+-- ================= FUNCIONES SUGERIDAS (STUBS) =================
+
+-- Utilidad: Formatear fecha/hora para logs o reportes
+function format_datetime(ts)
+    -- Formatea un timestamp a string legible
+    -- TODO: Implementar formato personalizado
+    return os.date('%Y-%m-%d %H:%M:%S', ts)
+end
+
+-- Utilidad: Validar si usuario es admin
+function is_user_admin(user_id, chat_id)
+    -- Verifica si el usuario es admin en el chat
+    -- TODO: Implementar lógica de validación
+    return false
+end
+
+-- Utilidad: Generar resumen de logs
+function summarize_logs(log_path)
+    -- Genera un resumen de errores o actividad de un log
+    -- TODO: Implementar lógica de resumen
+    return ""
+end
+
+-- Utilidad: Autocompletar comandos
+function autocomplete_command(input)
+    -- Sugerir comandos según input parcial
+    -- TODO: Implementar lógica de autocompletado
+    return {}
+end

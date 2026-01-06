@@ -1,0 +1,14 @@
+# TDLib support
+python-tdlib>=0.8.0
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+redis==4.6.0
+cryptography==41.0.3
+requests==2.31.0
+python-dotenv==1.0.0
+python-telegram-bot==20.5
+transformers>=4.34.0
+torch>=2.2.0
+flask
+# Optional: TDLib Python bindings (install only if TDLib native library is available)
+# python-tdlib>=0.8.0
