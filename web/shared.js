@@ -169,4 +169,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     // apply on load
     applyThemeSettings(loadThemeSettings());
   }catch(e){}
+
+  var ownerLinks = document.querySelectorAll('nav.main-nav a[href="owner.html"]');
+  ownerLinks.forEach(function(link) {
+    link.addEventListener('click', function(e) {
+      e.preventDefault();
+      // Puedes mostrar un mensaje, modal, o simplemente no hacer nada
+      alert('Acceso al panel Owner deshabilitado desde este menú.');
+    });
+  });
 });

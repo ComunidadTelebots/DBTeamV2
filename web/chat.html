@@ -5,10 +5,64 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Chat — DBTeam</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="shared.css" />
-  <link rel="icon" href="/logo.svg">
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/shared.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
+    :root {
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --bg: #071028;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #b0b8c9;
+    }
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #1a2233;
+      --muted: #6b7280;
+    }
+    body {
+      background: linear-gradient(180deg, var(--bg), #021021);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+      font-family: Inter, Arial, sans-serif;
+    }
+    .site-header {
+      background: var(--card);
+      box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+    }
+    .main-nav a, .header-actions a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      margin-right: 12px;
+      transition: color 0.2s;
+    }
+    .main-nav a:hover, .header-actions a:hover {
+      color: var(--accent-2);
+    }
+    [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+      color: #2563eb;
+    }
+    [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+      color: #7c3aed;
+    }
+    .theme-toggle-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-2);
+    }
     .chat-wrap{display:flex;gap:16px}
     .chat-list{width:320px;max-height:70vh;overflow:auto;padding:8px;background:var(--card);border-radius:8px}
     .chat-window{flex:1;display:flex;flex-direction:column;max-height:70vh}
@@ -22,6 +76,20 @@
 </head>
 <body>
   <header class="site-header">
+    <aside id="notificationSidebar" style="position:fixed;right:-340px;top:0;height:100vh;width:320px;background:var(--card,#181f2a);box-shadow:-2px 0 8px #0002;z-index:1000;transition:right 0.3s;overflow-y:auto;padding:18px 16px 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:700;font-size:1.2rem">Notificaciones</span>
+        <button id="closeSidebarBtn" class="btn ghost" style="font-size:1.2rem">×</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <label for="tgChannelInput" style="font-size:0.95rem;color:#888">Canal Telegram para notificaciones</label>
+        <input id="tgChannelInput" type="text" placeholder="@micanal o -100123456789" style="width:100%;margin-top:4px" />
+        <button id="saveTgChannelBtn" class="btn" style="margin-top:6px">Guardar canal</button>
+        <span id="tgChannelStatus" style="margin-left:8px;color:#888"></span>
+      </div>
+      <div id="notificationList"></div>
+    </aside>
+    <button id="openSidebarBtn" style="position:fixed;right:12px;top:60px;z-index:1001;background:var(--owner-color,#1e90ff);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:1.1rem;box-shadow:0 2px 8px #0002;cursor:pointer">🔔</button>
     <div class="header-inner">
       <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
       <nav class="main-nav" aria-label="Main navigation">
@@ -30,9 +98,11 @@
         <a href="telegram.html">Telegram</a>
         <a href="monitor.html">Monitor</a>
         <a href="traducciones.html">Traducciones</a>
+        <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
         <a href="links.html">Enlaces</a>
         <a href="status.html">Estado</a>
-        <a href="wsl_install.html">WSL install</a>
+        <a href="bot_settings.html">Bots</a>
+        <a href="owner.html">Owner</a>
       </nav>
       <div class="header-actions">
         <a href="login.html" class="btn">Login</a>
@@ -41,17 +111,43 @@
       <button class="nav-toggle" aria-label="Abrir menú">☰</button>
     </div>
   </header>
+  <script>
+    // Tema: claro/oscuro con persistencia
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      setTheme(saved);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.addEventListener('click', toggleTheme);
+    });
+  </script>
 
   <main class="container">
-    <h1>Chat UI</h1>
-    <p class="hint">Conecta a la API, elige chat_id y envía/recibe mensajes en tiempo real (polling).</p>
-
-    <!-- Recursos desplegable debajo del encabezado de Chat UI -->
-    <div class="chat-resources">
-      <button id="toggleChatResources" class="secondary" style="margin-bottom:8px">Recursos</button>
-      <button id="btnSettings" class="secondary" style="margin-left:8px;margin-bottom:8px">Ajustes</button>
-      <div id="chatResources" style="display:none;padding:8px;background:rgba(255,255,255,0.01);border-radius:8px;border:1px solid rgba(255,255,255,0.02);margin-bottom:12px"></div>
-    </div>
+    <section class="info-card" style="background:linear-gradient(90deg,#2563eb22,#7c3aed22);border-radius:12px;padding:18px 22px;margin-bottom:18px;box-shadow:0 2px 8px #0001;display:flex;align-items:center;gap:18px">
+      <img src="logo.svg" alt="DBTeam" style="width:48px;height:48px;border-radius:8px;box-shadow:0 2px 8px #0002">
+      <div>
+        <h2 style="margin:0 0 6px 0;font-size:1.25em;color:var(--accent)">Chat en tiempo real DBTeam</h2>
+        <div style="color:var(--muted);font-size:1.05em">
+          Envía y recibe mensajes en tiempo real con tu bot o grupo.<br>
+          <ul style="margin:6px 0 0 18px;padding:0;color:var(--muted);font-size:0.98em">
+            <li>Conecta usando tu <b>API Key</b> o token de sesión.</li>
+            <li>Selecciona el <b>chat_id</b> para interactuar con diferentes grupos o usuarios.</li>
+            <li>Soporte para <b>mensajes multimedia</b> y <b>notificaciones</b>.</li>
+            <li>Recarga la lista de chats y mensajes en cualquier momento.</li>
+            <li>¡Prueba el modo oscuro/claro con el botón 🌙/☀️!</li>
+          </ul>
+        </div>
+      </div>
+    </section>
 
     <label for="apiBaseChat">API base:</label>
     <input id="apiBaseChat" type="text" value="http://localhost:8081" />

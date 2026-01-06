@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="g1" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#00C6FF"/>
+      <stop offset="1" stop-color="#0072FF"/>
+    </linearGradient>
+    <filter id="s" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="6" stdDeviation="18" flood-color="#0b2340" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <g filter="url(#s)">
+    <circle cx="256" cy="256" r="220" fill="url(#g1)"/>
+  </g>
+  <path d="M160 200c0-61.856 50.144-112 112-112s112 50.144 112 112-50.144 112-112 112c-18.016 0-34.72-4.008-49.6-11.12L184 376l9.68-46.24C170.096 311.28 160 257.472 160 200z" fill="#ffffff" opacity="0.98"/>
+  <g transform="translate(120,130) scale(1.4)" fill="#0072FF">
+    <path d="M86 46c0-25.36-20.64-46-46-46H6v184h34V110h20l36 74h40L86 46z" fill="#004EA8"/>
+    <path d="M298 0h-78c-25.36 0-46 20.64-46 46v92c0 25.36 20.64 46 46 46h78c25.36 0 46-20.64 46-46V46c0-25.36-20.64-46-46-46zM286 136c0 8.836-7.164 16-16 16h-60V46c0-8.836 7.164-16 16-16h60c8.836 0 16 7.164 16 16v90z" fill="#002A66"/>
+  </g>
+  <polygon points="354,144 332,196 378,180 346,232 390,164" fill="#FFD66B" opacity="0.95"/>
+  <text x="50%" y="470" font-family="Segoe UI, Roboto, Arial" font-size="28" fill="#08203A" text-anchor="middle">DBTeam</text>
+</svg>

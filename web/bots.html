@@ -1,9 +1,13 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>DBTeamV2 — Instalación en WSL</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Bots — DBTeam</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/shared.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
     :root {
       --accent: #2563eb;
@@ -60,16 +64,6 @@
       background: var(--accent-2);
     }
   </style>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="shared.css" />
-  <style>
-    body{margin:0;padding:0}
-    .card{background:linear-gradient(180deg,#071024,#04121a);border-radius:8px;padding:20px;max-width:780px;margin:20px auto}
-    pre{background:#041226;color:#dff4ff;padding:12px;border-radius:6px;overflow:auto}
-    button{background:var(--accent);color:#fff;border:none;padding:10px 14px;border-radius:6px;cursor:pointer}
-    a{color:var(--accent)}
-  </style>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
 </head>
 <body>
   <header class="site-header">
@@ -98,7 +92,8 @@
         <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
         <a href="links.html">Enlaces</a>
         <a href="status.html">Estado</a>
-        <a href="wsl_install.html">WSL install</a>
+        <a href="bot_settings.html">Bots</a>
+        <a href="owner.html">Owner</a>
       </nav>
       <div class="header-actions">
         <a href="login.html" class="btn">Login</a>
@@ -107,40 +102,29 @@
       <button class="nav-toggle" aria-label="Abrir menú">☰</button>
     </div>
   </header>
-
-  <div class="card">
-    <h1>Instalación en WSL (Ubuntu)</h1>
-    <p>Este asistente proporciona un script descargable para preparar WSL/Ubuntu y lanzar los servicios requeridos (Redis, API y bot).</p>
-
-    <h2>Paso 1 — Descargar el script</h2>
-    <p>Haz clic para descargar el script de instalación:</p>
-    <p><a href="/scripts/setup_wsl.sh" download>Descargar <strong>setup_wsl.sh</strong></a></p>
-
-    <h2>Paso 2 — Ejecutar en WSL</h2>
-    <p>Abre una terminal WSL (Ubuntu) y ejecuta:</p>
-    <pre id="cmd">curl -sS --show-error -L "http://localhost:5500/scripts/setup_wsl.sh" -o setup_wsl.sh && chmod +x setup_wsl.sh && sudo ./setup_wsl.sh</pre>
-    <p>
-      Si prefieres copiar el comando manualmente:<br>
-      <button id="copyBtn">Copiar comando</button>
-    </p>
-
-    <h2>Notas</h2>
-    <ul>
-      <li>El script instala dependencias comunes: Python3, Redis, Docker (opcional) y crea un entorno virtual para `python_api`.</li>
-      <li>Revisa el contenido del script antes de ejecutarlo. <a href="/scripts/setup_wsl.sh">Ver script</a>.</li>
-      <li>El servidor web que sirve esta página debe ejecutarse en Windows y exponer el repo (ej. `live-server` o `python -m http.server 5500` desde la carpeta raíz del repo).</li>
-    </ul>
-
-    <h2>Ayuda</h2>
-    <p>Si quieres que prepare un paquete ZIP o que te guíe por la ejecución, hazme saber.</p>
-  </div>
-
   <script>
-    document.getElementById('copyBtn').addEventListener('click', function(){
-      const cmd = document.getElementById('cmd').textContent;
-      navigator.clipboard.writeText(cmd).then(()=>{ this.textContent = 'Copiado'; setTimeout(()=> this.textContent='Copiar comando',1500)}).catch(()=>{ alert('No se pudo copiar. Selecciona y copia manualmente.'); });
+    // Tema: claro/oscuro con persistencia
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      setTheme(saved);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.addEventListener('click', toggleTheme);
     });
   </script>
-  <script src="shared.js"></script>
+  <div class="content">
+    <h1>Bots</h1>
+    <p>Esta es la página de configuración y gestión de bots.</p>
+    <!-- Aquí puedes agregar más contenido relacionado con los bots -->
+  </div>
 </body>
 </html>

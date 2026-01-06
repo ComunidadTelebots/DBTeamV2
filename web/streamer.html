@@ -5,6 +5,61 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Streamer — OBS-like Web UI</title>
   <link rel="stylesheet" href="/streamer.css">
+  <style>
+    :root {
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --bg: #071028;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #b0b8c9;
+    }
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #1a2233;
+      --muted: #6b7280;
+    }
+    body {
+      background: linear-gradient(180deg, var(--bg), #021021);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+    }
+    .site-header {
+      background: var(--card);
+      box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+    }
+    .main-nav a, .header-actions a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      margin-right: 12px;
+      transition: color 0.2s;
+    }
+    .main-nav a:hover, .header-actions a:hover {
+      color: var(--accent-2);
+    }
+    [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+      color: #2563eb;
+    }
+    [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+      color: #7c3aed;
+    }
+    .theme-toggle-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-2);
+    }
+  </style>
 </head>
 <body>
   <div id="app" class="obs-ui">

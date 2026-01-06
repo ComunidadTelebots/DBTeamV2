@@ -57,8 +57,61 @@
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/shared.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="icon" href="/static/logo.svg">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
+    :root {
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --bg: #071028;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #b0b8c9;
+    }
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #1a2233;
+      --muted: #6b7280;
+    }
+    body {
+      background: linear-gradient(180deg, var(--bg), #021021);
+      color: var(--text);
+      font-family: Inter, Arial, sans-serif;
+    }
+    .site-header {
+      background: var(--card);
+      box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+    }
+    .main-nav a, .header-actions a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      margin-right: 12px;
+      transition: color 0.2s;
+    }
+    .main-nav a:hover, .header-actions a:hover {
+      color: var(--accent-2);
+    }
+    [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+      color: #2563eb;
+    }
+    [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+      color: #7c3aed;
+    }
+    .theme-toggle-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-2);
+    }
     .geo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:12px}
     .geo-block{padding:8px;border:1px solid var(--border, #e5e7eb);border-radius:10px;background:var(--panel, #0b1320)}
     .geo-map{margin-top:8px;height:260px;border:1px solid var(--border, #e5e7eb);border-radius:10px;overflow:hidden}
@@ -131,145 +184,37 @@
   </header>
 
   <main class="container">
-                                                            <!-- Panel de gestión de grupos y chats del bot -->
-                                                            <section id="botGroupsPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:700px;">
-                                                              <h2>Grupos y chats del bot</h2>
-                                                              <div id="botGroupsList">Cargando...</div>
-                                                            </section>
-                                                            <!-- Panel de mensajes recibidos por el bot -->
-                                                            <section id="botMessagesPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:700px;">
-                                                              <h2>Mensajes recibidos por el bot</h2>
-                                                              <div id="botMessagesList">Cargando...</div>
-                                                            </section>
-                                                        <!-- Panel de gestión de traducciones aplicadas -->
-                                                        <section id="appliedTranslationsPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:600px;">
-                                                          <h2>Traducciones aplicadas</h2>
-                                                          <div id="appliedTranslationsList">Cargando...</div>
-                                                        </section>
-                                                    <!-- Panel de solicitudes de admin de traducciones (solo owner) -->
-                                                    <section id="transAdminRequestsPanel" style="display:none;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;">
-                                                      <h2>Solicitudes de admin de traducciones</h2>
-                                                      <!-- Aquí se cargan las solicitudes y botones de aprobar/rechazar -->
-                                                    </section>
-                                                <!-- Modal edición bot usuario -->
-                                                <div id="editUserBotModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#1e2338e0;z-index:2100;align-items:center;justify-content:center">
-                                                  <div style="background:#f5f8ff;padding:36px 40px;border-radius:22px;max-width:420px;box-shadow:0 8px 36px #1e2338cc;display:flex;flex-direction:column;align-items:center;gap:20px">
-                                                    <h3 style="margin:0 0 10px 0;font-size:1.35rem;color:#2563eb;font-weight:700;letter-spacing:0.5px">Editar bot de usuario</h3>
-                                                    <div style="width:100%;display:flex;flex-direction:column;gap:14px">
-                                                      <label style="font-weight:500;color:#2563eb">Nombre
-                                                        <input id="editBotName" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
-                                                      </label>
-                                                      <label style="font-weight:500;color:#2563eb">Estado
-                                                        <input id="editBotStatus" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
-                                                      </label>
-                                                      <label style="font-weight:500;color:#2563eb">Avatar URL
-                                                        <input id="editBotAvatar" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
-                                                      </label>
-                                                      <label style="font-weight:500;color:#2563eb">Token de Telegram
-                                                        <input id="editBotToken" type="text" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;background:#fff;color:#222;font-weight:500;" />
-                                                      </label>
-                                                      <label style="font-weight:500;color:#2563eb">Info
-                                                        <textarea id="editBotInfo" style="width:100%;margin-top:4px;padding:10px;border-radius:10px;border:1.5px solid #2563eb;font-size:1.05rem;min-height:60px;background:#fff;color:#222;font-weight:500;"></textarea>
-                                                      </label>
-                                                    </div>
-                                                    <div style="display:flex;gap:18px;margin-top:22px">
-                                                      <button id="saveEditUserBotBtn" class="btn" style="padding:10px 28px;font-size:1.05rem;background:#2563eb;color:#fff;border:none;border-radius:10px;font-weight:600">Guardar</button>
-                                                      <button id="cancelEditUserBotBtn" class="btn ghost" style="padding:10px 28px;font-size:1.05rem;background:#fff;color:#2563eb;border:1.5px solid #2563eb;border-radius:10px;font-weight:600">Cancelar</button>
-                                                    </div>
-                                                  </div>
-                                                </div>
-<section class="card" style="margin-bottom:18px">
-  <h2 style="margin:0 0 10px 0">Bots de usuario (clásicos)</h2>
-  <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
-    <input id="telegramTokenInput" type="text" placeholder="Token de Telegram" style="width:260px;max-width:100%" />
-    <button id="addUserBotByTokenBtn" class="btn" style="max-width:180px">+ Agregar bot por token</button>
-    <button id="reloadClassicBotsBtn" class="ghost" style="margin-left:18px">Recargar</button>
-  </div>
-  <div id="userBotsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
-  <button id="addUserBotBtn" class="btn" style="margin-top:12px;max-width:180px">+ Agregar bot de usuario manual</button>
-</section>
-<section class="card" style="margin-bottom:18px">
-  <h2 style="margin:0 0 10px 0">Clientes TDLib</h2>
-  <div style="display:flex;flex-direction:row;align-items:center;gap:16px;margin-bottom:10px">
-    <button id="reloadTdlibClientsBtn" class="ghost">Recargar</button>
-  </div>
-  <div id="tdlibClientsPanel" style="display:flex;flex-direction:row;gap:24px;align-items:center;flex-wrap:wrap"></div>
-</section>
-<section class="card" style="margin-bottom:18px">
-  <h2 style="margin:0 0 10px 0">Estadísticas y chats</h2>
-  <div style="display:flex;flex-wrap:wrap;gap:32px">
-    <div style="min-width:320px">
-      <h3>Bots clásicos</h3>
-      <button id="reloadClassicStatsBtn" class="ghost">Recargar</button>
-      <div id="classicStatsPanel">Cargando...</div>
-    </div>
-    <div style="min-width:320px">
-      <h3>TDLib</h3>
-      <button id="reloadTdlibStatsBtn" class="ghost">Recargar</button>
-      <div id="tdlibStatsPanel">Cargando...</div>
-    </div>
-  </div>
-</section>
-                                <!-- Modal resumen bot -->
-                                <div id="botSummaryModal" style="display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:#0008;z-index:2000;align-items:center;justify-content:center">
-                                  <div style="background:#fff;padding:28px 32px;border-radius:16px;max-width:340px;box-shadow:0 4px 24px #0004;display:flex;flex-direction:column;align-items:center;gap:14px">
-                                    <img id="botSummaryAvatar" src="/logo.svg" alt="Bot avatar" style="width:64px;height:64px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002" />
-                                    <div id="botSummaryName" style="font-weight:700;font-size:1.2rem">Bot</div>
-                                    <div id="botSummaryStatus" style="color:green;font-size:1rem">Activo</div>
-                                    <div id="botSummaryInfo" style="color:#444;font-size:0.98rem;text-align:center">Resumen del bot aquí.</div>
-                                    <button id="closeBotSummaryBtn" class="btn" style="margin-top:10px">Cerrar</button>
-                                  </div>
-                                </div>
-                        <section class="card" style="margin-bottom:18px">
-                          <h2 style="margin:0 0 10px 0">Grupos y usuarios activos</h2>
-                          <div id="liveGroupsUsers" style="display:flex;flex-direction:column;gap:12px;padding:8px 0">
-                            <div style="color:var(--muted)">Cargando información en vivo...</div>
-                          </div>
-                        </section>
-                <section class="card" style="margin-bottom:18px">
-                  <h2 style="margin:0 0 10px 0">Bots activos</h2>
-                  <div style="display:flex;flex-direction:row;gap:24px;align-items:center">
-                    <!-- Bot 1 ejemplo -->
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                      <img src="/logo.svg" alt="Bot avatar" class="bot-avatar" data-bot="DBTeamBot" style="width:54px;height:54px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002;cursor:pointer" />
-                      <span style="font-weight:700">DBTeamBot</span>
-                      <span style="color:green;font-size:0.95rem">Activo</span>
-                    </div>
-                    <!-- Bot 2 ejemplo -->
-                    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-                      <img src="/logo.svg" alt="Bot avatar" class="bot-avatar" data-bot="MediaBot" style="width:54px;height:54px;border-radius:50%;border:2px solid #e5e7eb;background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002;cursor:pointer" />
-                      <span style="font-weight:700">MediaBot</span>
-                      <span style="color:orange;font-size:0.95rem">En espera</span>
-                    </div>
-                  </div>
-                </section>
-        <section class="card" style="margin-bottom:18px">
-          <h2 style="margin:0 0 10px 0">Canales y grupos principales</h2>
-          <div style="display:flex;flex-direction:row;align-items:center;gap:18px;margin-bottom:10px">
-            <img id="botAvatar" src="/logo.svg" alt="Bot avatar" style="width:54px;height:54px;border-radius:50%;border:2px solid var(--border,#e5e7eb);background:#fff;object-fit:cover;box-shadow:0 2px 8px #0002" />
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <div><strong>Canal de notificaciones:</strong> <span id="notifChannelDisplay" style="color:var(--muted)"></span></div>
-              <div><strong>Grupo/Canal principal de la web:</strong> <span id="mainChannelDisplay" style="color:var(--muted)"></span></div>
-              <div><strong>Canales afiliados:</strong> <span id="affiliatesDisplay" style="color:var(--muted)"></span></div>
-            </div>
-          </div>
-          <div style="margin-top:16px;display:flex;flex-direction:column;gap:8px">
-            <label for="mainChannelInput">Editar canal principal:</label>
-            <input id="mainChannelInput" type="text" placeholder="@canalprincipal o -100123456789" style="width:100%;max-width:400px" />
-            <label for="affiliatesInput">Editar canales afiliados (separados por coma):</label>
-            <input id="affiliatesInput" type="text" placeholder="@afiliado1,@afiliado2" style="width:100%;max-width:400px" />
-            <button id="saveChannelsBtn" class="btn" style="margin-top:8px;max-width:200px">Guardar canales</button>
-          </div>
-        </section>
-
+  <div class="wrap">
     <h1>Panel Owner</h1>
     <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
-
-    <!-- Panel de anuncios publicados -->
-    <section class="card" style="margin-bottom:18px;padding:18px;background:#181818;border-radius:10px;border:1px solid #444;">
-      <h2 style="margin-bottom:12px">Anuncios publicados</h2>
-      <div id="anunciosPublicadosPanel">Cargando...</div>
-    </section>
+    <div class="panel-row">
+      <div class="panel-col">
+        <section class="card" style="margin-bottom:18px">
+          <h2 style="margin:0 0 10px 0">Panel unificado de chats y ban</h2>
+          <button id="reloadUnifiedChatsBtn" class="ghost">Recargar</button>
+          <div id="unifiedChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:420px;overflow-y:auto"></div>
+        </section>
+        <section class="card" style="margin-bottom:18px">
+          <h2 style="margin:0 0 10px 0">Chats de Bots clásicos</h2>
+          <button id="reloadClassicChatsBtn" class="ghost">Recargar</button>
+          <div id="classicChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:320px;overflow-y:auto"></div>
+        </section>
+        <section class="card" style="margin-bottom:18px">
+          <h2 style="margin:0 0 10px 0">Chats de TDLib</h2>
+          <button id="reloadTdlibChatsBtn" class="ghost">Recargar</button>
+          <div id="tdlibChatsPanel" style="background:#181f2a;padding:12px 8px;border-radius:10px;min-height:80px;max-height:320px;overflow-y:auto"></div>
+        </section>
+      </div>
+      <div class="panel-col">
+        <!-- Aquí puedes añadir otros paneles o información relevante -->
+      </div>
+    </div>
+  </div>
+  <!-- Panel de gestión de grupos y chats del bot -->
+  <section id="botGroupsPanel" style="display:block;margin-bottom:18px;border:1px solid #444;padding:12px;border-radius:8px;background:#181818;max-width:700px;">
+    <h2>Grupos y chats del bot</h2>
+    <div id="botGroupsList">Cargando...</div>
+  </section>
     <script>
     async function cargarAnunciosPublicados() {
       const panel = document.getElementById('anunciosPublicadosPanel');

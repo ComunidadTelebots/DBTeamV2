@@ -20,6 +20,28 @@
   <header class="site-header">
     <div class="header-inner">
       <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" type="button">🌙/☀️</button>
+        <script>
+          // Tema: claro/oscuro con persistencia
+          function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+          }
+          function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            setTheme(current === 'dark' ? 'light' : 'dark');
+          }
+          document.addEventListener('DOMContentLoaded', function() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            setTheme(saved);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.addEventListener('click', toggleTheme);
+          });
+        </script>
+      </div>
     </div>
   </header>
   <main>

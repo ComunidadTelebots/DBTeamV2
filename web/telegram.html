@@ -4,57 +4,123 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>DBTeam — Telegram UI</title>
-  <link rel="stylesheet" href="shared.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/shared.css" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
-    .tg-app{display:flex;gap:12px;height:80vh}
-    .tg-left{width:320px;background:var(--card);padding:12px;border-radius:8px;overflow:auto}
-    .tg-right{flex:1;background:rgba(255,255,255,0.02);padding:12px;border-radius:8px;display:flex;flex-direction:column}
-    .tg-app{position:relative}
-    .locked-overlay{position:absolute;right:12px;top:64px;bottom:12px;left:340px;background:linear-gradient(rgba(0,0,0,0.35),rgba(0,0,0,0.2));backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:40;border-radius:8px;pointer-events:auto}
-    .locked-overlay.hidden{display:none}
-    .locked-box{background:var(--card);padding:18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.5);min-width:320px;text-align:center}
-    .chat-item{display:flex;gap:8px;align-items:center;padding:8px;border-radius:8px;margin-bottom:6px;cursor:pointer}
-    .chat-item:hover{background:rgba(255,255,255,0.01)}
-    .chat-avatar{width:40px;height:40px;border-radius:50%;background:#ddd;display:inline-block;flex:0 0 40px}
-    .chat-meta{flex:1;min-width:0}
-    .chat-title{font-weight:600}
-    .chat-sub{font-size:0.85rem;color:var(--muted)}
-    .messages{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
-    .composer{display:flex;gap:8px;padding-top:8px}
-    .composer textarea{flex:1}
-    .composer.hidden{display:none !important}
-    /* full page lock overlay */
-    .full-lock-overlay{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999;pointer-events:auto}
-    .full-lock-overlay.hidden{display:none}
-    .full-lock-box{background:var(--card);padding:20px;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,0.6);min-width:320px;text-align:center}
-    /* message bubbles */
-    /* message bubbles: use site-wide variables from shared.css */
-    .msg-row{display:flex}
-    .msg-row.me{justify-content:flex-end}
-    .msg-row.other{justify-content:flex-start}
-    .msg-bubble{max-width:66%;padding:10px;border-radius:12px;background:var(--bubble-other-bg);box-shadow:0 1px 0 rgba(0,0,0,0.06);color:var(--bubble-other-text)}
-    .msg-bubble.me{background:var(--bubble-me-bg);color:var(--bubble-me-text);border-bottom-right-radius:6px}
-    .msg-bubble.other{background:var(--bubble-other-bg);color:var(--bubble-other-text);border-bottom-left-radius:6px}
-    .msg-meta{font-size:0.75rem;color:var(--muted);margin-top:6px;text-align:right}
-    .msg-avatar{width:28px;height:28px;border-radius:50%;background:#ccc;margin-right:8px}
+    :root {
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --bg: #071028;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #b0b8c9;
+    }
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #1a2233;
+      --muted: #6b7280;
+    }
+    body {
+      background: linear-gradient(180deg, var(--bg), #021021);
+      color: var(--text);
+      transition: background 0.3s, color 0.3s;
+      font-family: Inter, Arial, sans-serif;
+    }
+    .site-header {
+      background: var(--card);
+      box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+    }
+    .main-nav a, .header-actions a {
+      color: var(--accent);
+      font-weight: 600;
+      text-decoration: none;
+      margin-right: 12px;
+      transition: color 0.2s;
+    }
+    .main-nav a:hover, .header-actions a:hover {
+      color: var(--accent-2);
+    }
+    [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+      color: #2563eb;
+    }
+    [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+      color: #7c3aed;
+    }
+    .theme-toggle-btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 6px 14px;
+      margin-left: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-2);
+    }
   </style>
 </head>
 <body>
   <header class="site-header">
+    <aside id="notificationSidebar" style="position:fixed;right:-340px;top:0;height:100vh;width:320px;background:var(--card,#181f2a);box-shadow:-2px 0 8px #0002;z-index:1000;transition:right 0.3s;overflow-y:auto;padding:18px 16px 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:700;font-size:1.2rem">Notificaciones</span>
+        <button id="closeSidebarBtn" class="btn ghost" style="font-size:1.2rem">×</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <label for="tgChannelInput" style="font-size:0.95rem;color:#888">Canal Telegram para notificaciones</label>
+        <input id="tgChannelInput" type="text" placeholder="@micanal o -100123456789" style="width:100%;margin-top:4px" />
+        <button id="saveTgChannelBtn" class="btn" style="margin-top:6px">Guardar canal</button>
+        <span id="tgChannelStatus" style="margin-left:8px;color:#888"></span>
+      </div>
+      <div id="notificationList"></div>
+    </aside>
+    <button id="openSidebarBtn" style="position:fixed;right:12px;top:60px;z-index:1001;background:var(--owner-color,#1e90ff);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:1.1rem;box-shadow:0 2px 8px #0002;cursor:pointer">🔔</button>
     <div class="header-inner">
       <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
-      <nav class="main-nav">
+      <nav class="main-nav" aria-label="Main navigation">
         <a href="index.html">Inicio</a>
         <a href="chat.html">Chat</a>
-        <a href="telegram.html">Telegram UI</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="bot_settings.html">Bots</a>
+        <a href="owner.html">Owner</a>
       </nav>
       <div class="header-actions">
         <a href="login.html" class="btn">Login</a>
-          <div>
-            <button id="btnRefresh" class="btn ghost">Refrescar</button>
-          </div>
+        <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
   </header>
-
+  <script>
+    // Tema: claro/oscuro con persistencia
+    function setTheme(theme) {
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('theme', theme);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+    }
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    }
+    document.addEventListener('DOMContentLoaded', function() {
+      const saved = localStorage.getItem('theme') || 'dark';
+      setTheme(saved);
+      var btn = document.getElementById('themeToggleBtn');
+      if (btn) btn.addEventListener('click', toggleTheme);
+    });
+  </script>
   <main class="container">
     <h1 class="page-title">Telegram-like interface (scaffold)</h1>
     <div class="tg-app">
@@ -64,12 +130,12 @@
             <strong>Chats</strong>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
-            <input id="apiKey" placeholder="App API key (WEB_API_KEY)" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);width:220px" />
+            <input id="apiKey" placeholder="App API key (WEB_API_KEY)" class="input-tg" style="width:180px" />
             <button id="saveKey" class="btn ghost">Guardar</button>
-            <input id="botToken" placeholder="Bot token (123456:ABC...)" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);width:240px" />
-            <label style="display:flex;align-items:center;gap:6px"><input id="rememberBot" type="checkbox"/> Recordar</label>
+            <input id="botToken" placeholder="Bot token (123456:ABC...)" class="input-tg" style="width:200px" />
+            <label class="label-tg"><input id="rememberBot" type="checkbox"/> Recordar</label>
             <button id="saveBotServer" class="btn ghost">Guardar en servidor</button>
-            <select id="sendVia" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
+            <select id="sendVia" class="input-tg" style="width:120px">
               <option value="tdlib">Enviar vía TDLib</option>
               <option value="bot">Enviar vía Bot API</option>
             </select>
@@ -77,13 +143,13 @@
           </div>
         </div>
         <div id="loginPanel" style="margin-bottom:8px;padding:8px;border-radius:6px;background:rgba(255,255,255,0.01)">
-          <div style="margin-bottom:6px"><strong>Iniciar sesión de Telegram</strong></div>
+          <div style="margin-bottom:10px;text-align:center"><strong style="font-size:1.15em;color:var(--accent, #2563eb)">Iniciar sesión de Telegram</strong></div>
           <!-- Telegram login widget -->
-          <div style="margin-bottom:8px">
+          <div style="margin-bottom:8px;text-align:center">
             <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="cintiaandrea_bot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
           </div>
           <div style="display:flex;gap:8px;margin-bottom:6px">
-            <select id="countryPrefix" style="padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)">
+            <select id="countryPrefix" class="input-tg" style="width:90px">
               <option value="+34">🇪🇸 +34</option>
               <option value="+1">🇺🇸 +1</option>
               <option value="+44">🇬🇧 +44</option>
@@ -99,17 +165,18 @@
               <option value="+7">🇷🇺 +7</option>
               <option value="+81">🇯🇵 +81</option>
             </select>
-            <input id="authPhone" placeholder="612345678" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)" />
+            <input id="authPhone" placeholder="612345678" class="input-tg" style="flex:1" />
           </div>
           <div style="display:flex;gap:8px;margin-bottom:6px;align-items:center">
             <button id="authStart" class="btn ghost">Enviar código</button>
-            <input id="authCode" placeholder="Código" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05)" />
+            <input id="authCode" placeholder="Código" class="input-tg" style="flex:1" />
             <button id="authCheck" class="btn ghost">Verificar</button>
           </div>
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-            <input id="authPwd" type="password" placeholder="Contraseña (si aplica)" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);display:none" />
+            <input id="authPwd" type="password" placeholder="Contraseña (si aplica)" class="input-tg" style="flex:1;display:none" />
           </div>
-          <div id="authStatus" class="site-brand-sub" style="font-size:0.85rem">Estado: no iniciado</div>
+          <div id="authStatus" class="site-brand-sub" style="font-size:0.85rem;text-align:center;margin-bottom:8px">Estado: no iniciado</div>
+          <button class="btn-login-main" onclick="document.getElementById('authStart')?.click()">Iniciar sesión</button>
         </div>
         <div id="chatList">Cargando...</div>
       </aside>
@@ -142,18 +209,20 @@
   </main>
 
   <script src="shared.js"></script>
+    <script>
+    </script>
   <div id="fullLockOverlay" class="full-lock-overlay">
     <div class="full-lock-box">
-      <h2>Acceso restringido</h2>
-      <p class="site-brand-sub">Inicia sesión con Telegram para usar la aplicación.</p>
+      <h2 style="color:var(--accent,#2563eb);font-size:1.15em;margin-bottom:8px">Acceso restringido</h2>
+      <p class="site-brand-sub" style="margin-bottom:10px">Inicia sesión con Telegram para usar la aplicación.</p>
       <div style="margin-top:8px;text-align:left">
         <!-- Telegram login widget (full overlay) -->
-        <div style="margin-bottom:8px">
+        <div style="margin-bottom:8px;text-align:center">
           <script async src="https://telegram.org/js/telegram-widget.js?22" data-telegram-login="cintiaandrea_bot" data-size="large" data-onauth="onTelegramAuth(user)" data-request-access="write"></script>
         </div>
         <label style="display:block;margin-bottom:6px">Teléfono</label>
         <div style="display:flex;gap:8px;margin-bottom:8px">
-          <select id="countryPrefixFull" style="padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)">
+          <select id="countryPrefixFull" class="input-tg" style="width:90px">
             <option value="+34">🇪🇸 +34</option>
             <option value="+1">🇺🇸 +1</option>
             <option value="+44">🇬🇧 +44</option>
@@ -163,18 +232,39 @@
             <option value="+55">🇧🇷 +55</option>
             <option value="+33">🇫🇷 +33</option>
             <option value="+49">🇩🇪 +49</option>
-            <option value="+39">🇮🇹 +39</option>
-            <option value="+91">🇮🇳 +91</option>
+            <option value="+39">🇮","+91">🇮🇳 +91</option>
           </select>
-          <input id="authPhoneFull" placeholder="612345678" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+          <input id="authPhoneFull" placeholder="612345678" class="input-tg" style="flex:1" />
         </div>
         <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
           <button id="authStartFull" class="btn ghost">Enviar código</button>
-          <input id="authCodeFull" placeholder="Código" style="flex:1;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08)" />
+          <input id="authCodeFull" placeholder="Código" class="input-tg" style="flex:1" />
           <button id="authCheckFull" class="btn ghost">Verificar</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <input id="authPwdFull" type="password" placeholder="Contraseña (si aplica)" style="flex:1;padding:6px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);display:none" />
+          <input id="authPwdFull" type="password" placeholder="Contraseña (si aplica)" class="input-tg" style="flex:1;display:none" />
+        </div>
+        <div id="authStatusFull" class="site-brand-sub" style="font-size:0.9rem;text-align:center;margin-bottom:8px">Estado: no iniciado</div>
+        <button class="btn-login-main" onclick="document.getElementById('authStartFull')?.click()">Iniciar sesión</button>
+      </div>
+              border: 1px solid rgba(120,130,150,0.18);
+              background: #151e2e;
+              color: var(--text, #e6eef8);
+              font-size: 1rem;
+              outline: none;
+              transition: border 0.15s, background 0.15s;
+            }
+            .input-tg:focus {
+              border: 1.5px solid var(--accent, #2563eb);
+              background: #1e2a44;
+            }
+            .label-tg {
+              display: flex;
+              align-items: center;
+              gap: 6px;
+              font-size: 0.97em;
+              color: var(--muted, #9aa6bf);
+            }
         </div>
         <div id="authStatusFull" class="site-brand-sub" style="font-size:0.9rem">Estado: no iniciado</div>
       </div>

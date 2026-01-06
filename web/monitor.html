@@ -7,7 +7,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="shared.css" />
-  <link rel="icon" href="/logo.svg">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <style>
+    body { font-family: Inter, Arial, sans-serif; background: var(--bg, #101624); color: var(--text, #e5e7eb); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 24px; }
+    h1 { margin: 0 0 8px; }
+    .controls { margin-top: 12px; display: flex; gap: 8px; }
+    .btn, button { background: var(--accent, #2563eb); color: #fff; border: none; border-radius: 8px; padding: 8px 12px; font-weight: 600; cursor: pointer; }
+    .btn.ghost, button.secondary { background: transparent; color: var(--accent, #2563eb); border: 1px solid var(--accent, #2563eb); }
+    .btn.ghost:hover, button.secondary:hover { background: var(--accent-2, #7c3aed); color: #fff; }
+    .main-nav a, .header-actions a { color: var(--accent, #2563eb); font-weight: 600; text-decoration: none; margin-right: 12px; transition: color 0.2s; }
+    .main-nav a:hover, .header-actions a:hover { color: var(--accent-2, #7c3aed); }
+  </style>
 </head>
 <body>
   <header class="site-header">

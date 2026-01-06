@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse
 
 emv = os.environ.get('EMV')
 if emv:
-    base_dir = os.path.abspath(os.path.join('C:\Users', emv, 'Documents', 'GitHub', 'DBTeamV2'))
+    base_dir = os.path.abspath(os.path.join(r'C:\Users', emv, 'Documents', 'GitHub', 'DBTeamV2'))
 else:
     base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 web_dir = os.path.join(base_dir, 'web')

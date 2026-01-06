@@ -7,10 +7,39 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="shared.css" />
   <style>
-    body { background: #101624; color: #e5e7eb; font-family: Inter, Arial, sans-serif; }
-    .demo-container { max-width: 1200px; margin: 0 auto; padding: 32px 0; }
-    .card { background: #181f2a; border-radius: 12px; box-shadow: 0 2px 8px #0002; padding: 24px; margin-bottom: 28px; }
-    h2 { color: #6cf; margin-bottom: 12px; }
+    :root {
+      --accent: #2563eb;
+      --accent-2: #7c3aed;
+      --bg: #071028;
+      --card: #0b1220;
+      --text: #e6eef8;
+      --muted: #b0b8c9;
+    }
+    [data-theme="light"] {
+      --bg: #f4f7fb;
+      --card: #fff;
+      --text: #1a2233;
+      --muted: #6b7280;
+    }
+    body {
+      background: linear-gradient(180deg, var(--bg), #021021);
+      color: var(--text);
+      font-family: Inter, Arial, sans-serif;
+      margin: 0;
+    }
+    .wrap {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 32px 0;
+    }
+    .card {
+      background: var(--card);
+      border-radius: 12px;
+      box-shadow: 0 2px 8px #0002;
+      padding: 24px;
+      margin-bottom: 28px;
+    }
+    h2 { color: var(--accent-2); margin-bottom: 12px; }
     .panel-title { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
     .panel-row { display: flex; gap: 32px; flex-wrap: wrap; }
     .panel-col { flex: 1; min-width: 340px; }
@@ -24,7 +53,44 @@
   </style>
 </head>
 <body>
-  <div class="demo-container">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <a href="index.html">Inicio</a>
+        <a href="chat.html">Chat</a>
+        <a href="telegram.html">Telegram</a>
+        <a href="monitor.html">Monitor</a>
+        <a href="traducciones.html">Traducciones</a>
+        <a href="links.html">Enlaces</a>
+        <a href="status.html">Estado</a>
+        <a href="wsl_install.html">WSL install</a>
+      </nav>
+      <div class="header-actions">
+        <button class="theme-toggle-btn" id="themeToggleBtn" type="button">🌙/☀️</button>
+        <script>
+          // Tema: claro/oscuro con persistencia
+          function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+          }
+          function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            setTheme(current === 'dark' ? 'light' : 'dark');
+          }
+          document.addEventListener('DOMContentLoaded', function() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            setTheme(saved);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.addEventListener('click', toggleTheme);
+          });
+        </script>
+      </div>
+    </div>
+  </header>
+  <div class="wrap">
     <h1>Demo Panel Owner - DBTeam</h1>
     <p style="color:#aaa">Comparativa de paneles: separados y unificado (con ban).</p>
     <div class="panel-row">

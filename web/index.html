@@ -7,68 +7,62 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/shared.css" />
-  <link rel="icon" href="/static/logo.svg">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <style>
-    .landing-main {
-      min-height: 60vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 2.5rem 1rem 1.5rem 1rem;
-    }
-    .landing-card {
-      background: var(--card);
-      border-radius: 18px;
-      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.18);
-      padding: 2.5rem 2rem;
-      max-width: 420px;
-      width: 100%;
-      text-align: center;
-      margin-bottom: 2rem;
-      border: 1px solid rgba(255,255,255,0.04);
-    }
-    .landing-card h2 {
-      margin-top: 0;
-      font-size: 1.7rem;
-      font-weight: 700;
-      color: var(--accent-2);
-    }
-    .landing-card p {
-      color: var(--muted);
-      font-size: 1.1rem;
-      margin-bottom: 1.5rem;
-    }
-    .landing-actions {
-      display: flex;
-      justify-content: center;
-      gap: 1.5rem;
-      flex-wrap: wrap;
-    }
-    .landing-actions a {
-      background: var(--accent);
-      color: #fff;
-      text-decoration: none;
-      padding: 0.8rem 2.2rem;
-      border-radius: 8px;
-      font-weight: 700;
-      font-size: 1.1rem;
-      transition: background 0.2s;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
-      border: none;
-      margin-bottom: 0.5rem;
-    }
-    .landing-actions a.secondary {
-      background: transparent;
-      color: var(--accent-2);
-      border: 1px solid var(--accent-2);
-    }
-    .landing-actions a:hover {
-      background: var(--accent-2);
-      color: #fff;
-    }
-    @media (max-width: 600px) {
-      .landing-card { padding: 1.2rem 0.5rem; }
+      :root {
+        --accent: #2563eb;
+        --accent-2: #7c3aed;
+        --bg: #071028;
+        --card: #0b1220;
+        --text: #e6eef8;
+        --muted: #b0b8c9;
+      }
+      [data-theme="light"] {
+        --bg: #f4f7fb;
+        --card: #fff;
+        --text: #1a2233;
+        --muted: #6b7280;
+      }
+      body {
+        background: linear-gradient(180deg, var(--bg), #021021);
+        color: var(--text);
+        transition: background 0.3s, color 0.3s;
+      }
+      .site-header {
+        background: var(--card);
+        box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+      }
+      .main-nav a, .header-actions a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        margin-right: 12px;
+        transition: color 0.2s;
+      }
+      .main-nav a:hover, .header-actions a:hover {
+        color: var(--accent-2);
+      }
+      [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+        color: #2563eb;
+      }
+      [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+        color: #7c3aed;
+      }
+      .theme-toggle-btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 14px;
+        margin-left: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.2s;
+      }
+      .theme-toggle-btn:hover {
+        background: var(--accent-2);
+      }
+  </style>
     }
   </style>
 </head>
@@ -87,6 +81,43 @@
         <a href="wsl_install.html">WSL install</a>
       </nav>
       <div class="header-actions">
+          <button class="theme-toggle-btn" id="themeToggleBtn" type="button">🌙/☀️</button>
+            <script>
+              // Tema: claro/oscuro con persistencia
+              function setTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+                var btn = document.getElementById('themeToggleBtn');
+                if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+              }
+              function toggleTheme() {
+                const current = document.documentElement.getAttribute('data-theme') || 'dark';
+                setTheme(current === 'dark' ? 'light' : 'dark');
+              }
+              document.addEventListener('DOMContentLoaded', function() {
+                const saved = localStorage.getItem('theme') || 'dark';
+                setTheme(saved);
+                var btn = document.getElementById('themeToggleBtn');
+                if (btn) btn.addEventListener('click', toggleTheme);
+              });
+            </script>
+          <script>
+            // Tema: claro/oscuro con persistencia
+            function setTheme(theme) {
+              document.documentElement.setAttribute('data-theme', theme);
+              localStorage.setItem('theme', theme);
+              document.getElementById('themeToggleBtn').textContent = theme === 'light' ? '🌙' : '☀️';
+            }
+            function toggleTheme() {
+              const current = document.documentElement.getAttribute('data-theme') || 'dark';
+              setTheme(current === 'dark' ? 'light' : 'dark');
+            }
+            document.addEventListener('DOMContentLoaded', function() {
+              const saved = localStorage.getItem('theme') || 'dark';
+              setTheme(saved);
+              document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+            });
+          </script>
         <a href="login.html" class="btn">Login</a>
         <a href="register.html" class="btn ghost">Registro</a>
       </div>
@@ -116,10 +147,19 @@
       document.querySelector('.main-nav').classList.toggle('open');
     };
     // Mostrar acceso a setup solo si no hay owner
-    fetch('/status').then(r=>r.json()).then(js=>{
+    fetch('/status').then(r => {
+      const contentType = r.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        return r.json();
+      } else {
+        throw new Error('Respuesta de /status no es JSON');
+      }
+    }).then(js => {
       if(js.counts && js.counts.users === 0) {
         document.getElementById('setupLink').style.display = 'inline-block';
       }
+    }).catch(err => {
+      console.error('Error al obtener /status:', err);
     });
   </script>
 </body>

@@ -1,14 +1,162 @@
 <!doctype html>
 <html lang="es">
 <head>
+    <style>
+      :root {
+        --accent: #2563eb;
+        --accent-2: #7c3aed;
+        --bg: #071028;
+        --card: #0b1220;
+        --text: #e6eef8;
+        --muted: #b0b8c9;
+      }
+      [data-theme="light"] {
+        --bg: #f4f7fb;
+        --card: #fff;
+        --text: #1a2233;
+        --muted: #6b7280;
+      }
+      body {
+        background: linear-gradient(180deg, var(--bg), #021021);
+        color: var(--text);
+        transition: background 0.3s, color 0.3s;
+      }
+      .site-header {
+        background: var(--card);
+        box-shadow: 0 2px 8px rgba(31,38,135,0.08);
+      }
+      .main-nav a, .header-actions a {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        margin-right: 12px;
+        transition: color 0.2s;
+      }
+      .main-nav a:hover, .header-actions a:hover {
+        color: var(--accent-2);
+      }
+      [data-theme="light"] .main-nav a, [data-theme="light"] .header-actions a {
+        color: #2563eb;
+      }
+      [data-theme="light"] .main-nav a:hover, [data-theme="light"] .header-actions a:hover {
+        color: #7c3aed;
+      }
+      .theme-toggle-btn {
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 14px;
+        margin-left: 10px;
+        cursor: pointer;
+        font-weight: 600;
+        transition: background 0.2s;
+      }
+      .theme-toggle-btn:hover {
+        background: var(--accent-2);
+      }
+    </style>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Registro</title>
-  <link rel="stylesheet" href="/style.css" />
-  <link rel="stylesheet" href="shared.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/shared.css" />
+  <style>
+    .login-container {
+      background: var(--card, #0b1220);
+      border-radius: 14px;
+      box-shadow: 0 4px 24px 0 rgba(31,38,135,0.13);
+      border: 1px solid rgba(255,255,255,0.04);
+      padding: 32px 22px 22px 22px;
+      max-width: 350px;
+      margin: 40px auto 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .login-container h1 {
+      margin-bottom: 10px;
+      font-size: 1.5em;
+      color: var(--accent, #2563eb);
+      text-align: center;
+    }
+    .login-container p {
+      color: var(--muted, #b0b8c9);
+      margin-bottom: 18px;
+      text-align: center;
+    }
+    .login-row {
+      margin-bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .login-row label {
+      font-size: 1em;
+      color: var(--text, #e6eef8);
+      margin-bottom: 2px;
+    }
+    .login-row input {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--bg, #101a2c);
+      color: var(--text, #e6eef8);
+      font-size: 1em;
+      outline: none;
+      transition: border 0.15s;
+    }
+    .login-row input:focus {
+      border: 1.5px solid var(--accent, #2563eb);
+    }
+    .login-row .btn {
+      margin-top: 8px;
+      width: 100%;
+      font-size: 1.08em;
+      padding: 12px 0;
+      background: linear-gradient(90deg,var(--accent,#2563eb),var(--accent-2,#7c3aed));
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(37,99,235,0.08);
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .login-row .btn:hover {
+      background: linear-gradient(90deg,#1e40af,#7c3aed);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.13);
+    }
+    .login-row .btn.ghost {
+      background: none;
+      color: var(--accent, #2563eb);
+      border: 1px solid var(--accent, #2563eb);
+      margin-top: 8px;
+    }
+    #msg {
+      margin-top: 10px;
+      text-align: center;
+      color: #c00;
+      font-weight: bold;
+    }
+  </style>
 </head>
 <body>
   <header class="site-header">
+    <aside id="notificationSidebar" style="position:fixed;right:-340px;top:0;height:100vh;width:320px;background:var(--card,#181f2a);box-shadow:-2px 0 8px #0002;z-index:1000;transition:right 0.3s;overflow-y:auto;padding:18px 16px 16px 16px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-weight:700;font-size:1.2rem">Notificaciones</span>
+        <button id="closeSidebarBtn" class="btn ghost" style="font-size:1.2rem">×</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <label for="tgChannelInput" style="font-size:0.95rem;color:#888">Canal Telegram para notificaciones</label>
+        <input id="tgChannelInput" type="text" placeholder="@micanal o -100123456789" style="width:100%;margin-top:4px" />
+        <button id="saveTgChannelBtn" class="btn" style="margin-top:6px">Guardar canal</button>
+        <span id="tgChannelStatus" style="margin-left:8px;color:#888"></span>
+      </div>
+      <div id="notificationList"></div>
+    </aside>
+    <button id="openSidebarBtn" style="position:fixed;right:12px;top:60px;z-index:1001;background:var(--owner-color,#1e90ff);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:1.1rem;box-shadow:0 2px 8px #0002;cursor:pointer">🔔</button>
     <div class="header-inner">
       <a class="brand" href="index.html"><img src="logo.svg" class="logo" alt="DBTeam"/> <span>DBTeam</span></a>
       <nav class="main-nav" aria-label="Main navigation">
@@ -17,13 +165,34 @@
         <a href="telegram.html">Telegram</a>
         <a href="monitor.html">Monitor</a>
         <a href="traducciones.html">Traducciones</a>
-        <a href="links.html">Enlaces</a>
-        <a href="status.html">Estado</a>
-        <a href="wsl_install.html">WSL install</a>
+        <button id="forceTranslateBtn" style="display:none;margin-left:12px">Forzar traducción automática</button>
       </nav>
       <div class="header-actions">
         <a href="login.html" class="btn">Login</a>
         <a href="register.html" class="btn ghost">Registro</a>
+      </div>
+      <button class="nav-toggle" aria-label="Abrir menú">☰</button>
+    </div>
+  </header>
+        <script>
+          // Tema: claro/oscuro con persistencia
+          function setTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.textContent = theme === 'light' ? '🌙' : '☀️';
+          }
+          function toggleTheme() {
+            const current = document.documentElement.getAttribute('data-theme') || 'dark';
+            setTheme(current === 'dark' ? 'light' : 'dark');
+          }
+          document.addEventListener('DOMContentLoaded', function() {
+            const saved = localStorage.getItem('theme') || 'dark';
+            setTheme(saved);
+            var btn = document.getElementById('themeToggleBtn');
+            if (btn) btn.addEventListener('click', toggleTheme);
+          });
+        </script>
       </div>
       <button class="nav-toggle" aria-label="Abrir menú">☰</button>
     </div>
@@ -34,35 +203,24 @@
       <h1>Registro de usuario</h1>
       <p>Crea una cuenta para acceder al panel o usa una API key.</p>
       <form id="registerForm">
-          <div id="githubDemoBlock" style="color:#c00; font-weight:bold; margin-bottom:1em; display:none;">El registro está deshabilitado en la versión pública de GitHub.<br>Usuario demo: <span style="color:#1976d2;font-weight:bold;">demo</span> / <span style="color:#1976d2;font-weight:bold;">demo1234</span></div>
         <div class="login-row">
           <label for="user">Usuario / Email</label>
-          <input id="user" name="user" required disabled />
+          <input id="user" name="user" required />
         </div>
         <div class="login-row">
           <label for="pass">Contraseña</label>
-          <input id="pass" name="pass" type="password" required disabled />
+          <input id="pass" name="pass" type="password" required />
         </div>
         <div class="login-row">
-          <button type="submit" class="btn" disabled>Registrarse</button>
+          <button type="submit" class="btn">Registrarse</button>
           <a href="login.html" class="btn ghost" style="margin-left:8px">Ir a Login</a>
         </div>
-        <div style="color:#c00; font-weight:bold; margin-top:1em;">El registro está deshabilitado en la versión pública de GitHub.</div>
       </form>
       <div id="msg" class="msg" aria-live="polite"></div>
     </div>
   </main>
 
   <script src="register.js"></script>
-    <script>
-      // Bloquear registro y mostrar usuario demo si GITHUB_PUBLIC=1
-      if (window.GITHUB_PUBLIC === true || (typeof GITHUB_PUBLIC !== 'undefined' && GITHUB_PUBLIC === '1')) {
-        document.getElementById('githubDemoBlock').style.display = 'block';
-        document.getElementById('user').disabled = true;
-        document.getElementById('pass').disabled = true;
-        document.querySelector('#registerForm button[type="submit"]').disabled = true;
-      }
-    </script>
   <script src="shared.js"></script>
   <script src="owner.js"></script>
 </body>

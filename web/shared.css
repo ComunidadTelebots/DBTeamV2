@@ -1,20 +1,23 @@
 :root{
-  --bg:#071028;
-  --card:#0f1724;
-  --owner-color: #2563eb; /* owner's primary color (editable) */
+  --bg: #071028;
+  --card: #0b1220;
+  --owner-color: #2563eb;
   --accent: var(--owner-color);
-  --accent-2:#7c3aed;
-  --text:#e6eef8; /* restored original text color */
-  --muted:#9aa6bf;
+  --accent-2: #7c3aed;
+  --text: #e6eef8;
+  --muted: #9aa6bf;
   --bubble-contrast: rgba(255,255,255,0.03);
   --primary: #2563eb;
   --primary-dark: #1a3a6e;
   --primary-fade: #eaf2ff;
-  --background: #f8fafc;
-  --text: #1a202c;
-  --muted: #7b8794;
-  --card: #fff;
   --border: #e2e8f0;
+}
+[data-theme="light"] {
+  --bg: #f4f7fb;
+  --card: #fff;
+  --text: #1a2233;
+  --muted: #6b7280;
+}
 }
 *{box-sizing:border-box}
 body{font-family:Inter,system-ui,Arial,sans-serif;background:linear-gradient(180deg,var(--bg),#021021);color:var(--text);margin:0}
