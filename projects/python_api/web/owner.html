@@ -83,13 +83,15 @@
           <input id="newUser" placeholder="usuario" style="width:160px" />
           <input id="newPass" placeholder="contraseña" style="width:160px" />
           <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;color:var(--muted)"><input type="checkbox" id="newIsAdmin" /> Admin</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;color:var(--muted)"><input type="checkbox" id="newIsTranslator" /> Traductor</label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;color:var(--muted)"><input type="checkbox" id="newIsPublisher" /> Publicador</label>
           <button id="createUser" class="btn">Crear</button>
         </div>
       </div>
       <div style="overflow-x:auto;margin-top:10px">
         <table class="table">
           <thead>
-            <tr><th>Usuario</th><th>Admin</th><th>Creado</th><th>Acciones</th></tr>
+            <tr><th>Usuario</th><th>Admin</th><th>TransAdmin</th><th>Traductor</th><th>Publicador</th><th>Creado</th><th>Acciones</th></tr>
           </thead>
           <tbody id="usersTable"><tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin datos</td></tr></tbody>
         </table>

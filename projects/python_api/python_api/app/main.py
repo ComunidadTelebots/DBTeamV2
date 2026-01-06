@@ -19,11 +19,30 @@ app.include_router(admin.router)
 # Servir archivos estáticos desde /static y HTML desde la raíz
 from fastapi.responses import FileResponse
 
-emv = os.environ.get('EMV')
-if emv:
-    base_dir = os.path.abspath(os.path.join(r'C:\Users', emv, 'Documents', 'GitHub', 'DBTeamV2'))
+env = os.environ.get('ENV')
+if env:
+    # Use ENV as the project base directory. Expect ENV to be a full path.
+    # If ENV is not an absolute path, treat it as a path relative to current working dir.
+    if os.path.isabs(env):
+        base_dir = os.path.abspath(env)
+    else:
+        base_dir = os.path.abspath(os.path.join(os.getcwd(), env))
 else:
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
+    # No ENV provided: prefer the executing user's environment (home directory)
+    user_home = os.path.expanduser('~')
+    # Common development locations to check under user's home
+    cand1 = os.path.join(user_home, 'Documents', 'GitHub', 'DBTeamV2')
+    cand2 = os.path.join(user_home, 'GitHub', 'DBTeamV2')
+    cand3 = os.path.join(user_home, 'DBTeamV2')
+    if os.path.exists(cand1):
+        base_dir = os.path.abspath(cand1)
+    elif os.path.exists(cand2):
+        base_dir = os.path.abspath(cand2)
+    elif os.path.exists(cand3):
+        base_dir = os.path.abspath(cand3)
+    else:
+        # Fallback to repository-relative path (where the package lives)
+        base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
 web_dir = os.path.join(base_dir, 'web')
 if os.path.exists(web_dir):
     static_dir = web_dir

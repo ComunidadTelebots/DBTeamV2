@@ -24,6 +24,7 @@ import platform
 import signal
 import time
 import json
+import requests
 
 app = Flask(__name__)
 
@@ -303,6 +304,46 @@ def create_app(model_dir: str):
             return jsonify({"reply": text})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
+
+    @app.route('/ai/generate_anuncio', methods=['POST'])
+    def ai_generate_anuncio():
+        data = request.get_json(force=True) or {}
+        prompt = data.get('prompt')
+        max_length = int(data.get('max_length', 150))
+        save = bool(data.get('save', False))
+        title = (data.get('title') or 'Anuncio IA').strip()
+        if not prompt:
+            return jsonify({'error': 'prompt required'}), 400
+        try:
+            gen = get_gen()
+            out = gen(prompt, max_length=max_length, do_sample=True, top_k=50, num_return_sequences=1)
+            text = out[0].get('generated_text') if isinstance(out, list) and out else str(out)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
+
+        if not save:
+            return jsonify({'ok': True, 'anuncio': text})
+
+        # Save generated anuncio into repo data/anuncios
+        try:
+            repo_root = Path(app.root_path).parents[0]
+            anuncios_dir = repo_root / 'data' / 'anuncios'
+            anuncios_dir.mkdir(parents=True, exist_ok=True)
+            aid = str(int(time.time()*1000)) + str(random.randint(100, 999))
+            anuncio = {
+                'id': aid,
+                'titulo': title,
+                'contenido': text,
+                'usuario': {'username': 'ia', 'is_admin': True},
+                'estado': 'pendiente',
+                'created_at': int(time.time())
+            }
+            fpath = anuncios_dir / f"{aid}.json"
+            with open(str(fpath), 'w', encoding='utf-8') as fh:
+                json.dump(anuncio, fh, ensure_ascii=False, indent=2)
+            return jsonify({'ok': True, 'anuncio': text, 'id': aid})
+        except Exception as e:
+            return jsonify({'ok': False, 'error': str(e)}), 500
 
     # --- Monitor control endpoints ---
     # The monitor script created in tools/keep_services_*.ps1|sh writes logs to ../logs/service_monitor.log

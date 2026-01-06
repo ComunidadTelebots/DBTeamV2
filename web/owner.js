@@ -1930,19 +1930,89 @@ document.addEventListener('DOMContentLoaded', ()=>{
     if(!usersTable) return
     usersTable.innerHTML = ''
     if(!users || !users.length){
-      const tr = document.createElement('tr'); const td=document.createElement('td'); td.colSpan=4; td.style.textAlign='center'; td.style.color='var(--muted)'; td.textContent='Sin usuarios'; tr.appendChild(td); usersTable.appendChild(tr); return
+      const tr = document.createElement('tr'); const td=document.createElement('td'); td.colSpan=6; td.style.textAlign='center'; td.style.color='var(--muted)'; td.textContent='Sin usuarios'; tr.appendChild(td); usersTable.appendChild(tr); return
     }
     users.forEach(u=>{
       const tr = document.createElement('tr')
       const tdUser = document.createElement('td'); tdUser.textContent = u.user || '(sin nombre)'; tr.appendChild(tdUser)
       const tdAdmin = document.createElement('td'); tdAdmin.textContent = u.is_admin ? 'Sí' : 'No'; tr.appendChild(tdAdmin)
+      const tdTranslator = document.createElement('td'); tdTranslator.textContent = u.is_translator ? 'Sí' : 'No'; tr.appendChild(tdTranslator)
+      const tdPublisher = document.createElement('td'); tdPublisher.textContent = u.is_publisher ? 'Sí' : 'No'; tr.appendChild(tdPublisher)
       const tdCreated = document.createElement('td'); tdCreated.textContent = fmtDate(u.created_at); tr.appendChild(tdCreated)
       const tdActions = document.createElement('td');
       const btnReset = document.createElement('button'); btnReset.className='secondary'; btnReset.textContent='Reset pass'; btnReset.addEventListener('click',()=>resetUser(u.user))
       const btnDelete = document.createElement('button'); btnDelete.className='ghost'; btnDelete.textContent='Eliminar'; btnDelete.style.marginLeft='6px'; btnDelete.addEventListener('click',()=>deleteUser(u.user))
+      const btnEditTrans = document.createElement('button'); btnEditTrans.className='secondary'; btnEditTrans.textContent='Editar traducciones'; btnEditTrans.style.marginLeft='6px'; btnEditTrans.addEventListener('click',()=>editTransPerms(u.user))
       tdActions.appendChild(btnReset); tdActions.appendChild(btnDelete); tr.appendChild(tdActions)
+      tdActions.appendChild(btnEditTrans)
       usersTable.appendChild(tr)
     })
+  }
+
+  async function editTransPerms(user){
+    if(!user) return
+    try{
+      const resp = await request('/admin/users/'+encodeURIComponent(user)+'/trans_perms', { method:'GET' })
+      const current = resp.trans_perms || {}
+      openTransModal(user, current)
+    }catch(e){
+      alert('No se pudo cargar permisos: '+e.message)
+    }
+  }
+
+  function openTransModal(user, current){
+    const overlay = document.createElement('div'); overlay.style.position='fixed'; overlay.style.left=0; overlay.style.top=0; overlay.style.right=0; overlay.style.bottom=0; overlay.style.background='rgba(0,0,0,0.6)'; overlay.style.zIndex=9999; overlay.style.display='flex'; overlay.style.alignItems='center'; overlay.style.justifyContent='center'
+    const box = document.createElement('div'); box.style.background='#0f1724'; box.style.padding='18px'; box.style.borderRadius='8px'; box.style.width='720px'; box.style.maxHeight='80vh'; box.style.overflow='auto'; box.style.color='#fff'
+    box.innerHTML = `<h3>Permisos de traducción para ${user}</h3>`
+    const table = document.createElement('table'); table.style.width='100%'; table.style.marginTop='8px';
+    const thead = document.createElement('thead'); thead.innerHTML = '<tr><th>Idioma</th><th>Web</th><th>Backend</th><th>Instalado</th><th></th></tr>'
+    table.appendChild(thead)
+    const tbody = document.createElement('tbody')
+    Object.keys(current).sort().forEach(lang=>{
+      const comps = current[lang]
+      const tr = document.createElement('tr')
+      const tdLang = document.createElement('td'); tdLang.textContent=lang; tr.appendChild(tdLang)
+      const makeChk = (name, checked)=>{ const td=document.createElement('td'); const c=document.createElement('input'); c.type='checkbox'; c.checked=!!(checked); c.dataset.comp=name; td.appendChild(c); return td }
+      tr.appendChild(makeChk('web', comps && comps.web))
+      tr.appendChild(makeChk('backend', comps && comps.backend))
+      tr.appendChild(makeChk('installed', comps && comps.installed))
+      const tdRem = document.createElement('td'); const del=document.createElement('button'); del.textContent='Eliminar'; del.className='ghost'; del.onclick=()=>{ tr.remove() }; tdRem.appendChild(del); tr.appendChild(tdRem)
+      tbody.appendChild(tr)
+    })
+    table.appendChild(tbody)
+    const addRow = () => {
+      const tr = document.createElement('tr')
+      const tdLang = document.createElement('td'); const langInput = document.createElement('input'); langInput.placeholder='es'; langInput.style.width='80px'; tdLang.appendChild(langInput); tr.appendChild(tdLang)
+      const makeChk = (name)=>{ const td=document.createElement('td'); const c=document.createElement('input'); c.type='checkbox'; c.dataset.comp=name; td.appendChild(c); return td }
+      tr.appendChild(makeChk('web'))
+      tr.appendChild(makeChk('backend'))
+      tr.appendChild(makeChk('installed'))
+      const tdRem = document.createElement('td'); const del=document.createElement('button'); del.textContent='Eliminar'; del.className='ghost'; del.onclick=()=>{ tr.remove() }; tdRem.appendChild(del); tr.appendChild(tdRem)
+      tbody.appendChild(tr)
+    }
+    const addBtn = document.createElement('button'); addBtn.textContent='Añadir idioma'; addBtn.className='secondary'; addBtn.onclick=addRow
+    const saveBtn = document.createElement('button'); saveBtn.textContent='Guardar'; saveBtn.className='btn'; saveBtn.style.marginLeft='8px'; saveBtn.onclick=async ()=>{
+      const rows = Array.from(tbody.querySelectorAll('tr'))
+      const out = {}
+      for(const r of rows){
+        const langCell = r.children[0]
+        const lang = (langCell.querySelector('input') ? langCell.querySelector('input').value.trim() : langCell.textContent.trim())
+        if(!lang) continue
+        const comps = {}
+        const chks = r.querySelectorAll('input[type=checkbox]')
+        chks.forEach(c => { comps[c.dataset.comp]=!!c.checked })
+        out[lang]=comps
+      }
+      try{
+        await request('/admin/users/'+encodeURIComponent(user)+'/trans_perms', { method:'POST', body: JSON.stringify({ trans_perms: out }) })
+        alert('Guardado')
+        overlay.remove()
+        await loadUsers()
+      }catch(e){ alert('Error: '+e.message) }
+    }
+    const cancelBtn = document.createElement('button'); cancelBtn.textContent='Cancelar'; cancelBtn.className='ghost'; cancelBtn.style.marginLeft='8px'; cancelBtn.onclick=()=>overlay.remove()
+    box.appendChild(table); box.appendChild(addBtn); box.appendChild(saveBtn); box.appendChild(cancelBtn)
+    overlay.appendChild(box); document.body.appendChild(overlay)
   }
 
   function renderStatus(data){

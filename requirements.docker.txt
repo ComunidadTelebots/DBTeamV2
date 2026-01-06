@@ -1,0 +1,13 @@
+# Base requirements for Docker image (exclude python-tdlib which has no linux wheel)
+# Generated from requirements.txt with optional/unavailable packages removed
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+redis==4.6.0
+cryptography==41.0.3
+requests==2.31.0
+python-dotenv==1.0.0
+python-telegram-bot==20.5
+flask
+# AI packages (may increase image size significantly)
+transformers>=4.34.0
+torch>=2.2.0

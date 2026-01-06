@@ -18,23 +18,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Create app user
 RUN useradd -m appuser
-ARG EMV=appuser
-ENV EMV=${EMV}
-WORKDIR /home/$EMV/app
+ARG ENV=appuser
+ENV ENV=${ENV}
+WORKDIR /home/$ENV/app
 
 # Copy project files (dockerignore will filter large assets)
-COPY . /home/$EMV/app
-RUN chown -R $EMV:$EMV /home/$EMV/app
+COPY . /home/$ENV/app
+RUN chown -R $ENV:$ENV /home/$ENV/app
 
-USER $EMV
+USER $ENV
 
 # Create and activate venv, install requirements from unified file
 RUN python3 -m venv .venv && \
     . .venv/bin/activate && \
     pip install --upgrade pip setuptools wheel && \
-    pip install -r /home/$EMV/app/requirements.txt
+    if [ -f /home/$ENV/app/requirements.docker.txt ]; then \
+        pip install -r /home/$ENV/app/requirements.docker.txt; \
+    else \
+        pip install -r /home/$ENV/app/requirements.txt; \
+    fi
 
-ENV PATH="/home/$EMV/app/.venv/bin:$PATH"
+ENV PATH="/home/$ENV/app/.venv/bin:$PATH"
 
 # Expose ports used by web UI and stats API
 EXPOSE 8000 8081

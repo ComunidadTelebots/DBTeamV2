@@ -266,6 +266,176 @@ def admin_create(payload: dict, request: Request):
     obj = { 'user': user, 'pass': passwd, 'is_admin': True }
     r.set(key, json.dumps(obj))
     return { 'status': 'ok', 'user': user }
+
+
+# Endpoints para gestionar usuarios desde el panel Owner
+@app.get('/admin/users')
+def admin_list_users(request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    out = []
+    try:
+        for k in r.scan_iter(match='web:user:*'):
+            try:
+                v = r.get(k)
+                if not v:
+                    continue
+                s = v.decode() if isinstance(v, bytes) else v
+                obj = json.loads(s)
+                name = k.decode().split(':', 2)[-1] if isinstance(k, bytes) else k.split(':', 2)[-1]
+                out.append({ 'user': name, 'created_at': obj.get('created_at'), 'is_admin': bool(obj.get('is_admin')), 'is_trans_admin': bool(obj.get('is_trans_admin', False)), 'is_translator': bool(obj.get('is_translator', False)), 'is_publisher': bool(obj.get('is_publisher', False)) })
+            except Exception:
+                continue
+    except Exception:
+        raise HTTPException(status_code=500, detail='error listing users')
+    return { 'users': out }
+
+
+@app.post('/admin/users')
+def admin_create_user(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    if not payload or not payload.get('user') or not payload.get('pass'):
+        raise HTTPException(status_code=400, detail='user and pass required')
+    user = (payload.get('user') or '').strip()
+    passwd = payload.get('pass')
+    if not user:
+        raise HTTPException(status_code=400, detail='user required')
+
+    user_key = f'web:user:{user}'
+    if r.exists(user_key):
+        raise HTTPException(status_code=409, detail='user exists')
+
+    def _hash_password(password: str) -> str:
+        salt = secrets.token_bytes(16)
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        return salt.hex() + ':' + dk.hex()
+
+    hashed = _hash_password(passwd)
+    # Normalize trans_perms: accept list or dict
+    perms = payload.get('trans_perms', {})
+    def normalize_perms(p):
+        if isinstance(p, list):
+            return { str(x): True for x in p }
+        if isinstance(p, dict):
+            out = {}
+            for kk, vv in p.items():
+                k = str(kk)
+                if isinstance(vv, dict):
+                    # nested components map
+                    out[k] = { str(ck): bool(cv) for ck, cv in vv.items() }
+                elif isinstance(vv, list):
+                    out[k] = { str(x): True for x in vv }
+                else:
+                    out[k] = bool(vv)
+            return out
+        return {}
+    perms = normalize_perms(perms)
+
+    obj = {
+        'pw': hashed,
+        'created_at': int(time.time()),
+        'is_admin': bool(payload.get('is_admin', False)),
+        'is_trans_admin': bool(payload.get('is_trans_admin', False)),
+        'is_translator': bool(payload.get('is_translator', False)),
+        'is_publisher': bool(payload.get('is_publisher', False)),
+        'trans_perms': perms
+    }
+    r.set(user_key, json.dumps(obj))
+    return { 'status': 'created', 'user': user }
+
+
+@app.post('/admin/users/reset')
+def admin_reset_user(payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    user = payload.get('user') if payload else None
+    passwd = payload.get('pass') if payload else None
+    if not user or not passwd:
+        raise HTTPException(status_code=400, detail='user and pass required')
+    user_key = f'web:user:{user}'
+    if not r.exists(user_key):
+        raise HTTPException(status_code=404, detail='user not found')
+
+    def _hash_password(password: str) -> str:
+        salt = secrets.token_bytes(16)
+        dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 100000)
+        return salt.hex() + ':' + dk.hex()
+
+    hashed = _hash_password(passwd)
+    try:
+        raw = r.get(user_key)
+        obj = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+        obj['pw'] = hashed
+        r.set(user_key, json.dumps(obj))
+    except Exception:
+        raise HTTPException(status_code=500, detail='error resetting password')
+    return { 'status': 'ok' }
+
+
+@app.delete('/admin/users/{user}')
+def admin_delete_user(user: str, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    user_key = f'web:user:{user}'
+    if not r.exists(user_key):
+        raise HTTPException(status_code=404, detail='user not found')
+    try:
+        r.delete(user_key)
+    except Exception:
+        raise HTTPException(status_code=500, detail='error deleting user')
+# Return deletion result
+    return { 'status': 'deleted', 'user': user }
+
+
+@app.post('/admin/users/{user}/trans_perms')
+def admin_set_trans_perms(user: str, payload: dict, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    user_key = f'web:user:{user}'
+    if not r.exists(user_key):
+        raise HTTPException(status_code=404, detail='user not found')
+    try:
+        raw = r.get(user_key)
+        obj = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+        perms = payload.get('trans_perms', {})
+        def normalize(p):
+            if isinstance(p, list):
+                return { str(x): True for x in p }
+            if isinstance(p, dict):
+                out = {}
+                for kk, vv in p.items():
+                    k = str(kk)
+                    if isinstance(vv, dict):
+                        out[k] = { str(ck): bool(cv) for ck, cv in vv.items() }
+                    elif isinstance(vv, list):
+                        out[k] = { str(x): True for x in vv }
+                    else:
+                        out[k] = bool(vv)
+                return out
+            return {}
+        perms = normalize(perms)
+        obj['trans_perms'] = perms
+        r.set(user_key, json.dumps(obj))
+    except Exception:
+        raise HTTPException(status_code=500, detail='error setting trans perms')
+    return { 'ok': True }
+
+
+@app.get('/admin/users/{user}/trans_perms')
+def admin_get_trans_perms(user: str, request: Request):
+    if not is_owner_request(request):
+        raise HTTPException(status_code=403, detail='Solo owner')
+    user_key = f'web:user:{user}'
+    if not r.exists(user_key):
+        raise HTTPException(status_code=404, detail='user not found')
+    try:
+        raw = r.get(user_key)
+        obj = json.loads(raw.decode() if isinstance(raw, bytes) else raw)
+        return { 'trans_perms': obj.get('trans_perms', {}) }
+    except Exception:
+        raise HTTPException(status_code=500, detail='error getting trans perms')
+
 # --- Middleware global para control de IP y auditoría de accesos ---
 from fastapi.responses import JSONResponse
 @app.middleware('http')

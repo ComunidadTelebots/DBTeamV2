@@ -1,0 +1,11 @@
+{
+  "id": "1767718043130527",
+  "titulo": "Anuncio IA",
+  "contenido": "Prueba rápida stub\n\n[GENERATED-STUB]",
+  "usuario": {
+    "username": "ia",
+    "is_admin": false
+  },
+  "estado": "pendiente",
+  "created_at": 1767718043
+}

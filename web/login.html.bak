@@ -48,7 +48,23 @@
                 if (btn) btn.addEventListener('click', toggleTheme);
               });
             </script>
-          
+          <script>
+            // Tema: claro/oscuro con persistencia
+            function setTheme(theme) {
+              document.documentElement.setAttribute('data-theme', theme);
+              localStorage.setItem('theme', theme);
+              document.getElementById('themeToggleBtn').textContent = theme === 'light' ? '🌙' : '☀️';
+            }
+            function toggleTheme() {
+              const current = document.documentElement.getAttribute('data-theme') || 'dark';
+              setTheme(current === 'dark' ? 'light' : 'dark');
+            }
+            document.addEventListener('DOMContentLoaded', function() {
+              const saved = localStorage.getItem('theme') || 'dark';
+              setTheme(saved);
+              document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+            });
+          </script>
         <a href="login.html" class="btn">Login</a>
         <a href="register.html" class="btn ghost">Registro</a>
       </div>
