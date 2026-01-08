@@ -45,6 +45,7 @@ document.addEventListener('DOMContentLoaded', () => {
         <div class="bubble-body" id="bubbleBody">
           <div class="bubble-header"><div class="bubble-title">DBTeam</div><button id="bubbleClose" class="bubble-close">✕</button></div>
           <nav class="bubble-nav"><a href="chat.html">Chat</a><a href="monitor.html">Monitor</a><a href="#" id="linkSettings">Ajustes</a></nav>
+          <div id="bubbleNotifications" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.02)"></div>
           <div id="bubbleResources" style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.02)"></div>
           <div class="bubble-footer"><button id="logoutBtn" class="secondary">Salir</button></div>
         </div>
@@ -66,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // render resources (pages + devices placeholder)
   async function renderResources(){
+    await renderNotifications()
     const container = document.getElementById('bubbleResources'); if(!container) return
     container.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;margin-bottom:6px">Recursos</div>'
     // pages
@@ -93,6 +95,47 @@ document.addEventListener('DOMContentLoaded', () => {
     const devWrap = document.createElement('div'); devWrap.style.marginTop='10px'; devWrap.innerHTML = '<div style="font-size:0.85rem;color:var(--muted)">Dispositivos:</div><div style="color:var(--muted)">(usa Monitor/Chat para gestionar)</div>'
     container.appendChild(devWrap)
   }
+
+  // Notifications
+  async function fetchNotifications(){
+    try{
+      const headers = {}
+      if(window && window.ADMIN_TOKEN) headers['X-ADMIN-TOKEN'] = window.ADMIN_TOKEN
+      const res = await fetch('/web/notifications', { headers })
+      if(!res.ok) return []
+      const j = await res.json()
+      return j.notifications || []
+    }catch(e){ return [] }
+  }
+
+  async function renderNotifications(){
+    const container = document.getElementById('bubbleNotifications'); if(!container) return
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.9rem;margin-bottom:6px">Notificaciones</div>'
+    const list = document.createElement('div'); list.id='notificationsList'; list.style.maxHeight='220px'; list.style.overflow='auto'
+    container.appendChild(list)
+    const notes = await fetchNotifications()
+    if(!notes || notes.length===0){ list.innerHTML = '<div style="color:var(--muted)">Sin notificaciones</div>'; return }
+    notes.forEach(n=>{
+      const item = document.createElement('div'); item.className='notification-item'; item.style.padding='8px 0'; item.style.borderBottom='1px solid rgba(255,255,255,0.02)'
+      const title = document.createElement('div'); title.style.fontWeight='600'; title.style.fontSize='0.95rem'; title.textContent = n.title || 'Notificación'
+      const txt = document.createElement('div'); txt.style.fontSize='0.85rem'; txt.style.color='var(--muted)'; txt.textContent = n.text || ''
+      const meta = document.createElement('div'); meta.style.fontSize='0.75rem'; meta.style.color='var(--muted)'; meta.textContent = n.ts ? new Date(n.ts*1000).toLocaleString() : ''
+      item.appendChild(title); item.appendChild(txt); item.appendChild(meta)
+      list.appendChild(item)
+    })
+    // mark read: collect raw values (server provides `_raw`)
+    try{
+      const raws = notes.map(n=> n._raw).filter(Boolean)
+      if(raws.length>0){
+        const headers = {'Content-Type':'application/json'}
+        if(window && window.ADMIN_TOKEN) headers['X-ADMIN-TOKEN'] = window.ADMIN_TOKEN
+        fetch('/web/notifications/mark_read', { method: 'POST', headers, body: JSON.stringify({ raws }) }).catch(()=>{})
+      }
+    }catch(e){}
+  }
+
+  // Poll notifications periodically in background
+  setInterval(()=>{ const b = document.getElementById('bubbleBody'); if(b && b.classList.contains('open')) renderNotifications() }, 5000)
 
   // Ensure initial resources are available if bubble already open
   const body = document.getElementById('bubbleBody'); if(body && body.classList.contains('open')) renderResources()

@@ -26,8 +26,18 @@ try:
 except Exception:
     requests = None
 import sys
+import time
 
 app = Flask(__name__)
+
+# abuse protection
+try:
+    from . import abuse_protection as abuse
+except Exception:
+    try:
+        import abuse_protection as abuse
+    except Exception:
+        abuse = None
 
 # CORS fallback: prefer flask_cors if available, otherwise set permissive headers
 try:
@@ -54,55 +64,253 @@ except Exception:
         return resp
 
 
-    # ----------------- Moderation endpoints -----------------
-    @app.route('/admin/moderation/actions', methods=['GET'])
-    def admin_moderation_actions():
-        if not redis:
-            return jsonify({'error': 'redis not available on server'}), 500
-        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+@app.before_request
+def _abuse_check():
+    # Skip static and OPTIONS
+    if request.method == 'OPTIONS':
+        return None
+    # allow admin requests through when ADMIN_TOKEN provided
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if provided and provided == admin_token:
+            return None
+    path = request.path or ''
+    if path.startswith('/static'):
+        return None
+    # determine remote ip
+    ip = request.headers.get('X-Forwarded-For') or request.remote_addr
+    if ip and ',' in ip:
+        ip = ip.split(',')[0].strip()
+    if abuse:
         try:
-            entries = r.lrange('moderation:actions', 0, -1)
-            parsed = []
-            for e in entries:
-                try:
-                    parsed.append(json.loads(e))
-                except Exception:
-                    parsed.append({'raw': e})
-            return jsonify({'actions': parsed})
-        except Exception as e:
-            return jsonify({'error': 'redis error', 'detail': str(e)}), 500
-
-
-    @app.route('/admin/moderation/apply', methods=['POST'])
-    def admin_moderation_apply():
-        data = request.get_json(force=True)
-        idx = data.get('index')
-        action = data.get('action')
-        if idx is None or action is None:
-            return jsonify({'error': 'index and action required'}), 400
-        if not redis:
-            return jsonify({'error': 'redis not available on server'}), 500
-        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
-        try:
-            entries = r.lrange('moderation:actions', idx, idx)
-            if not entries:
-                return jsonify({'error': 'not found'}), 404
-            raw = entries[0]
+            # if ip or country blocked, deny
+            if abuse.is_blocked_ip(ip):
+                return jsonify({'error': 'blocked'}), 403
+            geo = {}
             try:
-                j = json.loads(raw)
+                geo = abuse.ip_to_geo(ip) or {}
             except Exception:
-                j = {'raw': raw}
-            applied = {
-                'applied_by': request.headers.get('X-User-Id') or 0,
-                'action': action,
-                'original': j,
-                'ts': int(time.time()),
-            }
-            r.rpush('moderation:applied', json.dumps(applied))
-            r.lrem('moderation:actions', 1, raw)
-            return jsonify({'ok': True})
-        except Exception as e:
-            return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+                geo = {}
+            cc = geo.get('country')
+            if cc and abuse.is_blocked_country(cc):
+                return jsonify({'error': 'blocked_country', 'country': cc}), 403
+            # check region/city
+            region = geo.get('region')
+            city = geo.get('city')
+            if region and abuse.is_blocked_region(region):
+                return jsonify({'error': 'blocked_region', 'region': region}), 403
+            if city and abuse.is_blocked_city(city):
+                return jsonify({'error': 'blocked_city', 'city': city}), 403
+            # detect medium from headers
+            headers_map = {k: v for k, v in request.headers.items()} if request.headers else {}
+            medium = headers_map.get('X-Medium') or headers_map.get('x-medium') or ''
+            ua = headers_map.get('User-Agent') or headers_map.get('user-agent') or ''
+            if not medium and ua and 'telegram' in ua.lower():
+                medium = 'telegram'
+            if medium and abuse.is_blocked_medium(medium):
+                return jsonify({'error': 'blocked_medium', 'medium': medium}), 403
+            # record the request for rate counting and auto actions; pass headers for medium detection
+            abuse.record_request(ip, meta={'headers': headers_map})
+        except Exception:
+            pass
+
+
+# ----------------- Moderation endpoints -----------------
+@app.route('/admin/moderation/actions', methods=['GET'])
+def admin_moderation_actions():
+    # require admin token if configured
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    if not redis:
+        return jsonify({'error': 'redis not available on server'}), 500
+    r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+    try:
+        entries = r.lrange('moderation:actions', 0, -1)
+        parsed = []
+        for e in entries:
+            try:
+                parsed.append(json.loads(e))
+            except Exception:
+                parsed.append({'raw': e})
+        return jsonify({'actions': parsed})
+    except Exception as e:
+        return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
+@app.route('/admin/moderation/apply', methods=['POST'])
+def admin_moderation_apply():
+    data = request.get_json(force=True)
+    # require admin token if configured
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    idx = data.get('index')
+    action = data.get('action')
+    if idx is None or action is None:
+        return jsonify({'error': 'index and action required'}), 400
+    if not redis:
+        return jsonify({'error': 'redis not available on server'}), 500
+    r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+    try:
+        entries = r.lrange('moderation:actions', idx, idx)
+        if not entries:
+            return jsonify({'error': 'not found'}), 404
+        raw = entries[0]
+        try:
+            j = json.loads(raw)
+        except Exception:
+            j = {'raw': raw}
+        applied = {
+            'applied_by': request.headers.get('X-User-Id') or 0,
+            'action': action,
+            'original': j,
+            'ts': int(time.time()),
+        }
+        r.rpush('moderation:applied', json.dumps(applied))
+        r.lrem('moderation:actions', 1, raw)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
+@app.route('/web/notifications', methods=['GET'])
+def web_notifications():
+    """Return recent web notifications (used by the UI bubble)."""
+    # allow public if ADMIN_TOKEN not set; otherwise require it
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    if not redis:
+        return jsonify({'error': 'redis not available on server'}), 500
+    r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+    try:
+        entries = r.lrange('web:notifications', 0, 49)
+        parsed = []
+        for e in entries:
+            try:
+                obj = json.loads(e)
+                if isinstance(obj, dict):
+                    obj['_raw'] = e
+                parsed.append(obj)
+            except Exception:
+                parsed.append({'raw': e, '_raw': e})
+        return jsonify({'notifications': parsed})
+    except Exception as e:
+        return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
+@app.route('/web/notifications/mark_read', methods=['POST'])
+def web_notifications_mark_read():
+    data = request.get_json(force=True) or {}
+    raws = data.get('raws') or []
+    # require admin token if configured
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    if not isinstance(raws, list):
+        return jsonify({'error': 'raws must be a list'}), 400
+    if not redis:
+        return jsonify({'error': 'redis not available on server'}), 500
+    r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+    removed = 0
+    try:
+        for raw in raws:
+            try:
+                removed += r.lrem('web:notifications', 1, raw)
+            except Exception:
+                continue
+        return jsonify({'ok': True, 'removed': removed})
+    except Exception as e:
+        return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
+# ----------------- Abuse admin endpoints -----------------
+@app.route('/admin/abuse/blocked', methods=['GET'])
+def admin_abuse_blocked():
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    if not abuse:
+        return jsonify({'error': 'abuse module not available'}), 500
+    try:
+        data = abuse.list_blocked()
+        return jsonify({'ok': True, 'blocked': data})
+    except Exception as e:
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
+
+@app.route('/admin/abuse/block', methods=['POST'])
+def admin_abuse_block():
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    data = request.get_json(force=True) or {}
+    ip = data.get('ip')
+    country = data.get('country')
+    region = data.get('region')
+    city = data.get('city')
+    medium = data.get('medium')
+    if not any([ip, country, region, city, medium]):
+        return jsonify({'error': 'ip or country or region or city or medium required'}), 400
+    try:
+        if ip:
+            ok = abuse.block_ip(ip, reason='admin')
+        elif country:
+            ok = abuse.block_country(country, reason='admin')
+        elif region:
+            ok = abuse.block_region(region, reason='admin')
+        elif city:
+            ok = abuse.block_city(city, reason='admin')
+        else:
+            ok = abuse.block_medium(medium, reason='admin')
+        return jsonify({'ok': bool(ok)})
+    except Exception as e:
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
+
+
+@app.route('/admin/abuse/unblock', methods=['POST'])
+def admin_abuse_unblock():
+    admin_token = os.environ.get('ADMIN_TOKEN')
+    if admin_token:
+        provided = request.headers.get('X-ADMIN-TOKEN')
+        if not provided or provided != admin_token:
+            return jsonify({'error': 'unauthorized'}), 401
+    data = request.get_json(force=True) or {}
+    ip = data.get('ip')
+    country = data.get('country')
+    region = data.get('region')
+    city = data.get('city')
+    medium = data.get('medium')
+    if not any([ip, country, region, city, medium]):
+        return jsonify({'error': 'ip or country or region or city or medium required'}), 400
+    try:
+        if ip:
+            ok = abuse.unblock_ip(ip)
+        elif country:
+            ok = abuse.unblock_country(country)
+        elif region:
+            ok = abuse.unblock_region(region)
+        elif city:
+            ok = abuse.unblock_city(city)
+        else:
+            ok = abuse.unblock_medium(medium)
+        return jsonify({'ok': bool(ok)})
+    except Exception as e:
+        return jsonify({'error': 'internal', 'detail': str(e)}), 500
 
 
 SCENES_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'streams', 'scenes')

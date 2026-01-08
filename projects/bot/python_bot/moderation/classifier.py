@@ -170,3 +170,18 @@ def push_action_suggestion(group_id: int, user_id: int, suggestion: str, info: D
         'ts': _now(),
     }
     _r.rpush('moderation:actions', json.dumps(payload))
+    # Also push a lightweight web notification for the UI
+    try:
+        note = {
+            'title': f"Moderation: {suggestion}",
+            'text': f"User {user_id} in group {group_id}: {', '.join(info.get('reasons', []))}",
+            'group_id': int(group_id),
+            'user_id': int(user_id),
+            'suggestion': suggestion,
+            'ts': payload['ts'],
+        }
+        _r.rpush('web:notifications', json.dumps(note))
+        # keep notifications list bounded
+        _r.ltrim('web:notifications', -200, -1)
+    except Exception:
+        pass
