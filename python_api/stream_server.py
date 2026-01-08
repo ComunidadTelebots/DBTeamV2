@@ -53,6 +53,58 @@ except Exception:
         resp.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         return resp
 
+
+    # ----------------- Moderation endpoints -----------------
+    @app.route('/admin/moderation/actions', methods=['GET'])
+    def admin_moderation_actions():
+        if not redis:
+            return jsonify({'error': 'redis not available on server'}), 500
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+        try:
+            entries = r.lrange('moderation:actions', 0, -1)
+            parsed = []
+            for e in entries:
+                try:
+                    parsed.append(json.loads(e))
+                except Exception:
+                    parsed.append({'raw': e})
+            return jsonify({'actions': parsed})
+        except Exception as e:
+            return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
+    @app.route('/admin/moderation/apply', methods=['POST'])
+    def admin_moderation_apply():
+        data = request.get_json(force=True)
+        idx = data.get('index')
+        action = data.get('action')
+        if idx is None or action is None:
+            return jsonify({'error': 'index and action required'}), 400
+        if not redis:
+            return jsonify({'error': 'redis not available on server'}), 500
+        r = redis.from_url(os.environ.get('REDIS_URL', 'redis://127.0.0.1:6379/0'), decode_responses=True)
+        try:
+            entries = r.lrange('moderation:actions', idx, idx)
+            if not entries:
+                return jsonify({'error': 'not found'}), 404
+            raw = entries[0]
+            try:
+                j = json.loads(raw)
+            except Exception:
+                j = {'raw': raw}
+            applied = {
+                'applied_by': request.headers.get('X-User-Id') or 0,
+                'action': action,
+                'original': j,
+                'ts': int(time.time()),
+            }
+            r.rpush('moderation:applied', json.dumps(applied))
+            r.lrem('moderation:actions', 1, raw)
+            return jsonify({'ok': True})
+        except Exception as e:
+            return jsonify({'error': 'redis error', 'detail': str(e)}), 500
+
+
 SCENES_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'streams', 'scenes')
 LOGS_DIR = os.path.join(os.path.dirname(__file__), '..', 'logs')
 TORRENTS_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'torrents')
