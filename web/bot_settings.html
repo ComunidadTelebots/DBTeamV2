@@ -137,8 +137,23 @@
 
   </main>
 
+  <!-- Sección añadida: Gestión de Grupos (interfaz para owner/group-owner) -->
+  <section class="card" style="margin:18px;padding:12px;border-radius:8px;background:var(--card);">
+    <h2>Gestión de Grupos</h2>
+    <p style="color:var(--muted);margin-top:6px">Panel compacto para ver grupos del bot y administrar bloqueos/permiso por grupo.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+      <button id="refreshBotGroupsCompact" class="ghost">Recargar grupos</button>
+      <button id="refreshGroupLocksCompact" class="ghost">Actualizar bloqueos</button>
+    </div>
+    <div id="botGroupsList" style="margin-top:12px;background:#121318;border-radius:8px;padding:10px;max-height:320px;overflow:auto">Cargando...</div>
+    <div style="margin-top:12px">
+      <h3 style="margin:8px 0">Grupos bloqueados</h3>
+      <div id="groupLocksList" style="background:#121318;border-radius:8px;padding:10px;max-height:220px;overflow:auto">Cargando...</div>
+    </div>
+  </section>
+
   <script src="bot_settings.js"></script>
+  <script src="group_owner.js"></script>
   <script src="shared.js"></script>
-  <script src="owner.js"></script>
 </body>
 </html>

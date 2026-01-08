@@ -444,7 +444,23 @@
   </main>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    (async function(){
+      try{
+        const token = localStorage.getItem('api_token') || '';
+        const res = await fetch('/auth/me', { headers: token ? { 'Authorization': 'Bearer ' + token } : {} });
+        if(!res.ok){ alert('Acceso restringido: necesita ser propietario de la web'); location.href = '/'; return; }
+        const js = await res.json();
+        if(!(js && js.session && js.session.is_owner)){
+          alert('Acceso restringido: solo el propietario del sitio puede acceder a esta página');
+          location.href = '/';
+          return;
+        }
+      }catch(e){ alert('Error verificando permisos: ' + (e.message||e)); location.href = '/'; }
+    })();
+  </script>
   <script src="owner.js"></script>
+  <script src="group_owner.js"></script>
   <script src="shared.js"></script>
 </body>
 </html>

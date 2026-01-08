@@ -742,6 +742,116 @@ async def ownerlock_groups_leave(request: Request):
     except Exception:
         pass
     return JSONResponse({'left': group_id})
+
+
+# Toggle owner-perms lock for a specific group (owner-only)
+@router.post('/ownerlock/groups/owner_perms/toggle')
+async def ownerlock_owner_perms_toggle(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede cambiar permisos del propietario')
+    data = await request.json()
+    group_id = str(data.get('group_id'))
+    lock = bool(data.get('lock', False))
+    owner_perms_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'owner_perms.flag')
+    groups = set()
+    if os.path.exists(owner_perms_path):
+        with open(owner_perms_path, 'r', encoding='utf-8') as f:
+            groups = set(line.strip() for line in f if line.strip())
+    if lock:
+        groups.add(group_id)
+    else:
+        groups.discard(group_id)
+    with open(owner_perms_path, 'w', encoding='utf-8') as f:
+        for gid in groups:
+            f.write(str(gid) + '\n')
+    return JSONResponse({'groups': list(groups)})
+
+
+# ADMIN PERMS: store per-group admin-permission locks in JSON file under data/
+ADMIN_PERMS_FILE = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'admin_perms.json')
+
+def _read_admin_perms():
+    try:
+        with open(ADMIN_PERMS_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+def _write_admin_perms(obj: dict):
+    try:
+        with open(ADMIN_PERMS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(obj, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception:
+        return False
+
+
+@router.get('/ownerlock/groups/admin_perms')
+async def ownerlock_admin_perms(request: Request, group_id: str = ''):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede ver/editar permisos de administradores')
+    group_id = str(group_id)
+    allperms = _read_admin_perms()
+    perms = allperms.get(group_id, {}) if group_id else {}
+    return JSONResponse({'perms': perms})
+
+
+@router.post('/ownerlock/groups/admin_perms/toggle')
+async def ownerlock_admin_perms_toggle(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede cambiar permisos de administradores')
+    data = await request.json()
+    group_id = str(data.get('group_id'))
+    lock = bool(data.get('lock', False))
+    # Known permission keys (should match frontend KNOWN list)
+    KNOWN = [
+        'can_restrict_members','can_promote_members','can_delete_messages','can_pin_messages',
+        'can_invite_users','can_change_info','can_post_messages','can_edit_messages','can_send_media_messages'
+    ]
+    allperms = _read_admin_perms()
+    if lock:
+        # set all known perms to True (blocked)
+        allperms[group_id] = {k: True for k in KNOWN}
+    else:
+        if group_id in allperms:
+            del allperms[group_id]
+    ok = _write_admin_perms(allperms)
+    if not ok:
+        raise HTTPException(status_code=500, detail='error saving admin perms')
+    return JSONResponse({'ok': True, 'group': group_id})
+
+
+@router.post('/ownerlock/groups/admin_perms/set')
+async def ownerlock_admin_perms_set(request: Request):
+    sess = get_session_from_request(request)
+    if not sess or not sess.get('is_owner'):
+        raise HTTPException(status_code=403, detail='Solo owner puede cambiar permisos de administradores')
+    data = await request.json()
+    group_id = str(data.get('group_id'))
+    perm = str(data.get('perm') or '')
+    lock = bool(data.get('lock', False))
+    if not group_id or not perm:
+        raise HTTPException(status_code=400, detail='group_id y perm requeridos')
+    allperms = _read_admin_perms()
+    g = allperms.get(group_id, {})
+    if lock:
+        g[perm] = True
+    else:
+        if perm in g:
+            del g[perm]
+    # cleanup empty
+    if g:
+        allperms[group_id] = g
+    else:
+        if group_id in allperms:
+            del allperms[group_id]
+    ok = _write_admin_perms(allperms)
+    if not ok:
+        raise HTTPException(status_code=500, detail='error saving admin perms')
+    return JSONResponse({'ok': True, 'group': group_id, 'perm': perm, 'lock': lock})
 OWNERLOCK_PATH = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'ownerlock.flag')
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.staticfiles import StaticFiles
@@ -1384,6 +1494,16 @@ def auth_login(payload: dict):
         r.setex(f'web:session:{token}', 3600, enc)
         return { 'token': token, 'ttl': 3600 }
     raise HTTPException(status_code=401, detail='invalid credentials')
+
+
+@app.get('/auth/me')
+def auth_me(request: Request):
+    """Devuelve información pública de la sesión asociada al Bearer token."""
+    sess = get_session_from_request(request)
+    if not sess:
+        raise HTTPException(status_code=401, detail='unauthenticated')
+    public = {k: v for k, v in sess.items() if k in ('user', 'is_owner', 'is_admin', 'is_trans_admin', 'telegram_id')}
+    return {'session': public}
 
 
 @app.post('/auth/register')
