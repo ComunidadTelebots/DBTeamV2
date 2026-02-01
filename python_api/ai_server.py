@@ -18,6 +18,9 @@ try:
     from flask_cors import CORS
 except Exception:
     CORS = None
+import functools
+import time
+from collections import defaultdict
 import subprocess
 import sys
 import platform
@@ -213,6 +216,8 @@ def load_generator(model_dir: str):
     return gen
 
 
+
+
 def create_app(model_dir: str):
     # ensure model dir exists (but don't auto-download huge files without user knowledge)
     os.makedirs(model_dir, exist_ok=True)
@@ -223,6 +228,53 @@ def create_app(model_dir: str):
         if generator["obj"] is None:
             generator["obj"] = load_generator(model_dir)
         return generator["obj"]
+
+    # --- Backend abstraction (local vs remote) ---
+    backend_cfg = {
+        'type': os.environ.get('LLM_BACKEND', 'local'),  # 'local' or 'remote'
+        'model': os.environ.get('LLM_MODEL', 'gpt2'),
+        'remote_url': os.environ.get('REMOTE_LLM_API_URL'),
+        'remote_key': os.environ.get('REMOTE_LLM_API_KEY')
+    }
+
+    def generate_via_remote(prompt, max_length=150, stream=False):
+        url = backend_cfg.get('remote_url')
+        if not url:
+            raise RuntimeError('REMOTE_LLM_API_URL not configured')
+        headers = {'Content-Type': 'application/json'}
+        rk = backend_cfg.get('remote_key')
+        if rk:
+            headers['Authorization'] = 'Bearer ' + rk
+        payload = {'prompt': prompt, 'max_length': int(max_length)}
+        # if remote supports streaming, allow caller to receive streamed response
+        endpoint = url.rstrip('/') + '/generate'
+        try:
+            if stream:
+                # caller will iterate over the Response.iter_lines()
+                r = requests.post(endpoint, headers=headers, json={**payload, 'stream': True}, stream=True, timeout=60)
+                if not r.ok:
+                    raise RuntimeError(f'remote generation failed: {r.status_code} {r.text}')
+                return r
+            else:
+                r = requests.post(endpoint, headers=headers, json=payload, timeout=60)
+                if not r.ok:
+                    raise RuntimeError(f'remote generation failed: {r.status_code} {r.text}')
+                try:
+                    return r.json().get('reply') or r.text
+                except Exception:
+                    return r.text
+        except requests.exceptions.RequestException as e:
+            raise RuntimeError(f'remote request error: {e}')
+
+    def generate_prompt(prompt, max_length=150, stream=False):
+        btype = backend_cfg.get('type', 'local')
+        if btype == 'remote':
+            return generate_via_remote(prompt, max_length=max_length, stream=stream)
+        # local
+        gen = get_gen()
+        out = gen(prompt, max_length=max_length, do_sample=True, top_k=50, num_return_sequences=1)
+        text = out[0].get('generated_text') if isinstance(out, list) and out else str(out)
+        return text
 
     # Enable CORS: prefer flask_cors if available, otherwise add permissive headers
     if CORS:
@@ -240,6 +292,52 @@ def create_app(model_dir: str):
         @app.route('/', methods=['OPTIONS'])
         def _options(path=None):
             return ('', 200)
+
+    # --- Simple auth and rate limiting ---
+    # API keys can be provided via env var `API_KEYS` as comma-separated values
+    API_KEYS = os.environ.get('API_KEYS')
+    if API_KEYS:
+        API_KEYS = set([k.strip() for k in API_KEYS.split(',') if k.strip()])
+    else:
+        API_KEYS = None
+
+    # Simple in-memory rate limiter: tokens per minute per key/ip
+    RATE_LIMIT = int(os.environ.get('RATE_LIMIT_PER_MINUTE', '60'))
+    _rate_buckets = defaultdict(lambda: {'tokens': RATE_LIMIT, 'last': time.time()})
+
+    def _consume_token(key):
+        b = _rate_buckets[key]
+        now = time.time()
+        # refill
+        elapsed = now - b['last']
+        if elapsed > 0:
+            refill = (elapsed / 60.0) * RATE_LIMIT
+            b['tokens'] = min(RATE_LIMIT, b['tokens'] + refill)
+            b['last'] = now
+        if b['tokens'] >= 1:
+            b['tokens'] -= 1
+            return True
+        return False
+
+    def require_api_key(func):
+        @functools.wraps(func)
+        def wrapper(*a, **kw):
+            # allow local dev without API_KEYS
+            if API_KEYS is None:
+                return func(*a, **kw)
+            auth = request.headers.get('Authorization','')
+            token = None
+            if auth.startswith('Bearer '):
+                token = auth[len('Bearer '):].strip()
+            if not token or token not in API_KEYS:
+                return jsonify({'error':'unauthorized'}), 401
+            # rate limit by token
+            key = f"api:{token}"
+            if not _consume_token(key):
+                return jsonify({'error':'rate_limited'}), 429
+            return func(*a, **kw)
+        return wrapper
+
 
     @app.route('/models/list', methods=['GET'])
     def models_list():
@@ -351,6 +449,7 @@ def create_app(model_dir: str):
         return jsonify({'signature': sig, 'report': report})
 
     @app.route('/models/install', methods=['POST'])
+    @require_api_key
     def models_install():
         data = request.get_json(force=True) or {}
         model = data.get('model')
@@ -369,6 +468,7 @@ def create_app(model_dir: str):
             return jsonify({"error": str(e)}), 500
 
     @app.route('/models/run', methods=['POST'])
+    @require_api_key
     def models_run():
         data = request.get_json(force=True) or {}
         model = data.get('model')
@@ -386,6 +486,7 @@ def create_app(model_dir: str):
             return jsonify({"error": str(e)}), 500
 
     @app.route('/ai/gpt2', methods=['POST'])
+    @require_api_key
     def ai_gpt2():
         data = request.get_json(force=True) or {}
         prompt = data.get('prompt')
@@ -401,6 +502,7 @@ def create_app(model_dir: str):
             return jsonify({"error": str(e)}), 500
 
     @app.route('/ai/generate_anuncio', methods=['POST'])
+    @require_api_key
     def ai_generate_anuncio():
         data = request.get_json(force=True) or {}
         prompt = data.get('prompt')
@@ -439,6 +541,286 @@ def create_app(model_dir: str):
             return jsonify({'ok': True, 'anuncio': text, 'id': aid})
         except Exception as e:
             return jsonify({'ok': False, 'error': str(e)}), 500
+
+    # --- RAG integration ---
+    rag_index = {'meta': None}
+    embedder = {'model': None}
+
+    def rag_index_path():
+        # expected index produced by scripts/ai_improved/build_embeddings.py
+        repo_root = Path(app.root_path).parents[0]
+        return repo_root / 'projects' / 'bot' / 'python_bot' / 'data' / 'ai_index_faiss.pkl'
+
+    def load_rag_index():
+        if rag_index['meta'] is not None:
+            return rag_index['meta']
+        p = rag_index_path()
+        if not p.exists():
+            return None
+        try:
+            with open(str(p), 'rb') as fh:
+                import pickle
+                meta = pickle.load(fh)
+            rag_index['meta'] = meta
+            return meta
+        except Exception:
+            return None
+
+    def ensure_embedder(name='all-MiniLM-L6-v2'):
+        if embedder['model'] is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+            except Exception:
+                return None
+            try:
+                embedder['model'] = SentenceTransformer(name)
+            except Exception:
+                embedder['model'] = None
+        return embedder['model']
+
+    def retrieve_from_meta(meta, q_emb, top_k=5):
+        try:
+            import numpy as np
+        except Exception:
+            return []
+        embeddings = meta.get('embeddings')
+        paths = meta.get('paths')
+        docs = meta.get('docs')
+        if embeddings is None or len(embeddings) == 0:
+            return []
+        try:
+            # use FAISS if serialized bytes present
+            try:
+                import faiss
+            except Exception:
+                faiss = None
+            if faiss is not None and meta.get('faiss_index_bytes'):
+                iv = faiss.deserialize_index(meta.get('faiss_index_bytes'))
+                D, I = iv.search(np.asarray(q_emb).astype('float32'), top_k)
+                ids = I[0].tolist(); scores = D[0].tolist()
+                out = []
+                for sid, sc in zip(ids, scores):
+                    if sid < 0:
+                        continue
+                    out.append({'path': paths[sid], 'doc': docs[sid], 'score': float(sc)})
+                return out
+            # fallback: cosine via dot (embeddings normalized)
+            emb = np.asarray(embeddings)
+            qv = np.asarray(q_emb)[0]
+            sims = (emb @ qv).astype(float)
+            idx = np.argsort(-sims)[:top_k]
+            out = []
+            for i in idx:
+                out.append({'path': paths[int(i)], 'doc': docs[int(i)], 'score': float(sims[int(i)])})
+            return out
+        except Exception:
+            return []
+
+    @app.route('/ai/rag_generate', methods=['POST'])
+    @require_api_key
+    def ai_rag_generate():
+        data = request.get_json(force=True) or {}
+        query = data.get('query') or data.get('q') or ''
+        top_k = int(data.get('top_k', 4))
+        max_length = int(data.get('max_length', 250))
+        if not query:
+            return jsonify({'error': 'query required'}), 400
+
+        meta = load_rag_index()
+        if meta is None:
+            return jsonify({'error': 'RAG index not found', 'hint': f'Run scripts/ai_improved/build_embeddings.py to build index at {rag_index_path()}'}), 404
+
+        model = ensure_embedder()
+        if model is None:
+            return jsonify({'error': 'sentence-transformers not available; pip install sentence-transformers'}), 500
+
+        try:
+            q_emb = model.encode([query], normalize_embeddings=True)
+        except Exception as e:
+            return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
+
+        retrieved = retrieve_from_meta(meta, q_emb, top_k=top_k)
+
+        # assemble context from retrieved docs (limit size to avoid huge prompts)
+        ctx_parts = []
+        for r in retrieved:
+            txt = r.get('doc') or ''
+            # keep first N chars of each doc to keep prompt bounded
+            ctx_parts.append(txt[:2000])
+        context_text = '\n\n---\n\n'.join(ctx_parts)
+
+        if context_text:
+            prompt = f"Context:\n{context_text}\n\nQuestion: {query}\nAnswer:"
+        else:
+            prompt = query
+
+        try:
+            text = generate_prompt(prompt, max_length=max_length, stream=False)
+        except Exception as e:
+            return jsonify({'error': 'generation failed', 'detail': str(e)}), 500
+
+        return jsonify({'query': query, 'reply': text, 'retrieved': retrieved})
+
+    @app.route('/embeddings', methods=['POST'])
+    @require_api_key
+    def embeddings_endpoint():
+        data = request.get_json(force=True) or {}
+        texts = data.get('texts') or data.get('text') or None
+        if texts is None:
+            return jsonify({'error': 'texts required (list or single string)'}), 400
+        if isinstance(texts, str):
+            texts = [texts]
+        model = ensure_embedder()
+        if model is None:
+            return jsonify({'error': 'sentence-transformers not available; pip install sentence-transformers'}), 500
+        try:
+            embs = model.encode(texts, normalize_embeddings=True)
+            # convert to list for JSON
+            import numpy as _np
+            arr = _np.asarray(embs).tolist()
+            return jsonify({'embeddings': arr})
+        except Exception as e:
+            return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
+
+    @app.route('/rag/search', methods=['POST'])
+    @require_api_key
+    def rag_search_endpoint():
+        data = request.get_json(force=True) or {}
+        q = data.get('q') or data.get('query') or ''
+        top_k = int(data.get('top_k', 5))
+        if not q:
+            return jsonify({'error': 'q required'}), 400
+        meta = load_rag_index()
+        if meta is None:
+            return jsonify({'error': 'RAG index not found'}), 404
+        model = ensure_embedder()
+        if model is None:
+            return jsonify({'error': 'sentence-transformers not available'}), 500
+        try:
+            q_emb = model.encode([q], normalize_embeddings=True)
+        except Exception as e:
+            return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
+        results = retrieve_from_meta(meta, q_emb, top_k=top_k)
+        return jsonify({'query': q, 'results': results})
+
+    # --- Streaming SSE endpoint (simple wrapper around rag_generate) ---
+    from flask import Response
+
+    @app.route('/ai/stream_rag_generate', methods=['POST'])
+    @require_api_key
+    def ai_stream_rag_generate():
+        data = request.get_json(force=True) or {}
+        # reuse same parameters as ai_rag_generate
+        query = data.get('query') or data.get('q') or ''
+        top_k = int(data.get('top_k', 4))
+        max_length = int(data.get('max_length', 250))
+        if not query:
+            return jsonify({'error': 'query required'}), 400
+
+        # load index and embedder
+        meta = load_rag_index()
+        if meta is None:
+            return jsonify({'error': 'RAG index not found'}), 404
+        model = ensure_embedder()
+        if model is None:
+            return jsonify({'error': 'sentence-transformers not available; pip install sentence-transformers'}), 500
+
+        try:
+            q_emb = model.encode([query], normalize_embeddings=True)
+        except Exception as e:
+            return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
+
+        retrieved = retrieve_from_meta(meta, q_emb, top_k=top_k)
+
+        ctx_parts = []
+        for r in retrieved:
+            txt = r.get('doc') or ''
+            ctx_parts.append(txt[:2000])
+        context_text = '\n\n---\n\n'.join(ctx_parts)
+
+        if context_text:
+            prompt = f"Context:\n{context_text}\n\nQuestion: {query}\nAnswer:"
+        else:
+            prompt = query
+
+        def event_stream():
+            try:
+                # If backend is remote and supports streaming, we'd proxy it here. For now produce single message.
+                text = generate_prompt(prompt, max_length=max_length, stream=False)
+                # Emit a single message event with the full reply, then close
+                yield f"event: message\ndata: {json.dumps({'reply': text, 'retrieved': retrieved})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+            except Exception as e:
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+        return Response(event_stream(), mimetype='text/event-stream')
+
+
+    # --- Simple chat endpoints (sync + streaming) ---
+    @app.route('/chat/generate', methods=['POST'])
+    @require_api_key
+    def chat_generate():
+        data = request.get_json(force=True) or {}
+        prompt = data.get('prompt') or data.get('q') or ''
+        max_length = int(data.get('max_length', 200))
+        if not prompt:
+            return jsonify({'error': 'prompt required'}), 400
+        try:
+            # Use backend abstraction; non-streaming
+            resp = generate_prompt(prompt, max_length=max_length, stream=False)
+            # If remote returned a Response object unexpectedly, try to consume it
+            if hasattr(resp, 'text'):
+                text = resp.text
+            else:
+                text = str(resp)
+            return jsonify({'reply': text})
+        except Exception as e:
+            return jsonify({'error': 'generation failed', 'detail': str(e)}), 500
+
+
+    @app.route('/chat/stream', methods=['POST'])
+    @require_api_key
+    def chat_stream():
+        data = request.get_json(force=True) or {}
+        prompt = data.get('prompt') or data.get('q') or ''
+        max_length = int(data.get('max_length', 200))
+        if not prompt:
+            return jsonify({'error': 'prompt required'}), 400
+
+        def event_stream():
+            try:
+                # If remote backend supports streaming, proxy it
+                if backend_cfg.get('type') == 'remote':
+                    try:
+                        r = generate_via_remote(prompt, max_length=max_length, stream=True)
+                        # r is a requests.Response with stream=True
+                        for line in r.iter_lines(decode_unicode=True):
+                            if line is None:
+                                continue
+                            line = line.strip()
+                            if not line:
+                                continue
+                            # Try to forward as SSE message; if line is JSON, wrap it
+                            try:
+                                # Ensure proper JSON quoting
+                                yield f"event: message\ndata: {json.dumps({'chunk': line})}\n\n"
+                            except Exception:
+                                yield f"event: message\ndata: {json.dumps({'chunk': line})}\n\n"
+                        yield "event: done\ndata: {}\n\n"
+                        return
+                    except Exception:
+                        # fallback to local generation
+                        pass
+
+                # Local or fallback: produce single full reply
+                text = generate_prompt(prompt, max_length=max_length, stream=False)
+                yield f"event: message\ndata: {json.dumps({'reply': text})}\n\n"
+                yield "event: done\ndata: {}\n\n"
+            except Exception as e:
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+
+        return Response(event_stream(), mimetype='text/event-stream')
+
 
     # --- Monitor control endpoints ---
     # The monitor script created in tools/keep_services_*.ps1|sh writes logs to ../logs/service_monitor.log

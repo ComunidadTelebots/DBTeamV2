@@ -4,3 +4,7 @@ torch
 sentencepiece
 
 flask-cors
+sentence-transformers
+# Optional: FAISS is useful for large indexes; on many systems install `faiss-cpu` or use `chromadb`.
+# faiss-cpu  # Linux/macOS preferred; Windows support varies
+chromadb

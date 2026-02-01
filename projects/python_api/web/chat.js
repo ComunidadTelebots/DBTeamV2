@@ -16,6 +16,7 @@ document.addEventListener('DOMContentLoaded', function(){
   const messagesEl = document.getElementById('messages')
   const composeEl = document.getElementById('compose')
   const sendBtn = document.getElementById('sendMessage')
+  const sendRagBtn = document.getElementById('sendRag')
   const clearBtn = document.getElementById('clearChat')
   const sendAsEl = document.getElementById('sendAsChat')
   const deviceSelect = document.getElementById('deviceSelectChat')
@@ -247,6 +248,64 @@ document.addEventListener('DOMContentLoaded', function(){
   } else {
     console.warn('clearBtn missing or not an element:', clearBtn)
   }
+
+  // RAG streaming: send query to /ai/stream_rag_generate and parse SSE-like events from the response stream
+  async function streamRagQuery(base, query, top_k=4, max_length=250){
+    const url = base.replace(/\/$/, '') + '/ai/stream_rag_generate'
+    const headersObj = headers()
+    try{
+      const res = await fetch(url, { method: 'POST', headers: headersObj, body: JSON.stringify({ query, top_k, max_length }) })
+      if(!res.ok){ const t = await res.text(); throw new Error('Server error: '+t) }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buf = ''
+      // create placeholder message in UI
+      const holder = document.createElement('div'); holder.className='msg other'; holder.innerHTML = `<div style="font-size:0.85rem;color:var(--muted)">IA (RAG)</div><div id="rag_reply">...</div><div id="rag_sources" style="margin-top:8px;font-size:0.85rem;color:var(--muted)"></div>`
+      messagesEl.appendChild(holder); messagesEl.scrollTop = messagesEl.scrollHeight
+
+      while(true){
+        const { done, value } = await reader.read()
+        if(done) break
+        buf += decoder.decode(value, { stream: true })
+        // parse SSE events separated by double newline
+        let parts = buf.split('\n\n')
+        buf = parts.pop() || ''
+        for(const part of parts){
+          const lines = part.split('\n').map(l=>l.trim()).filter(Boolean)
+          let ev = 'message', d = ''
+          for(const ln of lines){
+            if(ln.startsWith('event:')) ev = ln.replace('event:','').trim()
+            else if(ln.startsWith('data:')) d += ln.replace('data:','').trim()
+          }
+          try{
+            if(ev === 'message'){
+              const obj = JSON.parse(d)
+              const reply = obj.reply || ''
+              const retrieved = obj.retrieved || []
+              const replyDiv = holder.querySelector('#rag_reply')
+              replyDiv.textContent = reply
+              const srcDiv = holder.querySelector('#rag_sources')
+              if(retrieved && retrieved.length){
+                srcDiv.innerHTML = '<strong>Fuentes:</strong>' + retrieved.slice(0,6).map(r=>`<div style="margin-top:6px">• <span style="font-weight:600">${escapeHtml(r.path||'')}</span> <span style="color:var(--muted)">(${(r.score||0).toFixed(3)})</span><div style="margin-top:4px;color:var(--text);font-size:0.95rem">${escapeHtml((r.doc||'').slice(0,300))}</div></div>`).join('')
+              }
+              messagesEl.scrollTop = messagesEl.scrollHeight
+            } else if(ev === 'error'){
+              const obj = JSON.parse(d||'{}')
+              holder.querySelector('#rag_reply').textContent = 'Error: '+(obj.error||'')
+            } else if(ev === 'done'){
+              // nothing for now
+            }
+          }catch(e){ console.error('Failed to parse SSE chunk', e, d) }
+        }
+      }
+    }catch(e){ alert('RAG query failed: '+e.message) }
+  }
+
+  if(sendRagBtn){ sendRagBtn.addEventListener('click', async ()=>{
+    const base = apiBaseEl.value.trim(); if(!base){ alert('Introduce API base'); return }
+    const q = composeEl.value.trim(); if(!q){ alert('Escribe una pregunta para la IA'); return }
+    try{ sendRagBtn.disabled = true; await streamRagQuery(base, q, 4, 250); }catch(e){ console.error(e) }finally{ sendRagBtn.disabled = false }
+  }) }
 
   // start polling
   (async ()=>{ await fetchDevices(); await refreshChats(); poll(); pollTimer = setInterval(poll, 1500) })()
