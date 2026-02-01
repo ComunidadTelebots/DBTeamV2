@@ -28,6 +28,26 @@ import signal
 import time
 import json
 import requests
+import random
+
+# Prefer importing modular helpers if available (non-destructive)
+try:
+    from python_api.rag_service import (
+        load_index as rs_load_index,
+        ensure_embedder as rs_ensure_embedder,
+        hybrid_retrieve as rs_hybrid_retrieve,
+        retrieve_embeddings as rs_retrieve_embeddings,
+    )
+except Exception:
+    rs_load_index = rs_ensure_embedder = rs_hybrid_retrieve = rs_retrieve_embeddings = None
+
+try:
+    from python_api.streaming import (
+        sse_event_generator as rs_sse_event_generator,
+        parse_sse_stream_lines as rs_parse_sse_stream_lines,
+    )
+except Exception:
+    rs_sse_event_generator = rs_parse_sse_stream_lines = None
 
 app = Flask(__name__)
 
@@ -237,6 +257,20 @@ def create_app(model_dir: str):
         'remote_key': os.environ.get('REMOTE_LLM_API_KEY')
     }
 
+    # Optional backend factory: try to use `python_api.backends` if present.
+    backend = None
+    try:
+        from python_api.backends import get_backend_from_cfg
+    except Exception:
+        get_backend_from_cfg = None
+
+    if get_backend_from_cfg is not None:
+        try:
+            # model_dir is available in this scope; get_gen provides local generator
+            backend = get_backend_from_cfg(backend_cfg, model_dir=model_dir, generator_getter=get_gen)
+        except Exception:
+            backend = None
+
     def generate_via_remote(prompt, max_length=150, stream=False):
         url = backend_cfg.get('remote_url')
         if not url:
@@ -267,6 +301,18 @@ def create_app(model_dir: str):
             raise RuntimeError(f'remote request error: {e}')
 
     def generate_prompt(prompt, max_length=150, stream=False):
+        # Prefer pluggable backend if available
+        if backend is not None:
+            try:
+                if stream:
+                    return backend.stream_generate(prompt, max_length=max_length)
+                else:
+                    return backend.generate(prompt, max_length=max_length)
+            except Exception:
+                # fall back to built-in remote/local handlers below
+                pass
+
+        # Existing behavior: use direct remote call if configured, else local pipeline
         btype = backend_cfg.get('type', 'local')
         if btype == 'remote':
             return generate_via_remote(prompt, max_length=max_length, stream=stream)
@@ -616,6 +662,122 @@ def create_app(model_dir: str):
         except Exception:
             return []
 
+
+    def hybrid_retrieve(meta, q_emb, query, top_k=5, alpha=0.6):
+        """
+        Hybrid retrieval: combine embedding similarity with TF-IDF similarity.
+        alpha controls weight for embeddings (0..1).
+        Returns list of {'path','doc','score','emb_score','tfidf_score'}
+        """
+        try:
+            import numpy as np
+        except Exception:
+            # fallback to pure embedding retrieval
+            base = retrieve_from_meta(meta, q_emb, top_k=top_k)
+            for it in base:
+                it['emb_score'] = it.get('score', 0.0)
+                it['tfidf_score'] = 0.0
+            return base
+
+        # get embedding scores for all docs
+        emb_results = []
+        try:
+            # reuse retrieve_from_meta's logic but request more candidates
+            cand = retrieve_from_meta(meta, q_emb, top_k=max(top_k * 3, 20))
+            # convert to index-based mapping if possible
+            emb_map = {}
+            for i, r in enumerate(cand):
+                # try to find the document index by matching path
+                path = r.get('path')
+                try:
+                    idx = meta.get('paths', []).index(path)
+                except Exception:
+                    idx = None
+                emb_map[idx] = float(r.get('score', 0.0))
+        except Exception:
+            emb_map = {}
+
+        docs = meta.get('docs') or []
+        texts = [d.get('text') if isinstance(d, dict) else str(d) for d in docs]
+
+        # compute TF-IDF matrix lazily and cache in meta
+        tfidf_vec = meta.get('_tfidf_vectorizer')
+        tfidf_mat = meta.get('_tfidf_matrix')
+        if tfidf_vec is None or tfidf_mat is None:
+            try:
+                from sklearn.feature_extraction.text import TfidfVectorizer
+                tfidf_vec = TfidfVectorizer(stop_words='english', max_features=20000)
+                tfidf_mat = tfidf_vec.fit_transform(texts)
+                meta['_tfidf_vectorizer'] = tfidf_vec
+                meta['_tfidf_matrix'] = tfidf_mat
+            except Exception:
+                tfidf_vec = None
+                tfidf_mat = None
+
+        tfidf_scores = None
+        if tfidf_vec is not None and tfidf_mat is not None:
+            try:
+                qv = tfidf_vec.transform([query])
+                # cosine similarity
+                from sklearn.metrics.pairwise import linear_kernel
+                sim = linear_kernel(qv, tfidf_mat).flatten()
+                tfidf_scores = sim
+            except Exception:
+                tfidf_scores = None
+
+        # build combined scores over all docs (limit to candidates if available)
+        results = []
+        N = len(texts)
+        # prepare normalization factors
+        emb_vals = np.array(list(emb_map.values())) if emb_map else np.array([0.0])
+        emb_max = float(np.max(emb_vals)) if emb_vals.size else 0.0
+        tfidf_max = float(tfidf_scores.max()) if tfidf_scores is not None and len(tfidf_scores) else 0.0
+
+        # Candidate indices: use union of emb_map keys and top tfidf indices
+        candidate_idxs = set(k for k in emb_map.keys() if k is not None)
+        if tfidf_scores is not None:
+            top_tfidf = list(np.argsort(-tfidf_scores)[: max(top_k * 5, 50)])
+            candidate_idxs.update(top_tfidf)
+
+        # fallback to first top_k indices if no candidates
+        if not candidate_idxs:
+            candidate_idxs = set(range(min(N, top_k)))
+
+        for idx in candidate_idxs:
+            if idx is None or idx < 0 or idx >= N:
+                continue
+            emb_s = float(emb_map.get(idx, 0.0))
+            tf_s = float(tfidf_scores[idx]) if (tfidf_scores is not None and idx < len(tfidf_scores)) else 0.0
+            # normalize
+            emb_norm = (emb_s / emb_max) if emb_max > 0 else emb_s
+            tf_norm = (tf_s / tfidf_max) if tfidf_max > 0 else tf_s
+            combined = alpha * emb_norm + (1.0 - alpha) * tf_norm
+            results.append({'path': meta.get('paths', [])[idx] if meta.get('paths') and idx < len(meta.get('paths')) else None,
+                            'doc': texts[idx], 'score': float(combined), 'emb_score': float(emb_s), 'tfidf_score': float(tf_s)})
+
+        # sort and return top_k
+        results = sorted(results, key=lambda x: -x.get('score', 0.0))[:top_k]
+        return results
+
+
+    # If modular implementations are available, prefer them (non-destructive override)
+    try:
+        if rs_load_index:
+            def load_rag_index():
+                return rs_load_index()
+        if rs_ensure_embedder:
+            def ensure_embedder(name='all-MiniLM-L6-v2'):
+                return rs_ensure_embedder(name)
+        if rs_hybrid_retrieve:
+            def hybrid_retrieve(meta, q_emb, query, top_k=5, alpha=0.6):
+                return rs_hybrid_retrieve(meta, q_emb, query, top_k=top_k, alpha=alpha)
+        if rs_retrieve_embeddings:
+            def retrieve_from_meta(meta, q_emb, top_k=5):
+                return rs_retrieve_embeddings(meta, q_emb, top_k=top_k)
+    except Exception:
+        # keep existing local implementations if any issue occurs
+        pass
+
     @app.route('/ai/rag_generate', methods=['POST'])
     @require_api_key
     def ai_rag_generate():
@@ -639,7 +801,8 @@ def create_app(model_dir: str):
         except Exception as e:
             return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
 
-        retrieved = retrieve_from_meta(meta, q_emb, top_k=top_k)
+        # use hybrid retriever (embeddings + TF-IDF)
+        retrieved = hybrid_retrieve(meta, q_emb, query, top_k=top_k)
 
         # assemble context from retrieved docs (limit size to avoid huge prompts)
         ctx_parts = []
@@ -700,7 +863,7 @@ def create_app(model_dir: str):
             q_emb = model.encode([q], normalize_embeddings=True)
         except Exception as e:
             return jsonify({'error': 'embedding failed', 'detail': str(e)}), 500
-        results = retrieve_from_meta(meta, q_emb, top_k=top_k)
+        results = hybrid_retrieve(meta, q_emb, q, top_k=top_k)
         return jsonify({'query': q, 'results': results})
 
     # --- Streaming SSE endpoint (simple wrapper around rag_generate) ---
@@ -794,18 +957,36 @@ def create_app(model_dir: str):
                     try:
                         r = generate_via_remote(prompt, max_length=max_length, stream=True)
                         # r is a requests.Response with stream=True
-                        for line in r.iter_lines(decode_unicode=True):
-                            if line is None:
-                                continue
-                            line = line.strip()
-                            if not line:
-                                continue
-                            # Try to forward as SSE message; if line is JSON, wrap it
-                            try:
-                                # Ensure proper JSON quoting
-                                yield f"event: message\ndata: {json.dumps({'chunk': line})}\n\n"
-                            except Exception:
-                                yield f"event: message\ndata: {json.dumps({'chunk': line})}\n\n"
+                        def iter_remote(resp):
+                            for raw in resp.iter_lines(decode_unicode=True):
+                                if raw is None:
+                                    continue
+                                line = raw.strip()
+                                if not line:
+                                    continue
+                                # Handle Server-Sent Events format: 'data: ...' or 'event: ...'
+                                if line.startswith('data:'):
+                                    payload = line[len('data:'):].strip()
+                                elif line.startswith('event:'):
+                                    # skip explicit event markers, next data: will follow
+                                    continue
+                                else:
+                                    payload = line
+                                # Try to parse JSON payload if present
+                                parsed = None
+                                try:
+                                    parsed = json.loads(payload)
+                                except Exception:
+                                    parsed = None
+                                if isinstance(parsed, dict):
+                                    # forward structured chunk
+                                    yield json.dumps(parsed)
+                                else:
+                                    # forward raw text chunk
+                                    yield json.dumps({'chunk': payload})
+
+                        for forwarded in iter_remote(r):
+                            yield f"event: message\ndata: {forwarded}\n\n"
                         yield "event: done\ndata: {}\n\n"
                         return
                     except Exception:
@@ -820,6 +1001,68 @@ def create_app(model_dir: str):
                 yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
         return Response(event_stream(), mimetype='text/event-stream')
+
+
+    @app.route('/openclaw/generate', methods=['POST'])
+    @require_api_key
+    def openclaw_generate():
+        """Minimal OpenClaw-like proxy endpoint.
+
+        - If a backend is configured and supports streaming, proxies token chunks via SSE.
+        - Falls back to remote backend via `generate_via_remote` or local `generate_prompt`.
+        This is intentionally non-destructive and uses existing backend plumbing.
+        """
+        data = request.get_json(force=True) or {}
+        prompt = data.get('prompt') or data.get('q') or ''
+        max_length = int(data.get('max_length', 200))
+        stream = bool(data.get('stream', False))
+        if not prompt:
+            return jsonify({'error': 'prompt required'}), 400
+
+        try:
+            # Prefer pluggable backend
+            if backend is not None:
+                if stream:
+                    it = None
+                    try:
+                        it = backend.stream_generate(prompt, max_length=max_length)
+                    except Exception:
+                        it = None
+                    if it is not None:
+                        def sse_it():
+                            for chunk in it:
+                                yield f"event: message\ndata: {json.dumps({'chunk': chunk})}\n\n"
+                            yield "event: done\ndata: {}\n\n"
+                        return Response(sse_it(), mimetype='text/event-stream')
+                    # fallback to single reply
+                    text = backend.generate(prompt, max_length=max_length)
+                    return jsonify({'reply': text})
+
+            # If configured remote backend and streaming requested, proxy raw lines
+            if backend_cfg.get('type') == 'remote' and stream:
+                r = generate_via_remote(prompt, max_length=max_length, stream=True)
+                # stream response lines as SSE
+                def proxy_lines():
+                    for raw in r.iter_lines(decode_unicode=True):
+                        if raw is None:
+                            continue
+                        line = raw.strip()
+                        if not line:
+                            continue
+                        # normalize common SSE formats
+                        if line.startswith('data:'):
+                            payload = line[len('data:'):].strip()
+                        else:
+                            payload = line
+                        yield f"event: message\ndata: {json.dumps({'chunk': payload})}\n\n"
+                    yield "event: done\ndata: {}\n\n"
+                return Response(proxy_lines(), mimetype='text/event-stream')
+
+            # final fallback: generate locally (may be blocking)
+            text = generate_prompt(prompt, max_length=max_length, stream=False)
+            return jsonify({'reply': text})
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
 
     # --- Monitor control endpoints ---

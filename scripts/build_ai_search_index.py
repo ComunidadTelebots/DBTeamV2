@@ -111,25 +111,108 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--root', default='.', help='Repository root')
     parser.add_argument('--out', default=str(OUT_PATH_FAISS))
-    parser.add_argument('--model', default='all-MiniLM-L6-v2')
+    parser.add_argument('--model', default='all-MiniLM-L6-v2', help='Sentence-transformers model name or local path')
+    parser.add_argument('--hf-token', default=None, help='Hugging Face token (or set HUGGINGFACE_HUB_TOKEN env var)')
+    parser.add_argument('--faiss-out', default='', help='Optional path to write serialized FAISS bytes')
+    parser.add_argument('--incremental', action='store_true', help='Append to existing index if present')
+    parser.add_argument('--max-files', type=int, default=0, help='Limit number of files processed (0 = all)')
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
     print('Collecting files...')
     paths, docs = collect_files(root)
-    print(f'Collected {len(docs)} documents')
+    if args.max_files and len(docs) > args.max_files:
+        print(f'Limiting to first {args.max_files} document chunks (of {len(docs)})')
+        paths = paths[:args.max_files]
+        docs = docs[:args.max_files]
+    print(f'Collected {len(docs)} document chunks')
 
     # Try embeddings flow first
-    meta = build_with_embeddings(paths, docs, model_name=args.model)
+    # Export HF token if provided
+    hf_token = args.hf_token or os.environ.get('HUGGINGFACE_HUB_TOKEN') or os.environ.get('HF_TOKEN')
+    if hf_token:
+        os.environ['HUGGINGFACE_HUB_TOKEN'] = hf_token
+
+    meta = None
+
+    # If incremental and existing index exists, try to load and append
+    if args.incremental and OUT_PATH_FAISS.exists():
+        try:
+            with open(str(OUT_PATH_FAISS), 'rb') as fh:
+                existing = pickle.load(fh)
+            print('Loaded existing index for incremental update')
+            # find new docs not in existing.paths
+            existing_paths = existing.get('paths', [])
+            new_items = []
+            new_paths = []
+            for p, d in zip(paths, docs):
+                if p not in existing_paths:
+                    new_paths.append(p)
+                    new_items.append(d)
+            if new_items:
+                print(f'Found {len(new_items)} new chunks to append')
+                new_meta = build_with_embeddings(new_paths, new_items, model_name=args.model)
+                if new_meta is not None:
+                    try:
+                        import numpy as _np
+                        emb_existing = existing.get('embeddings')
+                        emb_new = new_meta.get('embeddings')
+                        if emb_existing is None:
+                            emb_combined = emb_new
+                        else:
+                            emb_combined = _np.vstack([emb_existing, emb_new])
+                        existing['embeddings'] = emb_combined
+                        existing['paths'] = existing.get('paths', []) + new_meta.get('paths', [])
+                        existing['docs'] = existing.get('docs', []) + new_meta.get('docs', [])
+                        # rebuild FAISS index from combined embeddings if faiss bytes present
+                        try:
+                            import faiss
+                            dim = emb_combined.shape[1]
+                            idx = faiss.IndexFlatIP(dim)
+                            idx.add(emb_combined)
+                            existing['faiss_index_bytes'] = faiss.serialize_index(idx)
+                        except Exception:
+                            pass
+                        meta = existing
+                    except Exception as e:
+                        print('Failed to merge embeddings for incremental update:', e)
+                        meta = None
+                else:
+                    print('Failed to compute embeddings for new items; skipping incremental')
+            else:
+                print('No new items to append; using existing index')
+                meta = existing
+        except Exception as e:
+            print('Could not load existing index for incremental mode:', e)
+
+    if meta is None:
+        meta = build_with_embeddings(paths, docs, model_name=args.model)
     if meta is not None:
+        # Ensure embeddings numpy arrays are standard Python types for pickle
+        try:
+            # convert numpy arrays to ndarray of float32 if present
+            import numpy as _np
+            if isinstance(meta.get('embeddings'), _np.ndarray):
+                meta['embeddings'] = meta['embeddings'].astype('float32')
+        except Exception:
+            pass
+
         with open(args.out, 'wb') as fh:
             pickle.dump(meta, fh)
         # write legacy minimal index as well
-        legacy = {'paths': paths, 'docs': docs}
+        legacy = {'paths': meta.get('paths', paths), 'docs': meta.get('docs', docs)}
         with open(str(OUT_PATH_LEGACY), 'wb') as fh:
             pickle.dump(legacy, fh)
         print('Saved embeddings index to', args.out)
         print('Saved legacy index to', OUT_PATH_LEGACY)
+        # optionally write faiss bytes to a separate file
+        if args.faiss_out and meta.get('faiss_index_bytes'):
+            try:
+                with open(args.faiss_out, 'wb') as fh:
+                    fh.write(meta.get('faiss_index_bytes'))
+                print('Saved faiss bytes to', args.faiss_out)
+            except Exception as e:
+                print('Failed to write faiss bytes to faiss_out:', e)
         return
 
     # fallback to TF-IDF
