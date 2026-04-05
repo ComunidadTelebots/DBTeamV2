@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MTProxy Stats</title>
+  <style>
+    body{font-family:Segoe UI,Arial,sans-serif;padding:18px}
+    pre{background:#f6f8fa;padding:12px;border-radius:6px;overflow:auto}
+    .status-ok{color:green}
+    .status-fail{color:crimson}
+  </style>
+</head>
+<body>
+  <h1>MTProxy - Estadísticas</h1>
+  <p>Esta página consulta <code>/mtproxy/stats</code> en el servidor actual.</p>
+  <div id="info">Cargando...</div>
+  <pre id="json">{}</pre>
+  <script>
+    async function update(){
+      try{
+        const r = await fetch('/mtproxy/stats');
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        const j = await r.json();
+        document.getElementById('json').textContent = JSON.stringify(j, null, 2);
+        document.getElementById('info').innerHTML = j.status === 'ok' ? '<span class="status-ok">OK</span>' : '<span class="status-fail">ERROR</span>';
+      }catch(e){
+        document.getElementById('json').textContent = String(e);
+        document.getElementById('info').innerHTML = '<span class="status-fail">No disponible</span>';
+      }
+    }
+    update();
+    setInterval(update, 5000);
+  </script>
+</body>
+</html>

@@ -187,6 +187,28 @@
   <div class="wrap">
     <h1>Panel Owner</h1>
     <p style="color:var(--muted);margin-top:6px">Gestiona usuarios, bots y consulta parámetros clave de la API.</p>
+    <!-- MTProxy stats quick panel -->
+    <section class="card" style="margin:18px 0;padding:12px;" id="mtproxy-owner-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 style="margin:0">MTProxy - Estadísticas</h2>
+        <div>
+          <button id="openMtproxyOwnerBtn" class="secondary">Abrir en nueva pestaña</button>
+          <button id="toggleMtproxyOwnerBtn" class="ghost">Mostrar/ocultar</button>
+        </div>
+      </div>
+      <div id="mtproxyOwnerPanel" style="display:none;margin-top:12px">
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="flex:1;min-width:320px">
+            <h3>Servidores MTProto</h3>
+            <div id="mtproxyOwnerList">Cargando...</div>
+            <button id="addMtproxyOwnerBtn" class="btn" style="margin-top:8px">Añadir servidor</button>
+          </div>
+          <div style="flex:2">
+            <iframe id="mtproxyOwnerIframe" src="/mtproxy.html" style="width:100%;height:360px;border:0;border-radius:8px;background:#fff"></iframe>
+          </div>
+        </div>
+      </div>
+    </section>
     <div class="panel-row">
       <div class="panel-col">
         <section class="card" style="margin-bottom:18px">
@@ -243,6 +265,79 @@
       }
     }
     cargarAnunciosPublicados();
+    </script>
+
+    <script>
+      document.getElementById('toggleMtproxyOwnerBtn').addEventListener('click', function(){
+        const p = document.getElementById('mtproxyOwnerPanel');
+        if (!p) return;
+        p.style.display = p.style.display === 'none' ? 'block' : 'none';
+      });
+      document.getElementById('openMtproxyOwnerBtn').addEventListener('click', function(){
+        window.open('/mtproxy.html', '_blank');
+      });
+
+      // MTProxy servers management
+      (function(){
+        const listEl = document.getElementById('mtproxyOwnerList');
+        const iframe = document.getElementById('mtproxyOwnerIframe');
+        const ownerIdKey = 'ownerId';
+        function ownerId(){
+          let id = localStorage.getItem(ownerIdKey);
+          if (!id){ id = 'owner-'+Math.random().toString(36).slice(2,9); localStorage.setItem(ownerIdKey,id); }
+          return id;
+        }
+        async function load(){
+          listEl.innerHTML = 'Cargando...';
+          try{
+            const res = await fetch('/mtproxy/servers?owner_id='+encodeURIComponent(ownerId()));
+            const j = await res.json();
+            const servers = j.servers || [];
+            if (!servers.length) listEl.innerHTML = '<div style="color:var(--muted)">No hay servidores registrados.</div>';
+            else{
+              listEl.innerHTML = '';
+              for (const s of servers){
+                const el = document.createElement('div');
+                el.style.padding='8px'; el.style.border='1px solid #2b2b2b'; el.style.marginBottom='8px'; el.style.borderRadius='8px';
+                el.innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><div><b>${s.name||'mtproto'}</b><div style="font-size:0.9rem;color:var(--muted)">${s.host||''}:${s.port||''} ${s.stats_url?('(stats)'):''}</div></div><div style="display:flex;gap:6px"><button data-id="${s.id}" class="viewBtn">Ver</button><button data-id="${s.id}" class="editBtn">Editar</button><button data-id="${s.id}" class="delBtn ghost">Eliminar</button></div></div>`;
+                listEl.appendChild(el);
+              }
+              listEl.querySelectorAll('.viewBtn').forEach(b=>b.addEventListener('click', async e=>{
+                const id = e.currentTarget.dataset.id;
+                iframe.src = '/mtproxy.html?server_id='+encodeURIComponent(id);
+              }));
+              listEl.querySelectorAll('.delBtn').forEach(b=>b.addEventListener('click', async e=>{
+                const id = e.currentTarget.dataset.id;
+                if (!confirm('Eliminar servidor?')) return;
+                await fetch('/mtproxy/servers/'+encodeURIComponent(id), { method: 'DELETE' });
+                load();
+              }));
+              listEl.querySelectorAll('.editBtn').forEach(b=>b.addEventListener('click', async e=>{
+                const id = e.currentTarget.dataset.id;
+                const res = await fetch('/mtproxy/servers?owner_id='+encodeURIComponent(ownerId()));
+                const j = await res.json();
+                const s = (j.servers||[]).find(x=>x.id===id);
+                if (!s) return alert('No encontrado');
+                const name = prompt('Nombre', s.name||'mtproto');
+                const host = prompt('Host', s.host||'');
+                const port = prompt('Port', s.port||'443');
+                const stats = prompt('Stats URL (opcional)', s.stats_url||'');
+                await fetch('/mtproxy/servers/'+encodeURIComponent(id), { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,host,port:parseInt(port||0)||0,stats_url:stats,owner_id:ownerId()}) });
+                load();
+              }));
+            }
+          }catch(e){ listEl.innerHTML = '<div style="color:#f44">Error cargando.</div>'; }
+        }
+        document.getElementById('addMtproxyOwnerBtn').addEventListener('click', async function(){
+          const name = prompt('Nombre del servidor','mtproto'); if (name===null) return;
+          const host = prompt('Host','127.0.0.1'); if (host===null) return;
+          const port = prompt('Port','443'); if (port===null) return;
+          const stats = prompt('Stats URL (opcional)','');
+          await fetch('/mtproxy/servers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,host,port:parseInt(port)||0,stats_url:stats,owner_id:ownerId()})});
+          load();
+        });
+        load();
+      })();
     </script>
 
     <!-- NUEVO BLOQUE DE CREACIÓN DE USUARIOS Y ADMINISTRADORES -->
